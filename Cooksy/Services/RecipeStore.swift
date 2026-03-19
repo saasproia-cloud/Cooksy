@@ -1,0 +1,536 @@
+import Combine
+import Foundation
+
+@MainActor
+final class RecipeStore: ObservableObject {
+    @Published private(set) var recipes: [Recipe] = []
+    @Published private(set) var books: [RecipeBook] = []
+    @Published private(set) var shoppingItems: [ShoppingItem] = []
+    @Published private(set) var mealPlanEntries: [MealPlanEntry] = []
+
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private let fileManager: FileManager
+    private let mealPlanCalendar: Calendar
+    private var shoppingImageLookupsInFlight = Set<ShoppingItem.ID>()
+    private var shoppingImageLastAttemptAt: [ShoppingItem.ID: Date] = [:]
+
+    init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+
+        var mealPlanCalendar = Calendar(identifier: .gregorian)
+        mealPlanCalendar.locale = Locale(identifier: "fr_FR")
+        mealPlanCalendar.firstWeekday = 2
+        self.mealPlanCalendar = mealPlanCalendar
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        self.encoder = encoder
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        self.decoder = decoder
+
+        load()
+        scheduleShoppingImageEnrichment(for: shoppingItems.map(\.id))
+    }
+
+    var uncategorizedBookID: RecipeBook.ID? {
+        books.first(where: { $0.kind == .uncategorized })?.id
+    }
+
+    func recipe(withID id: Recipe.ID) -> Recipe? {
+        recipes.first(where: { $0.id == id })
+    }
+
+    func book(withID id: RecipeBook.ID?) -> RecipeBook? {
+        guard let id else { return nil }
+        return books.first(where: { $0.id == id })
+    }
+
+    @discardableResult
+    func createBook(title: String) -> RecipeBook? {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return nil }
+
+        let book = RecipeBook(title: trimmedTitle, previewStyle: .neutral)
+        books.append(book)
+        save()
+        return book
+    }
+
+    func addRecipe(_ recipe: Recipe, to destinationBookID: RecipeBook.ID? = nil) {
+        let destinationID = destinationBookID ?? uncategorizedBookID
+        var storedRecipe = recipe
+        storedRecipe.bookID = destinationID
+        recipes.insert(storedRecipe, at: 0)
+        attach(recipeID: storedRecipe.id, to: destinationID)
+        save()
+    }
+
+    func updateRecipe(_ recipe: Recipe, movingTo destinationBookID: RecipeBook.ID? = nil) {
+        guard let index = recipes.firstIndex(where: { $0.id == recipe.id }) else {
+            addRecipe(recipe, to: destinationBookID)
+            return
+        }
+
+        let existingRecipe = recipes[index]
+        let destinationID = destinationBookID ?? recipe.bookID ?? uncategorizedBookID
+
+        var updatedRecipe = recipe
+        updatedRecipe.bookID = destinationID
+        updatedRecipe.createdAt = existingRecipe.createdAt
+        updatedRecipe.updatedAt = .now
+
+        recipes[index] = updatedRecipe
+        attach(recipeID: updatedRecipe.id, to: destinationID)
+        save()
+    }
+
+    func deleteRecipe(id: Recipe.ID) {
+        guard let recipe = recipe(withID: id) else { return }
+
+        if let heroImageURL = recipe.heroImageURL, heroImageURL.isFileURL {
+            try? fileManager.removeItem(at: heroImageURL)
+        }
+
+        recipes.removeAll { $0.id == id }
+
+        for index in books.indices {
+            books[index].recipeIDs.removeAll { $0 == id }
+        }
+
+        mealPlanEntries.removeAll { $0.recipeID == id }
+        save()
+    }
+
+    func storeImageData(_ data: Data, for recipeID: Recipe.ID) -> URL? {
+        let imagesDirectory = storageURL.deletingLastPathComponent().appendingPathComponent("Images", isDirectory: true)
+        let fileURL = imagesDirectory.appendingPathComponent("\(recipeID.uuidString).jpg")
+
+        do {
+            try fileManager.createDirectory(
+                at: imagesDirectory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            try data.write(to: fileURL, options: [.atomic])
+            return fileURL
+        } catch {
+            assertionFailure("Unable to store recipe image: \(error)")
+            return nil
+        }
+    }
+
+    @discardableResult
+    func replaceRecipeImage(id: Recipe.ID, with data: Data) -> URL? {
+        guard let index = recipes.firstIndex(where: { $0.id == id }) else { return nil }
+
+        if let existingURL = recipes[index].heroImageURL, existingURL.isFileURL {
+            try? fileManager.removeItem(at: existingURL)
+        }
+
+        guard let fileURL = storeImageData(data, for: id) else { return nil }
+
+        recipes[index].heroImageURL = fileURL
+        recipes[index].heroStyle = .ocean
+        recipes[index].updatedAt = .now
+        save()
+        return fileURL
+    }
+
+    func recipes(in book: RecipeBook) -> [Recipe] {
+        recipes.filter { book.recipeIDs.contains($0.id) }
+    }
+
+    @discardableResult
+    func addShoppingItems(from rawText: String) -> [ShoppingItem] {
+        let parsedItems = ShoppingCatalog.parseItems(from: rawText)
+        guard !parsedItems.isEmpty else { return [] }
+
+        let newItems = parsedItems.map { parsedItem in
+            ShoppingItem(
+                article: parsedItem.article,
+                quantity: parsedItem.quantity,
+                category: parsedItem.category
+            )
+        }
+
+        shoppingItems.append(contentsOf: newItems)
+        save()
+        scheduleShoppingImageEnrichment(for: newItems.map(\.id))
+        return newItems
+    }
+
+    @discardableResult
+    func addShoppingItems(from ingredientLines: [String]) -> [ShoppingItem] {
+        addShoppingItems(from: ingredientLines.joined(separator: "\n"))
+    }
+
+    func updateShoppingItem(
+        id: ShoppingItem.ID,
+        article: String,
+        quantity: String,
+        category: ShoppingCategory
+    ) {
+        guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return }
+
+        shoppingItems[index].article = ShoppingCatalog.displayArticle(for: article)
+        shoppingItems[index].quantity = quantity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil
+            : quantity.trimmingCharacters(in: .whitespacesAndNewlines)
+        shoppingItems[index].category = category
+        shoppingItems[index].remoteImageURLString = nil
+        shoppingItems[index].updatedAt = .now
+        save()
+        shoppingImageLastAttemptAt[id] = nil
+        scheduleShoppingImageEnrichment(for: [id])
+    }
+
+    func toggleShoppingItemCompletion(id: ShoppingItem.ID) {
+        guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return }
+
+        shoppingItems[index].isCompleted.toggle()
+        shoppingItems[index].updatedAt = .now
+        save()
+    }
+
+    func deleteShoppingItem(id: ShoppingItem.ID) {
+        shoppingItems.removeAll { $0.id == id }
+        shoppingImageLookupsInFlight.remove(id)
+        shoppingImageLastAttemptAt[id] = nil
+        save()
+    }
+
+    func clearCompletedShoppingItems() {
+        let completedIDs = shoppingItems.filter(\.isCompleted).map(\.id)
+        shoppingItems.removeAll { $0.isCompleted }
+        completedIDs.forEach {
+            shoppingImageLookupsInFlight.remove($0)
+            shoppingImageLastAttemptAt[$0] = nil
+        }
+        save()
+    }
+
+    func clearShoppingItems() {
+        shoppingItems.removeAll()
+        shoppingImageLookupsInFlight.removeAll()
+        shoppingImageLastAttemptAt.removeAll()
+        save()
+    }
+
+    func addMealPlanRecipe(recipeID: Recipe.ID, for day: Date, meal mealKind: MealPlanEntry.MealKind? = nil) {
+        let normalizedDay = mealPlanCalendar.startOfDay(for: day)
+        let targetMeal = mealKind ?? nextAvailableMealKind(on: normalizedDay)
+
+        guard let targetMeal else { return }
+
+        if let existingIndex = mealPlanEntries.firstIndex(where: {
+            mealPlanCalendar.isDate($0.dayDate, inSameDayAs: normalizedDay) && $0.resolvedMealKind == targetMeal
+        }) {
+            guard mealPlanEntries[existingIndex].recipeID != recipeID else { return }
+            mealPlanEntries[existingIndex].recipeID = recipeID
+            mealPlanEntries[existingIndex].mealKind = targetMeal
+            mealPlanEntries[existingIndex].createdAt = .now
+        } else {
+            mealPlanEntries.append(
+                MealPlanEntry(dayDate: normalizedDay, recipeID: recipeID, mealKind: targetMeal)
+            )
+        }
+
+        save()
+    }
+
+    func removeMealPlanRecipe(recipeID: Recipe.ID, from day: Date) {
+        let normalizedDay = mealPlanCalendar.startOfDay(for: day)
+        mealPlanEntries.removeAll {
+            $0.recipeID == recipeID && mealPlanCalendar.isDate($0.dayDate, inSameDayAs: normalizedDay)
+        }
+        save()
+    }
+
+    func removeMealPlanRecipe(from day: Date, meal mealKind: MealPlanEntry.MealKind) {
+        let normalizedDay = mealPlanCalendar.startOfDay(for: day)
+        mealPlanEntries.removeAll {
+            mealPlanCalendar.isDate($0.dayDate, inSameDayAs: normalizedDay) && $0.resolvedMealKind == mealKind
+        }
+        save()
+    }
+
+    func clearMealPlanRecipes(inWeekStartingAt weekStart: Date, calendar: Calendar) {
+        let normalizedWeekStart = calendar.startOfDay(for: weekStart)
+        guard let weekEnd = calendar.date(byAdding: .day, value: 6, to: normalizedWeekStart) else { return }
+
+        mealPlanEntries.removeAll { entry in
+            let day = calendar.startOfDay(for: entry.dayDate)
+            return day >= normalizedWeekStart && day <= weekEnd
+        }
+        save()
+    }
+
+    private func attach(recipeID: Recipe.ID, to bookID: RecipeBook.ID?) {
+        guard let bookID else { return }
+
+        for index in books.indices {
+            books[index].recipeIDs.removeAll { $0 == recipeID }
+        }
+
+        guard let destinationIndex = books.firstIndex(where: { $0.id == bookID }) else { return }
+        books[destinationIndex].recipeIDs.insert(recipeID, at: 0)
+    }
+
+    private func load() {
+        guard
+            let data = try? Data(contentsOf: storageURL),
+            let snapshot = try? decoder.decode(LibrarySnapshot.self, from: data)
+        else {
+            seedLibrary()
+            return
+        }
+
+        recipes = snapshot.recipes
+        books = snapshot.books
+        shoppingItems = snapshot.shoppingItems
+        mealPlanEntries = snapshot.mealPlanEntries
+        migrateMealPlanEntriesIfNeeded()
+    }
+
+    private func seedLibrary() {
+        let uncategorizedBookID = UUID()
+        let sampleRecipeID = UUID()
+
+        let sampleRecipe = Recipe(
+            id: sampleRecipeID,
+            title: "Tarte au chocolat, praline et grue de cacao",
+            sourceURL: URL(string: "https://www.tiktok.com/@cooksy/video/demo"),
+            heroStyle: .warmCocoa,
+            ingredients: [
+                RecipeIngredient(amount: "200", unit: "g", name: "farine"),
+                RecipeIngredient(amount: "100", unit: "g", name: "beurre"),
+                RecipeIngredient(amount: "70", unit: "g", name: "sucre glace"),
+                RecipeIngredient(amount: "1", unit: nil, name: "oeuf")
+            ],
+            steps: [
+                RecipeStep(title: "Base", detail: "Melangez les ingredients secs puis sablez avec le beurre."),
+                RecipeStep(title: "Cuisson", detail: "Cuisez le fond de tarte puis ajoutez la ganache praline.")
+            ],
+            notes: "Recette de demonstration pour le MVP.",
+            bookID: uncategorizedBookID
+        )
+
+        recipes = [sampleRecipe]
+        books = [
+            RecipeBook(
+                id: uncategorizedBookID,
+                title: "Non classees",
+                kind: .uncategorized,
+                previewStyle: .featured,
+                recipeIDs: [sampleRecipeID]
+            ),
+            RecipeBook(
+                title: "Diner",
+                kind: .collection,
+                previewStyle: .neutral,
+                recipeIDs: []
+            )
+        ]
+        shoppingItems = []
+        mealPlanEntries = []
+
+        save()
+    }
+
+    private func save() {
+        do {
+            let snapshot = LibrarySnapshot(
+                recipes: recipes,
+                books: books,
+                shoppingItems: shoppingItems,
+                mealPlanEntries: mealPlanEntries
+            )
+            let data = try encoder.encode(snapshot)
+
+            let directory = storageURL.deletingLastPathComponent()
+            try fileManager.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            try data.write(to: storageURL, options: [.atomic])
+        } catch {
+            assertionFailure("Unable to save library snapshot: \(error)")
+        }
+    }
+
+    private var storageURL: URL {
+        let baseDirectory =
+            fileManager.containerURL(forSecurityApplicationGroupIdentifier: SharedLinkInbox.appGroupID) ??
+            fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+
+        return baseDirectory
+            .appendingPathComponent("Cooksy", isDirectory: true)
+            .appendingPathComponent("library.json")
+    }
+
+    private func nextAvailableMealKind(on day: Date) -> MealPlanEntry.MealKind? {
+        let occupiedMeals = Set(
+            mealPlanEntries
+                .filter { mealPlanCalendar.isDate($0.dayDate, inSameDayAs: day) }
+                .map(\.resolvedMealKind)
+        )
+
+        return MealPlanEntry.MealKind.allCases.first { !occupiedMeals.contains($0) }
+    }
+
+    private func migrateMealPlanEntriesIfNeeded() {
+        let groupedEntries = Dictionary(grouping: mealPlanEntries) { entry in
+            mealPlanCalendar.startOfDay(for: entry.dayDate)
+        }
+
+        var normalizedEntries: [MealPlanEntry] = []
+        var didChange = false
+
+        for day in groupedEntries.keys.sorted() {
+            let sortedEntries = groupedEntries[day, default: []]
+                .sorted { lhs, rhs in
+                    if lhs.createdAt == rhs.createdAt {
+                        return lhs.id.uuidString < rhs.id.uuidString
+                    }
+                    return lhs.createdAt < rhs.createdAt
+                }
+
+            var occupiedMeals = Set<MealPlanEntry.MealKind>()
+
+            for var entry in sortedEntries {
+                if entry.dayDate != day {
+                    entry.dayDate = day
+                    didChange = true
+                }
+
+                if let mealKind = entry.mealKind, !occupiedMeals.contains(mealKind) {
+                    occupiedMeals.insert(mealKind)
+                    normalizedEntries.append(entry)
+                    continue
+                }
+
+                guard let fallbackMeal = MealPlanEntry.MealKind.allCases.first(where: { !occupiedMeals.contains($0) }) else {
+                    didChange = true
+                    continue
+                }
+
+                entry.mealKind = fallbackMeal
+                occupiedMeals.insert(fallbackMeal)
+                normalizedEntries.append(entry)
+                didChange = true
+            }
+        }
+
+        normalizedEntries.sort { lhs, rhs in
+            let leftDay = mealPlanCalendar.startOfDay(for: lhs.dayDate)
+            let rightDay = mealPlanCalendar.startOfDay(for: rhs.dayDate)
+
+            if leftDay == rightDay {
+                return lhs.resolvedMealKind.sortOrder < rhs.resolvedMealKind.sortOrder
+            }
+
+            return leftDay < rightDay
+        }
+
+        guard didChange || normalizedEntries != mealPlanEntries else { return }
+        mealPlanEntries = normalizedEntries
+        save()
+    }
+
+    private func scheduleShoppingImageEnrichment(for ids: [ShoppingItem.ID]) {
+        guard CooksyBackendService.isAvailable else { return }
+
+        let now = Date()
+        let retryDelay: TimeInterval = 300
+
+        let itemsToEnrich = ids.compactMap { id -> ShoppingItem? in
+            guard let item = shoppingItems.first(where: { $0.id == id }) else { return nil }
+            guard item.remoteImageURL == nil else { return nil }
+            guard !shoppingImageLookupsInFlight.contains(id) else { return nil }
+
+            if
+                let lastAttemptAt = shoppingImageLastAttemptAt[id],
+                now.timeIntervalSince(lastAttemptAt) < retryDelay
+            {
+                return nil
+            }
+
+            shoppingImageLookupsInFlight.insert(id)
+            shoppingImageLastAttemptAt[id] = now
+            return item
+        }
+
+        guard !itemsToEnrich.isEmpty else { return }
+
+        Task {
+            do {
+                let enrichedImages = try await CooksyBackendService.enrichShoppingItems(itemsToEnrich)
+
+                for item in itemsToEnrich {
+                    shoppingImageLookupsInFlight.remove(item.id)
+                }
+
+                var didUpdate = false
+                for (id, imageURL) in enrichedImages {
+                    guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { continue }
+                    guard shoppingItems[index].remoteImageURLString != imageURL.absoluteString else { continue }
+                    shoppingItems[index].remoteImageURLString = imageURL.absoluteString
+                    didUpdate = true
+                }
+
+                if didUpdate {
+                    save()
+                }
+            } catch {
+                for item in itemsToEnrich {
+                    shoppingImageLookupsInFlight.remove(item.id)
+                }
+            }
+        }
+    }
+}
+
+private struct LibrarySnapshot: Codable {
+    var recipes: [Recipe]
+    var books: [RecipeBook]
+    var shoppingItems: [ShoppingItem]
+    var mealPlanEntries: [MealPlanEntry]
+
+    init(
+        recipes: [Recipe],
+        books: [RecipeBook],
+        shoppingItems: [ShoppingItem] = [],
+        mealPlanEntries: [MealPlanEntry] = []
+    ) {
+        self.recipes = recipes
+        self.books = books
+        self.shoppingItems = shoppingItems
+        self.mealPlanEntries = mealPlanEntries
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        recipes = try container.decode([Recipe].self, forKey: .recipes)
+        books = try container.decode([RecipeBook].self, forKey: .books)
+        shoppingItems = try container.decodeIfPresent([ShoppingItem].self, forKey: .shoppingItems) ?? []
+        mealPlanEntries = try container.decodeIfPresent([MealPlanEntry].self, forKey: .mealPlanEntries) ?? []
+    }
+}
+
+private extension MealPlanEntry.MealKind {
+    var sortOrder: Int {
+        switch self {
+        case .breakfast:
+            return 0
+        case .lunch:
+            return 1
+        case .dinner:
+            return 2
+        }
+    }
+}

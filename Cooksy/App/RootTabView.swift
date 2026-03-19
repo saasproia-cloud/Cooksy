@@ -1,0 +1,580 @@
+import SwiftUI
+
+private enum AppTab: Hashable {
+    case recipes
+    case plan
+    case courses
+    case more
+}
+
+struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var recipeStore: RecipeStore
+
+    let sharedLinkInbox: SharedLinkInbox
+
+    @State private var selection: AppTab = .recipes
+    @State private var showsQuickImportSheet = false
+    @State private var isProcessingSharedImport = false
+    @State private var currentSharedImportHostLabel = ""
+    @State private var sharedImportSeed: RecipeEditorSeed?
+    @State private var lastDeferredSharedImportKey: String?
+    @State private var sharedImportErrorMessage = ""
+    @State private var showsSharedImportError = false
+    @State private var savedImportedRecipeRoute: SavedImportedRecipeRoute?
+    @State private var showsLaunchSplash = true
+    @State private var launchSplashHasEntered = false
+    @State private var launchSplashIsLeaving = false
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selection) {
+                NavigationStack {
+                    HomeView(store: recipeStore, sharedLinkInbox: sharedLinkInbox)
+                }
+                .tabItem {
+                    Label("Recettes", systemImage: "bookmark.fill")
+                }
+                .tag(AppTab.recipes)
+
+                NavigationStack {
+                    MealPlanView(store: recipeStore)
+                }
+                .tabItem {
+                    Label("Plan", systemImage: "calendar")
+                }
+                .tag(AppTab.plan)
+
+                NavigationStack {
+                    ShoppingListView(store: recipeStore)
+                }
+                .tabItem {
+                    Label("Courses", systemImage: "cart")
+                }
+                .tag(AppTab.courses)
+
+                NavigationStack {
+                    PlaceholderView(
+                        title: "Plus",
+                        message: "Cette section accueillera les reglages, l'aide et les integrations.",
+                        systemImage: "line.3.horizontal"
+                    )
+                }
+                .tabItem {
+                    Label("Plus", systemImage: "line.3.horizontal")
+                }
+                .tag(AppTab.more)
+            }
+
+            if selection == .recipes {
+                FloatingImportButton {
+                    showsQuickImportSheet = true
+                }
+                .padding(.bottom, 16)
+            }
+        }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .recipeImportFlow(isPresented: $showsQuickImportSheet)
+        .task {
+            await processPendingSharedImportIfNeeded()
+        }
+        .task {
+            await playLaunchSplashIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task {
+                await processPendingSharedImportIfNeeded()
+            }
+        }
+        .onOpenURL { _ in
+            Task {
+                await processPendingSharedImportIfNeeded()
+            }
+        }
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { sharedImportSeed != nil },
+                set: { if !$0 { sharedImportSeed = nil } }
+            )
+        ) {
+            if let sharedImportSeed {
+                ImportedRecipeReviewView(
+                    store: recipeStore,
+                    seed: sharedImportSeed,
+                    onSaved: { recipeID in
+                        handleSharedImportSaved(recipeID: recipeID)
+                    }
+                )
+            }
+        }
+        .alert("Import partagé impossible", isPresented: $showsSharedImportError) {
+            Button("Réessayer") {
+                Task {
+                    await processPendingSharedImportIfNeeded(force: true)
+                }
+            }
+
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sharedImportErrorMessage)
+        }
+        .overlay {
+            if isProcessingSharedImport {
+                RootSharedImportOverlay(hostLabel: currentSharedImportHostLabel)
+            }
+        }
+        .sheet(item: $savedImportedRecipeRoute) { route in
+            NavigationStack {
+                RecipeDetailView(store: recipeStore, recipeID: route.recipeID)
+            }
+        }
+        .overlay {
+            if showsLaunchSplash {
+                AppLaunchSplashOverlay(
+                    hasEntered: launchSplashHasEntered,
+                    isLeaving: launchSplashIsLeaving
+                )
+                .transition(.identity)
+                .zIndex(10)
+            }
+        }
+    }
+
+    @MainActor
+    private func processPendingSharedImportIfNeeded(force: Bool = false) async {
+        guard !isProcessingSharedImport else { return }
+        guard let draft = sharedLinkInbox.peek(), draft.hasPayload else { return }
+        guard force || lastDeferredSharedImportKey != draft.dedupeKey else { return }
+
+        selection = .recipes
+        isProcessingSharedImport = true
+        currentSharedImportHostLabel = draft.hostLabel
+
+        do {
+            let seed = try await RecipeImportPipeline.importSharedDraft(draft)
+            sharedLinkInbox.clear()
+            lastDeferredSharedImportKey = nil
+            sharedImportSeed = seed
+        } catch {
+            lastDeferredSharedImportKey = draft.dedupeKey
+            sharedImportErrorMessage = makeSharedImportErrorMessage(for: error, hostLabel: draft.hostLabel)
+            showsSharedImportError = true
+        }
+
+        currentSharedImportHostLabel = ""
+        isProcessingSharedImport = false
+    }
+
+    @MainActor
+    private func handleSharedImportSaved(recipeID: Recipe.ID) {
+        sharedImportSeed = nil
+        lastDeferredSharedImportKey = nil
+        selection = .recipes
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            savedImportedRecipeRoute = SavedImportedRecipeRoute(recipeID: recipeID)
+        }
+    }
+
+    private func makeSharedImportErrorMessage(for error: Error, hostLabel: String) -> String {
+        let trimmedHost = hostLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHost.isEmpty else {
+            return error.localizedDescription
+        }
+
+        return "Cooksy n'a pas reussi a importer ce partage depuis \(trimmedHost).\n\n\(error.localizedDescription)"
+    }
+
+    @MainActor
+    private func playLaunchSplashIfNeeded() async {
+        guard showsLaunchSplash, !launchSplashHasEntered, !launchSplashIsLeaving else { return }
+
+        withAnimation(.spring(duration: 0.72, bounce: 0.26)) {
+            launchSplashHasEntered = true
+        }
+
+        try? await Task.sleep(for: .milliseconds(1250))
+
+        guard showsLaunchSplash else { return }
+
+        withAnimation(.easeInOut(duration: 0.5)) {
+            launchSplashIsLeaving = true
+        }
+
+        try? await Task.sleep(for: .milliseconds(520))
+
+        showsLaunchSplash = false
+    }
+}
+
+private struct SavedImportedRecipeRoute: Identifiable {
+    let recipeID: Recipe.ID
+
+    var id: Recipe.ID { recipeID }
+}
+
+private struct FloatingImportButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 30, weight: .medium, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 72, height: 72)
+                .background(
+                    Circle()
+                        .fill(CooksyTheme.ctaOrange)
+                )
+                .shadow(color: CooksyTheme.ctaOrange.opacity(0.28), radius: 18, y: 10)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct RootSharedImportOverlay: View {
+    let hostLabel: String
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.16)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                ProgressView()
+                    .tint(CooksyTheme.ctaOrange)
+                    .scaleEffect(1.2)
+
+                Text("Cooksy prépare votre recette")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+
+                Text(importMessage)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 30)
+            .frame(maxWidth: 320)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: Color.black.opacity(0.12), radius: 22, y: 12)
+            )
+        }
+    }
+
+    private var importMessage: String {
+        let trimmedHost = hostLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHost.isEmpty else {
+            return "Nous analysons le partage et rassemblons les ingredients, l'image et les etapes."
+        }
+
+        return "Nous analysons le partage depuis \(trimmedHost) et reconstruisons la recette pour vous."
+    }
+}
+
+private struct AppLaunchSplashOverlay: View {
+    let hasEntered: Bool
+    let isLeaving: Bool
+
+    var body: some View {
+        GeometryReader { geometry in
+            let splashSize = CGSize(
+                width: geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing,
+                height: geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom
+            )
+
+            splashContent(in: splashSize)
+                .frame(width: splashSize.width, height: splashSize.height)
+                .scaleEffect(isLeaving ? 1.02 : (hasEntered ? 1 : 0.985))
+                .opacity(isLeaving ? 0 : (hasEntered ? 1 : 0.82))
+                .offset(y: isLeaving ? -10 : (hasEntered ? 0 : 14))
+                .offset(
+                    x: (geometry.safeAreaInsets.leading - geometry.safeAreaInsets.trailing) / 2,
+                    y: (geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom) / 2
+                )
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(true)
+    }
+
+    @ViewBuilder
+    private func splashContent(in size: CGSize) -> some View {
+        if UIImage(named: "LaunchSplash") != nil {
+            Image("LaunchSplash")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
+        } else {
+            ZStack {
+                SplashBackdrop()
+
+                RadialGradient(
+                    colors: [
+                        Color(hex: 0xFFD46B, opacity: 0.64),
+                        Color(hex: 0xFF9C33, opacity: 0)
+                    ],
+                    center: .center,
+                    startRadius: 10,
+                    endRadius: min(size.width, size.height) * 0.48
+                )
+                .blendMode(.screen)
+
+                VStack {
+                    Spacer(minLength: 0)
+
+                    ZStack {
+                        Ellipse()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(width: 260, height: 66)
+                            .blur(radius: 22)
+                            .offset(y: 170)
+
+                        Image("HeaderLogo")
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: min(size.width * 0.54, 350))
+                            .shadow(color: Color(hex: 0xA84E14, opacity: 0.13), radius: 26, y: 16)
+
+                        SplashSparkles()
+                            .frame(width: min(size.width * 0.32, 140), height: min(size.width * 0.18, 84))
+                            .offset(x: min(size.width * 0.16, 76), y: -min(size.width * 0.1, 44))
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, size.height * 0.16)
+            }
+        }
+    }
+}
+
+private struct SplashBackdrop: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(hex: 0xF78421),
+                        Color(hex: 0xFF9A32),
+                        Color(hex: 0xFF8A21)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                Image(systemName: "circle.hexagongrid.fill")
+                    .resizable()
+                    .scaledToFill()
+                    .foregroundStyle(Color.white.opacity(0.055))
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .blendMode(.overlay)
+
+                Circle()
+                    .fill(Color(hex: 0xFFE162).opacity(0.9))
+                    .frame(width: geometry.size.width * 0.46, height: geometry.size.width * 0.46)
+                    .blur(radius: 1.2)
+                    .offset(x: -geometry.size.width * 0.37, y: geometry.size.height * 0.44)
+
+                Circle()
+                    .fill(Color(hex: 0xFFB66E).opacity(0.72))
+                    .frame(width: geometry.size.width * 0.62, height: geometry.size.width * 0.62)
+                    .offset(x: geometry.size.width * 0.37, y: geometry.size.height * 0.48)
+
+                Circle()
+                    .fill(Color(hex: 0xFFA342).opacity(0.88))
+                    .frame(width: geometry.size.width * 0.24, height: geometry.size.width * 0.24)
+                    .offset(x: geometry.size.width * 0.49, y: geometry.size.height * 0.02)
+
+                Circle()
+                    .fill(Color(hex: 0xBFE14A).opacity(0.96))
+                    .frame(width: geometry.size.width * 0.28, height: geometry.size.width * 0.28)
+                    .offset(x: -geometry.size.width * 0.52, y: geometry.size.height * -0.05)
+
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 90,
+                    bottomLeadingRadius: 68,
+                    bottomTrailingRadius: 120,
+                    topTrailingRadius: 52
+                )
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0xC34FC5), Color(hex: 0xA35FD3)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: geometry.size.width * 0.22, height: geometry.size.height * 0.18)
+                .rotationEffect(.degrees(12))
+                .offset(x: -geometry.size.width * 0.42, y: -geometry.size.height * 0.4)
+
+                CheeseCorner()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: 0xFFF39B), Color(hex: 0xFFE678)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: geometry.size.width * 0.34, height: geometry.size.width * 0.34)
+                    .offset(x: geometry.size.width * 0.42, y: -geometry.size.height * 0.42)
+
+                SplashSpeckles()
+            }
+        }
+    }
+}
+
+private struct SplashSparkles: View {
+    var body: some View {
+        ZStack {
+            SplashSparkle(size: 54)
+                .offset(x: 20, y: -18)
+
+            SplashSparkle(size: 34)
+                .offset(x: -14, y: 18)
+        }
+    }
+}
+
+private struct SplashSparkle: View {
+    let size: CGFloat
+
+    var body: some View {
+        SplashSparkleShape()
+            .fill(
+                LinearGradient(
+                    colors: [Color(hex: 0xFFF7A7), Color(hex: 0xFFCF33)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay {
+                SplashSparkleShape()
+                    .stroke(Color(hex: 0xFF9800), lineWidth: max(1.4, size * 0.07))
+            }
+            .shadow(color: Color(hex: 0xFFD54F, opacity: 0.38), radius: size * 0.18)
+            .frame(width: size, height: size)
+    }
+}
+
+private struct SplashSpeckles: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                ForEach(0..<18, id: \.self) { index in
+                    Circle()
+                        .fill(Color.white.opacity(index.isMultiple(of: 4) ? 0.18 : 0.1))
+                        .frame(
+                            width: index.isMultiple(of: 3) ? 18 : 10,
+                            height: index.isMultiple(of: 3) ? 18 : 10
+                        )
+                        .blur(radius: index.isMultiple(of: 2) ? 1.6 : 0.4)
+                        .position(specklePosition(for: index, in: geometry.size))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func specklePosition(for index: Int, in size: CGSize) -> CGPoint {
+        let positions: [CGPoint] = [
+            CGPoint(x: size.width * 0.08, y: size.height * 0.18),
+            CGPoint(x: size.width * 0.14, y: size.height * 0.28),
+            CGPoint(x: size.width * 0.26, y: size.height * 0.08),
+            CGPoint(x: size.width * 0.86, y: size.height * 0.12),
+            CGPoint(x: size.width * 0.9, y: size.height * 0.3),
+            CGPoint(x: size.width * 0.78, y: size.height * 0.35),
+            CGPoint(x: size.width * 0.11, y: size.height * 0.36),
+            CGPoint(x: size.width * 0.07, y: size.height * 0.44),
+            CGPoint(x: size.width * 0.9, y: size.height * 0.44),
+            CGPoint(x: size.width * 0.22, y: size.height * 0.53),
+            CGPoint(x: size.width * 0.68, y: size.height * 0.54),
+            CGPoint(x: size.width * 0.83, y: size.height * 0.6),
+            CGPoint(x: size.width * 0.16, y: size.height * 0.68),
+            CGPoint(x: size.width * 0.31, y: size.height * 0.75),
+            CGPoint(x: size.width * 0.72, y: size.height * 0.74),
+            CGPoint(x: size.width * 0.91, y: size.height * 0.8),
+            CGPoint(x: size.width * 0.12, y: size.height * 0.87),
+            CGPoint(x: size.width * 0.63, y: size.height * 0.9)
+        ]
+
+        return positions[index]
+    }
+}
+
+private struct CheeseCorner: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        path.move(to: CGPoint(x: rect.maxX * 0.2, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.maxY * 0.14),
+            control: CGPoint(x: rect.maxX * 0.94, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.maxY * 0.8),
+            control: CGPoint(x: rect.maxX * 0.52, y: rect.maxY)
+        )
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.maxY * 0.52),
+            control: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.maxY * 0.7)
+        )
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.maxY * 0.1))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX * 0.2, y: rect.minY),
+            control: CGPoint(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.02)
+        )
+
+        path.addEllipse(in: CGRect(x: rect.width * 0.58, y: rect.height * 0.16, width: rect.width * 0.22, height: rect.height * 0.16))
+        path.addEllipse(in: CGRect(x: rect.width * 0.78, y: rect.height * 0.03, width: rect.width * 0.17, height: rect.height * 0.13))
+        path.addEllipse(in: CGRect(x: rect.width * 0.79, y: rect.height * 0.28, width: rect.width * 0.15, height: rect.height * 0.11))
+        path.addEllipse(in: CGRect(x: rect.width * 0.57, y: rect.height * 0.43, width: rect.width * 0.19, height: rect.height * 0.12))
+        path.addEllipse(in: CGRect(x: rect.width * 0.1, y: rect.height * 0.52, width: rect.width * 0.14, height: rect.height * 0.1))
+
+        return path
+    }
+}
+
+private struct SplashSparkleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let top = CGPoint(x: center.x, y: rect.minY)
+        let right = CGPoint(x: rect.maxX, y: center.y)
+        let bottom = CGPoint(x: center.x, y: rect.maxY)
+        let left = CGPoint(x: rect.minX, y: center.y)
+
+        var path = Path()
+        path.move(to: top)
+        path.addCurve(
+            to: right,
+            control1: CGPoint(x: rect.maxX * 0.6, y: rect.minY + rect.height * 0.18),
+            control2: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.minY + rect.height * 0.38)
+        )
+        path.addCurve(
+            to: bottom,
+            control1: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.maxY - rect.height * 0.38),
+            control2: CGPoint(x: rect.maxX * 0.6, y: rect.maxY - rect.height * 0.18)
+        )
+        path.addCurve(
+            to: left,
+            control1: CGPoint(x: rect.width * 0.4, y: rect.maxY - rect.height * 0.18),
+            control2: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.maxY - rect.height * 0.38)
+        )
+        path.addCurve(
+            to: top,
+            control1: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.38),
+            control2: CGPoint(x: rect.width * 0.4, y: rect.minY + rect.height * 0.18)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
