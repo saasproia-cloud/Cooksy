@@ -1,0 +1,7 @@
+{
+  "name": "cooksy-root",
+  "private": true,
+  "scripts": {
+    "start": "cd backend && npm run start"
+  }
+}
