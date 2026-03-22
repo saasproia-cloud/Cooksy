@@ -87,7 +87,12 @@ const recipeJsonSchema = {
 const execFileAsync = promisify(execFile);
 const ffmpegPath = ffmpegStatic as unknown as string | null;
 
-export async function normalizeRecipeFromContext(input: NormalizerInput): Promise<RecipeImportResult> {
+export async function normalizeRecipeFromContext(
+  input: NormalizerInput,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<RecipeImportResult> {
   requireProvider("openAI");
 
   const contents: Array<Record<string, string>> = [
@@ -147,7 +152,7 @@ export async function normalizeRecipeFromContext(input: NormalizerInput): Promis
         }
       }
     }),
-    signal: AbortSignal.timeout(60_000)
+    signal: AbortSignal.timeout(options?.timeoutMs ?? 60_000)
   });
 
   if (!response.ok) {
@@ -164,7 +169,15 @@ export async function normalizeRecipeFromContext(input: NormalizerInput): Promis
   return sanitizeRecipeImport(parsed);
 }
 
-export async function transcribeMediaFromUrl(mediaUrl?: string): Promise<string | null> {
+export async function transcribeMediaFromUrl(
+  mediaUrl?: string,
+  options?: {
+    mediaFetchTimeoutMs?: number;
+    transcriptionTimeoutMs?: number;
+    maxDurationSeconds?: number;
+    maxFileBytes?: number;
+  }
+): Promise<string | null> {
   if (!mediaUrl) {
     return null;
   }
@@ -174,11 +187,16 @@ export async function transcribeMediaFromUrl(mediaUrl?: string): Promise<string 
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "cooksy-media-"));
   const sourcePath = path.join(tempDirectory, "source.bin");
   const audioPath = path.join(tempDirectory, "audio.m4a");
+  const maxFileBytes = options?.maxFileBytes ?? 40 * 1024 * 1024;
 
   try {
-    const videoBuffer = await fetchRemoteBuffer(mediaUrl, 40 * 1024 * 1024);
+    const videoBuffer = await fetchRemoteBuffer(mediaUrl, maxFileBytes, {
+      timeoutMs: options?.mediaFetchTimeoutMs
+    });
     await fs.writeFile(sourcePath, videoBuffer);
-    await extractAudio(sourcePath, audioPath);
+    await extractAudio(sourcePath, audioPath, {
+      maxDurationSeconds: options?.maxDurationSeconds
+    });
 
     const audioBuffer = await fs.readFile(audioPath);
     if (audioBuffer.byteLength === 0 || audioBuffer.byteLength > 25 * 1024 * 1024) {
@@ -195,7 +213,7 @@ export async function transcribeMediaFromUrl(mediaUrl?: string): Promise<string 
         authorization: `Bearer ${env.OPENAI_API_KEY}`
       },
       body: formData,
-      signal: AbortSignal.timeout(60_000)
+      signal: AbortSignal.timeout(options?.transcriptionTimeoutMs ?? 60_000)
     });
 
     if (!response.ok) {
@@ -246,7 +264,13 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     .join("\n\n");
 }
 
-async function extractAudio(sourcePath: string, destinationPath: string): Promise<void> {
+async function extractAudio(
+  sourcePath: string,
+  destinationPath: string,
+  options?: {
+    maxDurationSeconds?: number;
+  }
+): Promise<void> {
   if (!ffmpegPath) {
     throw new Error("ffmpeg-static is not available.");
   }
@@ -261,7 +285,7 @@ async function extractAudio(sourcePath: string, destinationPath: string): Promis
     "-ar",
     "16000",
     "-t",
-    "180",
+    String(options?.maxDurationSeconds ?? 180),
     "-c:a",
     "aac",
     "-b:a",

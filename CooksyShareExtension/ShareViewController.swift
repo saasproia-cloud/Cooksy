@@ -1285,7 +1285,8 @@ private enum ShareExtensionImportService {
     static func importURL(_ url: URL, sharedText: String?) async throws -> RecipeEditorSeed {
         let requestBody = ShareURLImportRequest(
             url: encodedAbsoluteString(for: url),
-            sharedText: nonEmpty(sharedText)
+            sharedText: nonEmpty(sharedText),
+            previewMode: true
         )
 
         let envelope: ShareRecipeImportEnvelope = try await sendJSON(
@@ -1298,7 +1299,8 @@ private enum ShareExtensionImportService {
     static func importText(_ text: String, imageData: Data? = nil) async throws -> RecipeEditorSeed {
         let requestBody = ShareTextImportRequest(
             text: text,
-            imageBase64: imageData?.base64EncodedString()
+            imageBase64: imageData?.base64EncodedString(),
+            previewMode: true
         )
 
         let envelope: ShareRecipeImportEnvelope = try await sendJSON(
@@ -1513,11 +1515,13 @@ private enum ShareExtensionImportError: LocalizedError {
 private struct ShareURLImportRequest: Encodable {
     let url: String
     let sharedText: String?
+    let previewMode: Bool?
 }
 
 private struct ShareTextImportRequest: Encodable {
     let text: String
     let imageBase64: String?
+    let previewMode: Bool?
 }
 
 private struct ShareRecipeImportEnvelope: Decodable {

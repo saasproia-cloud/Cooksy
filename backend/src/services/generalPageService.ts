@@ -45,11 +45,17 @@ export async function resolveRemoteURL(
   return resolvedURL;
 }
 
-export async function fetchRemoteBuffer(url: string, maxBytes: number): Promise<Buffer> {
+export async function fetchRemoteBuffer(
+  url: string,
+  maxBytes: number,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<Buffer> {
   const response = await fetch(url, {
     headers: DEFAULT_HEADERS,
     redirect: "follow",
-    signal: AbortSignal.timeout(25_000)
+    signal: AbortSignal.timeout(options?.timeoutMs ?? 25_000)
   });
 
   if (!response.ok) {

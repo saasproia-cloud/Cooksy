@@ -17,10 +17,15 @@ import {
 } from "../types/recipe.js";
 import { platformFromUrl } from "../utils/text.js";
 
+type ImportExecutionOptions = {
+  previewMode?: boolean;
+};
+
 export async function importFromUrl(input: {
   url: string;
   sharedText?: string;
-}): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+}, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+  const previewMode = options?.previewMode ?? false;
   const startedAt = Date.now();
   const resolvedSourceURL = await resolveImportSourceURL(input.url);
   const [pageSummary, socialContent] = await Promise.all([
@@ -40,6 +45,18 @@ export async function importFromUrl(input: {
   let transcript: string | null = null;
   let importStrategy: "social" | "audio" | "web" = "social";
   let importStrategySourceURL: string | undefined;
+  const shouldTranscribeFirst = previewMode &&
+    captionWasSparse &&
+    Boolean(mediaURL) &&
+    (socialContent?.externalLinks.length ?? 0) == 0 &&
+    structuredRecipe == null;
+
+  if (shouldTranscribeFirst) {
+    transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(previewMode)).catch(() => null);
+    if (transcript) {
+      importStrategy = "audio";
+    }
+  }
 
   const baseRecipeContext = {
     mode: "url" as const,
@@ -60,7 +77,7 @@ export async function importFromUrl(input: {
   };
 
   let recipe = preferStructuredRecipe(
-    await safeNormalize(baseRecipeContext),
+    await safeNormalize(baseRecipeContext, previewMode),
     structuredRecipe
   );
 
@@ -74,7 +91,8 @@ export async function importFromUrl(input: {
     const linkedFallbackRecipe = await recipeFromFallbackPages(
       linkedFallbackPages,
       input.sharedText,
-      canonicalSourceURL
+      canonicalSourceURL,
+      previewMode
     );
 
     if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -85,20 +103,15 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (shouldPrioritizeTranscription({
-    sharedText: input.sharedText,
-    pageSummary,
-    socialContent,
-    mediaURL
-  })) {
-    transcript = await transcribeMediaFromUrl(mediaURL).catch(() => null);
+  if (!previewMode && !transcript && shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)) {
+    transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(previewMode)).catch(() => null);
 
     if (transcript) {
       const transcribedRecipe = preferStructuredRecipe(
         await safeNormalize({
           ...baseRecipeContext,
           transcript
-        }),
+        }, previewMode),
         structuredRecipe
       );
 
@@ -110,27 +123,7 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (!transcript && shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)) {
-    transcript = await transcribeMediaFromUrl(mediaURL).catch(() => null);
-
-    if (transcript) {
-      const transcribedRecipe = preferStructuredRecipe(
-        await safeNormalize({
-          ...baseRecipeContext,
-          transcript
-        }),
-        structuredRecipe
-      );
-
-      if (scoreRecipe(transcribedRecipe) >= scoreRecipe(recipe)) {
-        recipe = transcribedRecipe;
-        importStrategy = "audio";
-        importStrategySourceURL = undefined;
-      }
-    }
-  }
-
-  if (shouldFallbackToSearch(recipe)) {
+  if (!previewMode && shouldFallbackToSearch(recipe)) {
     const query = recipe.searchQuery || recipe.title || socialContent?.caption || pageSummary?.title || input.sharedText || "";
     const fallbackPages = await fetchFallbackPages(query);
 
@@ -138,7 +131,8 @@ export async function importFromUrl(input: {
       const fallbackRecipe = await recipeFromFallbackPages(
         fallbackPages,
         input.sharedText,
-        canonicalSourceURL
+        canonicalSourceURL,
+        previewMode
       );
 
       if (fallbackRecipe && scoreRecipe(fallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -163,11 +157,13 @@ export async function importFromUrl(input: {
     }
   );
 
-  const finalizedRecipe = await finalizeImportedRecipe(recipeWithImportContext);
+  const finalizedRecipe = await finalizeImportedRecipe(recipeWithImportContext, {
+    skipNutrition: previewMode
+  });
 
   console.info(
     `[importService] URL import completed in ${Date.now() - startedAt}ms` +
-    ` (strategy=${importStrategy} transcript=${Boolean(transcript)} webFallback=${usedWebFallback} usda=${finalizedRecipe.usedUsda}) for ${canonicalSourceURL}`
+    ` (preview=${previewMode} strategy=${importStrategy} transcript=${Boolean(transcript)} webFallback=${usedWebFallback} usda=${finalizedRecipe.usedUsda}) for ${canonicalSourceURL}`
   );
 
   return {
@@ -183,25 +179,6 @@ export async function importFromUrl(input: {
       sourceKind: "url"
     }
   };
-}
-
-function shouldPrioritizeTranscription(input: {
-  sharedText?: string;
-  pageSummary: Awaited<ReturnType<typeof fetchPageSummary>> | null;
-  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
-  mediaURL?: string;
-}): boolean {
-  if (!input.mediaURL) {
-    return false;
-  }
-
-  return hasSparseSocialText(
-    input.sharedText,
-    input.socialContent?.caption,
-    input.socialContent?.description,
-    input.socialContent?.subtitlesText,
-    input.pageSummary?.description
-  );
 }
 
 function shouldUseTranscriptionFallback(
@@ -329,7 +306,8 @@ async function recipeFromFallbackPages(
     imageUrl?: string;
   }>,
   sharedText: string | undefined,
-  sourceUrl: string
+  sourceUrl: string,
+  previewMode = false
 ): Promise<{ recipe: RecipeImportResult; sourceUrl?: string } | null> {
   if (!pages.length) {
     return null;
@@ -344,7 +322,7 @@ async function recipeFromFallbackPages(
     pageDescription: pages.map((page) => page.description).find(Boolean),
     pageTextContent: pages.map((page) => page.textContent).filter(Boolean).join("\n\n"),
     pageStructuredData: pages.flatMap((page) => page.structuredDataBlocks)
-  });
+  }, previewMode);
   const fallbackStructuredRecipe = structuredRecipeFromBlocks(
     pages.flatMap((page) => page.structuredDataBlocks)
   );
@@ -377,13 +355,16 @@ async function resolveImportSourceURL(url: string): Promise<string> {
 export async function importFromText(input: {
   text: string;
   imageDataUrl?: string;
-}): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+}, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+  const previewMode = options?.previewMode ?? false;
   const recipe = await safeNormalize({
     mode: "text",
     sharedText: input.text,
     imageDataUrl: input.imageDataUrl
+  }, previewMode);
+  const finalizedRecipe = await finalizeImportedRecipe(recipe, {
+    skipNutrition: previewMode
   });
-  const finalizedRecipe = await finalizeImportedRecipe(recipe);
 
   return {
     recipe: finalizedRecipe.recipe,
@@ -401,12 +382,15 @@ export async function importFromText(input: {
 
 export async function importFromPhoto(input: {
   imageDataUrl: string;
-}): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+}, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+  const previewMode = options?.previewMode ?? false;
   const recipe = await safeNormalize({
     mode: "photo",
     imageDataUrl: input.imageDataUrl
+  }, previewMode);
+  const finalizedRecipe = await finalizeImportedRecipe(recipe, {
+    skipNutrition: previewMode
   });
-  const finalizedRecipe = await finalizeImportedRecipe(recipe);
 
   return {
     recipe: finalizedRecipe.recipe,
@@ -423,12 +407,15 @@ export async function importFromPhoto(input: {
 }
 
 async function safeNormalize(
-  input: Parameters<typeof normalizeRecipeFromContext>[0]
+  input: Parameters<typeof normalizeRecipeFromContext>[0],
+  previewMode = false
 ): Promise<RecipeImportResult> {
   try {
-    return await normalizeRecipeFromContext(input);
+    return await normalizeRecipeFromContext(input, {
+      timeoutMs: previewMode ? 20_000 : 60_000
+    });
   } catch (error) {
-    if (isOpenAIUnavailable(error)) {
+    if (isOpenAIUnavailable(error) || isTimeoutLikeError(error)) {
       return fallbackRecipeFromContext(input);
     }
 
@@ -436,14 +423,48 @@ async function safeNormalize(
   }
 }
 
-async function finalizeImportedRecipe(recipe: RecipeImportResult) {
+async function finalizeImportedRecipe(
+  recipe: RecipeImportResult,
+  options?: {
+    skipNutrition?: boolean;
+  }
+) {
   const sanitizedRecipe = sanitizeRecipeImport(recipe);
+  if (options?.skipNutrition) {
+    return {
+      recipe: sanitizedRecipe,
+      usedUsda: false,
+      nutritionCoverage: 0,
+      matchedIngredients: 0
+    };
+  }
   const nutritionResult = await enrichRecipeNutrition(sanitizedRecipe);
 
   return {
     ...nutritionResult,
     recipe: sanitizeRecipeImport(nutritionResult.recipe)
   };
+}
+
+function transcriptionOptions(previewMode: boolean) {
+  if (!previewMode) {
+    return undefined;
+  }
+
+  return {
+    mediaFetchTimeoutMs: 10_000,
+    transcriptionTimeoutMs: 15_000,
+    maxDurationSeconds: 75,
+    maxFileBytes: 12 * 1024 * 1024
+  };
+}
+
+function isTimeoutLikeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("aborted") ||
+    message.includes("aborterror");
 }
 
 function preferStructuredRecipe(
