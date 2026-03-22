@@ -6,7 +6,7 @@ import {
 
 export function fallbackRecipeFromContext(input: NormalizerInput): RecipeImportResult {
   if (input.mode === "url") {
-    const structuredRecipe = extractStructuredRecipe(input.pageStructuredData ?? []);
+    const structuredRecipe = structuredRecipeFromBlocks(input.pageStructuredData ?? []);
     if (structuredRecipe) {
       return sanitizeRecipeImport({
         ...structuredRecipe,
@@ -47,6 +47,10 @@ export function isOpenAIUnavailable(error: unknown): boolean {
     message.includes("429") ||
     message.includes("openai normalization failed") ||
     message.includes("openai");
+}
+
+export function structuredRecipeFromBlocks(blocks: string[]): RecipeImportResult | null {
+  return extractStructuredRecipe(blocks);
 }
 
 function parseRecipeText(input: string): RecipeImportResult {
@@ -446,30 +450,32 @@ function isLikelyNoise(line: string): boolean {
     lower.includes("instagram");
 }
 
-function parseIngredientLine(line: string): { amount: string; unit: string; name: string } {
+function parseIngredientLine(line: string): { amount: string; unit: string; name: string; nutritionQuery: string } {
   const cleaned = cleanedListLine(line);
   const tokens = cleaned.split(" ").filter(Boolean);
 
   if (!tokens.length) {
-    return { amount: "", unit: "", name: "" };
+    return { amount: "", unit: "", name: "", nutritionQuery: "" };
   }
 
   if (tokens.length === 1) {
-    return { amount: "", unit: "", name: cleaned };
+    return { amount: "", unit: "", name: cleaned, nutritionQuery: cleaned };
   }
 
   const compactQuantity = splitCompactQuantityAndUnit(tokens[0]);
   if (compactQuantity) {
+    const name = cleanedIngredientName(tokens.slice(1).join(" "));
     return {
       amount: compactQuantity.amount,
       unit: compactQuantity.unit,
-      name: cleanedIngredientName(tokens.slice(1).join(" "))
+      name,
+      nutritionQuery: name
     };
   }
 
   const quantity = leadingQuantity(tokens);
   if (!quantity) {
-    return { amount: "", unit: "", name: cleaned };
+    return { amount: "", unit: "", name: cleaned, nutritionQuery: cleaned };
   }
 
   const unit = leadingUnit(tokens, quantity.nextIndex);
@@ -479,7 +485,8 @@ function parseIngredientLine(line: string): { amount: string; unit: string; name
   return {
     amount: quantity.amount,
     unit: unit?.unit ?? "",
-    name
+    name,
+    nutritionQuery: name
   };
 }
 

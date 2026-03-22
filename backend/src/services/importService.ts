@@ -2,7 +2,12 @@ import { fetchPageSummary } from "./generalPageService.js";
 import { normalizeRecipeFromContext, transcribeMediaFromUrl } from "./openAIService.js";
 import { fetchFallbackPages } from "./searchFallbackService.js";
 import { resolveSocialContent } from "./socialContentService.js";
-import { fallbackRecipeFromContext, isOpenAIUnavailable } from "./heuristicRecipeService.js";
+import {
+  fallbackRecipeFromContext,
+  isOpenAIUnavailable,
+  structuredRecipeFromBlocks
+} from "./heuristicRecipeService.js";
+import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
   sanitizeRecipeImport,
   scoreRecipe,
@@ -18,6 +23,7 @@ export async function importFromUrl(input: {
   const socialContent = await resolveSocialContent(input.url);
   const pageSummary = await fetchPageSummary(input.url).catch(() => null);
   const transcript = await transcribeMediaFromUrl(socialContent?.audioUrl ?? socialContent?.videoUrl).catch(() => null);
+  const structuredRecipe = structuredRecipeFromBlocks(pageSummary?.structuredDataBlocks ?? []);
 
   const recipeContext = {
     mode: "url" as const,
@@ -31,12 +37,16 @@ export async function importFromUrl(input: {
     socialTitle: socialContent?.title,
     socialCaption: socialContent?.caption,
     socialDescription: socialContent?.description,
+    socialPageText: socialContent?.pageText,
     socialAuthor: socialContent?.authorName,
     socialSubtitles: socialContent?.subtitlesText,
     transcript: transcript ?? undefined
   };
 
-  let recipe = await safeNormalize(recipeContext);
+  let recipe = preferStructuredRecipe(
+    await safeNormalize(recipeContext),
+    structuredRecipe
+  );
 
   let usedWebFallback = false;
 
@@ -55,27 +65,34 @@ export async function importFromUrl(input: {
         pageTextContent: fallbackPages.map((page) => page.textContent).filter(Boolean).join("\n\n"),
         pageStructuredData: fallbackPages.flatMap((page) => page.structuredDataBlocks)
       });
+      const fallbackStructuredRecipe = structuredRecipeFromBlocks(
+        fallbackPages.flatMap((page) => page.structuredDataBlocks)
+      );
+      const normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
 
-      if (scoreRecipe(fallbackRecipe) >= scoreRecipe(recipe)) {
-        recipe = fallbackRecipe;
+      if (scoreRecipe(normalizedFallbackRecipe) >= scoreRecipe(recipe)) {
+        recipe = normalizedFallbackRecipe;
       }
       usedWebFallback = true;
     }
   }
 
-  recipe = sanitizeRecipeImport({
+  const finalizedRecipe = await finalizeImportedRecipe({
     ...recipe,
     sourceUrl: recipe.sourceUrl || input.url,
     remoteImageUrl: recipe.remoteImageUrl || socialContent?.imageUrls[0] || pageSummary?.imageUrl || ""
   });
 
   return {
-    recipe,
+    recipe: finalizedRecipe.recipe,
     debug: {
       platform: socialContent?.platform,
       usedApify: socialContent?.source === "apify",
       usedTranscription: Boolean(transcript),
       usedWebFallback,
+      usedUsda: finalizedRecipe.usedUsda,
+      nutritionCoverage: finalizedRecipe.nutritionCoverage,
+      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
       sourceKind: "url"
     }
   };
@@ -90,13 +107,17 @@ export async function importFromText(input: {
     sharedText: input.text,
     imageDataUrl: input.imageDataUrl
   });
+  const finalizedRecipe = await finalizeImportedRecipe(recipe);
 
   return {
-    recipe,
+    recipe: finalizedRecipe.recipe,
     debug: {
       usedApify: false,
       usedTranscription: false,
       usedWebFallback: false,
+      usedUsda: finalizedRecipe.usedUsda,
+      nutritionCoverage: finalizedRecipe.nutritionCoverage,
+      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
       sourceKind: "text"
     }
   };
@@ -109,13 +130,17 @@ export async function importFromPhoto(input: {
     mode: "photo",
     imageDataUrl: input.imageDataUrl
   });
+  const finalizedRecipe = await finalizeImportedRecipe(recipe);
 
   return {
-    recipe,
+    recipe: finalizedRecipe.recipe,
     debug: {
       usedApify: false,
       usedTranscription: false,
       usedWebFallback: false,
+      usedUsda: finalizedRecipe.usedUsda,
+      nutritionCoverage: finalizedRecipe.nutritionCoverage,
+      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
       sourceKind: "photo"
     }
   };
@@ -133,4 +158,56 @@ async function safeNormalize(
 
     throw error;
   }
+}
+
+async function finalizeImportedRecipe(recipe: RecipeImportResult) {
+  const sanitizedRecipe = sanitizeRecipeImport(recipe);
+  const nutritionResult = await enrichRecipeNutrition(sanitizedRecipe);
+
+  return {
+    ...nutritionResult,
+    recipe: sanitizeRecipeImport(nutritionResult.recipe)
+  };
+}
+
+function preferStructuredRecipe(
+  recipe: RecipeImportResult,
+  structuredRecipe: RecipeImportResult | null
+): RecipeImportResult {
+  if (!structuredRecipe) {
+    return recipe;
+  }
+
+  const structuredIsStrong = structuredRecipe.confidence === "high" &&
+    structuredRecipe.ingredientDrafts.length >= 3 &&
+    structuredRecipe.stepDrafts.length >= 2;
+
+  if (!structuredIsStrong && scoreRecipe(structuredRecipe) < scoreRecipe(recipe)) {
+    return recipe;
+  }
+
+  return sanitizeRecipeImport({
+    ...recipe,
+    ...structuredRecipe,
+    title: structuredRecipe.title || recipe.title,
+    sourceUrl: recipe.sourceUrl || structuredRecipe.sourceUrl,
+    remoteImageUrl: recipe.remoteImageUrl || structuredRecipe.remoteImageUrl,
+    ingredientDrafts: structuredRecipe.ingredientDrafts.length >= recipe.ingredientDrafts.length
+      ? structuredRecipe.ingredientDrafts
+      : recipe.ingredientDrafts,
+    stepDrafts: structuredRecipe.stepDrafts.length >= recipe.stepDrafts.length
+      ? structuredRecipe.stepDrafts
+      : recipe.stepDrafts,
+    notesText: recipe.notesText || structuredRecipe.notesText,
+    prepTimeText: structuredRecipe.prepTimeText || recipe.prepTimeText,
+    cookTimeText: structuredRecipe.cookTimeText || recipe.cookTimeText,
+    servingsText: structuredRecipe.servingsText || recipe.servingsText,
+    caloriesText: structuredRecipe.caloriesText || recipe.caloriesText,
+    proteinText: structuredRecipe.proteinText || recipe.proteinText,
+    carbsText: structuredRecipe.carbsText || recipe.carbsText,
+    fatText: structuredRecipe.fatText || recipe.fatText,
+    confidence: structuredRecipe.confidence,
+    needsWebFallback: structuredRecipe.needsWebFallback && recipe.needsWebFallback,
+    searchQuery: recipe.searchQuery || structuredRecipe.searchQuery
+  });
 }

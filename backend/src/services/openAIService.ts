@@ -47,11 +47,12 @@ const recipeJsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["amount", "unit", "name"],
+        required: ["amount", "unit", "name", "nutritionQuery"],
         properties: {
           amount: { type: "string" },
           unit: { type: "string" },
-          name: { type: "string" }
+          name: { type: "string" },
+          nutritionQuery: { type: "string" }
         }
       }
     },
@@ -122,6 +123,10 @@ export async function normalizeRecipeFromContext(input: NormalizerInput): Promis
                 "Réponds uniquement avec un JSON valide respectant strictement le schéma.",
                 "Écris en français.",
                 "Normalise les ingrédients en amount / unit / name.",
+                "Chaque ingrédient doit aussi contenir nutritionQuery, une requête USDA courte en anglais comme 'olive oil' ou 'chicken breast'.",
+                "N'utilise jamais du texte d'article, des appels à l'action ou des éléments sociaux comme ingrédients ou étapes.",
+                "Les étapes doivent être courtes, actionnables et purement culinaires.",
+                "Si les valeurs nutritionnelles ne sont pas clairement fournies, laisse caloriesText/proteinText/carbsText/fatText vides.",
                 "Si le contenu est partiel, reconstruis une recette plausible mais honnête.",
                 "Si la recette reste trop incertaine, mets confidence='low', needsWebFallback=true et fournis searchQuery."
               ].join(" ")
@@ -215,6 +220,7 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     input.socialAuthor ? `Auteur social : ${input.socialAuthor}` : "",
     input.socialCaption ? `Caption social : ${input.socialCaption}` : "",
     input.socialDescription ? `Description sociale : ${input.socialDescription}` : "",
+    input.socialPageText ? `Texte social récupéré : ${input.socialPageText}` : "",
     input.sharedText ? `Texte partagé : ${input.sharedText}` : "",
     input.socialSubtitles ? `Sous-titres récupérés : ${input.socialSubtitles}` : "",
     input.transcript ? `Transcription audio : ${input.transcript}` : "",
@@ -225,8 +231,10 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     [
       "Consignes métier :",
       "- Donne un titre court et naturel.",
-      "- Garde uniquement des ingrédients utiles à cuisiner.",
+      "- Garde uniquement des ingrédients utiles à cuisiner, un ingrédient par ligne.",
+      "- nutritionQuery doit être un nom d'aliment court en anglais exploitable par USDA.",
       "- Donne des étapes actionnables, numérotables et pas trop longues.",
+      "- Ignore les boutons, pubs, 'Read More', 'View post', hashtags et textes people/news/fashion/travel.",
       "- Si le contenu décrit seulement un plat ou une photo, infère une recette maison plausible.",
       "- Note dans notesText ce qui est une déduction ou ce qui manque.",
       "- searchQuery doit être une requête courte exploitable si une recherche web est nécessaire."

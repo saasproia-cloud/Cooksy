@@ -1,10 +1,18 @@
 import Foundation
 
+enum SharedImportHandoffAction: String, Codable, Hashable {
+    case reviewInApp
+    case saveInApp
+    case createManuallyInApp
+}
+
 struct SharedImportDraft: Codable, Equatable, Hashable {
     var urlString: String?
     var sourceApp: String?
     var sharedText: String?
     var sharedImageFilename: String?
+    var preparedSeed: RecipeEditorSeed?
+    var handoffAction: SharedImportHandoffAction?
     var capturedAt: Date
 
     var url: URL? {
@@ -22,6 +30,7 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
 
     var hasPayload: Bool {
         url != nil ||
+            preparedSeed != nil ||
             !(sharedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) ||
             sharedImageFilename != nil
     }
@@ -37,6 +46,10 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
 
         if let sourceApp, !sourceApp.isEmpty {
             return sourceApp
+        }
+
+        if let title = preparedSeed?.normalizedTitle, !title.isEmpty {
+            return title
         }
 
         if let sharedText = sharedText?.trimmingCharacters(in: .whitespacesAndNewlines), !sharedText.isEmpty {
@@ -61,6 +74,8 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
             sourceApp ?? "",
             sharedText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
             sharedImageFilename ?? "",
+            preparedSeed?.normalizedTitle ?? "",
+            handoffAction?.rawValue ?? "",
             ISO8601DateFormatter().string(from: capturedAt)
         ]
         .joined(separator: "|")

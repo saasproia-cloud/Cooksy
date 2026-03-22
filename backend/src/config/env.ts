@@ -21,6 +21,7 @@ const rawEnvSchema = z.object({
   OPENAI_API_KEY: z.string().default("YOUR_OPENAI_API_KEY"),
   APIFY_TOKEN: z.string().default("YOUR_APIFY_TOKEN"),
   SERPAPI_KEY: z.string().default("YOUR_SERPAPI_KEY"),
+  USDA_API_KEY: z.string().default("YOUR_USDA_API_KEY"),
   BACKEND_BASE_URL: z.string().optional(),
   RAILWAY_PUBLIC_DOMAIN: z.string().optional(),
   OPENAI_RECIPE_MODEL: z.string().default("gpt-5-mini"),
@@ -37,6 +38,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string(),
   APIFY_TOKEN: z.string(),
   SERPAPI_KEY: z.string(),
+  USDA_API_KEY: z.string(),
   BACKEND_BASE_URL: z.string().url(),
   RAILWAY_PUBLIC_DOMAIN: z.string().optional(),
   OPENAI_RECIPE_MODEL: z.string(),
@@ -60,7 +62,8 @@ export const env = envSchema.parse({
 export const providerStatus = {
   openAI: isConfigured(env.OPENAI_API_KEY),
   apify: isConfigured(env.APIFY_TOKEN),
-  serpApi: isConfigured(env.SERPAPI_KEY)
+  serpApi: isConfigured(env.SERPAPI_KEY),
+  usda: isConfigured(env.USDA_API_KEY)
 };
 
 export class BackendConfigurationError extends Error {
@@ -78,7 +81,8 @@ export function requireProvider(provider: keyof typeof providerStatus): void {
   const envName = {
     openAI: "OPENAI_API_KEY",
     apify: "APIFY_TOKEN",
-    serpApi: "SERPAPI_KEY"
+    serpApi: "SERPAPI_KEY",
+    usda: "USDA_API_KEY"
   }[provider];
 
   throw new BackendConfigurationError(

@@ -27,6 +27,8 @@ struct SharedLinkInbox {
             sourceApp: sourceApp,
             sharedText: sharedText,
             sharedImageFilename: sharedImageFilename,
+            preparedSeed: nil,
+            handoffAction: nil,
             capturedAt: .now
         )
         save(draft)

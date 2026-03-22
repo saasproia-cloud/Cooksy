@@ -125,13 +125,41 @@ struct HomeView: View {
 
 private struct HomeWordmarkHeader: View {
     var body: some View {
-        Image("HeaderLogo")
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: 168, height: 58, alignment: .leading)
+        HStack(spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                ZStack {
+                    Text("Cooksy")
+                        .font(.system(size: 50, weight: .black, design: .rounded))
+                        .italic()
+                        .foregroundStyle(CooksyTheme.brandBlueDark.opacity(0.22))
+                        .offset(x: 0, y: 4)
+
+                    Text("Cooksy")
+                        .font(.system(size: 50, weight: .black, design: .rounded))
+                        .italic()
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: 0x8FC5FF), Color(hex: 0x2E7DDE)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 22, weight: .bold))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(CooksyTheme.sparkleYellow, Color(hex: 0xF6A300))
+                    .shadow(color: CooksyTheme.sparkleYellow.opacity(0.45), radius: 8, y: 2)
+                    .offset(x: 12, y: -6)
+            }
+            .frame(width: 220, height: 74, alignment: .leading)
+
+            Spacer(minLength: 0)
+        }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 4)
+            .padding(.leading, 2)
+            .padding(.top, 2)
     }
 }
 

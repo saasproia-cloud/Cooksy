@@ -19,6 +19,7 @@ struct RootTabView: View {
     @State private var currentSharedImportHostLabel = ""
     @State private var sharedImportAssessment: RecipeImportAssessment?
     @State private var sharedImportFailureAssessment: RecipeImportAssessment?
+    @State private var sharedImportCreateSeed: RecipeEditorSeed?
     @State private var lastDeferredSharedImportKey: String?
     @State private var sharedImportErrorMessage = ""
     @State private var showsSharedImportError = false
@@ -91,6 +92,18 @@ struct RootTabView: View {
         .onOpenURL { _ in
             Task {
                 await processPendingSharedImportIfNeeded()
+            }
+        }
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { sharedImportCreateSeed != nil },
+                set: { if !$0 { sharedImportCreateSeed = nil } }
+            )
+        ) {
+            if let createSeed = sharedImportCreateSeed {
+                CreateRecipeView(store: recipeStore, seed: createSeed) {
+                    sharedImportCreateSeed = nil
+                }
             }
         }
         .fullScreenCover(
@@ -179,14 +192,16 @@ struct RootTabView: View {
         currentSharedImportHostLabel = draft.hostLabel
 
         do {
-            let assessment = try await RecipeImportPipeline.importSharedDraftAssessment(draft)
-            if assessment.validation.isRejected {
-                lastDeferredSharedImportKey = draft.dedupeKey
-                sharedImportFailureAssessment = assessment
-            } else {
-                sharedLinkInbox.clear()
-                lastDeferredSharedImportKey = nil
-                sharedImportAssessment = assessment
+            if try await handlePreparedSharedImportIfNeeded(draft) == false {
+                let assessment = try await RecipeImportPipeline.importSharedDraftAssessment(draft)
+                if assessment.validation.isRejected {
+                    lastDeferredSharedImportKey = draft.dedupeKey
+                    sharedImportFailureAssessment = assessment
+                } else {
+                    sharedLinkInbox.clear()
+                    lastDeferredSharedImportKey = nil
+                    sharedImportAssessment = assessment
+                }
             }
         } catch {
             lastDeferredSharedImportKey = draft.dedupeKey
@@ -201,6 +216,7 @@ struct RootTabView: View {
     @MainActor
     private func handleSharedImportSaved(recipeID: Recipe.ID) {
         sharedImportAssessment = nil
+        sharedImportCreateSeed = nil
         lastDeferredSharedImportKey = nil
         selection = .recipes
 
@@ -211,6 +227,7 @@ struct RootTabView: View {
 
     private func dismissSharedImportFailure() {
         sharedImportFailureAssessment = nil
+        sharedImportCreateSeed = nil
         lastDeferredSharedImportKey = nil
         sharedLinkInbox.clear()
     }
@@ -222,6 +239,69 @@ struct RootTabView: View {
         }
 
         return "Cooksy n'a pas reussi a importer ce partage depuis \(trimmedHost).\n\n\(error.localizedDescription)"
+    }
+
+    @MainActor
+    private func handlePreparedSharedImportIfNeeded(_ draft: SharedImportDraft) async throws -> Bool {
+        guard let preparedSeed = draft.preparedSeed, let handoffAction = draft.handoffAction else {
+            return false
+        }
+
+        var hydratedSeed = preparedSeed
+        if hydratedSeed.imageData == nil {
+            hydratedSeed.imageData = sharedLinkInbox.imageData(for: draft.sharedImageFilename)
+        }
+
+        let assessment = RecipeValidationService.assess(hydratedSeed, sourceKind: .shared)
+        sharedLinkInbox.clear()
+        lastDeferredSharedImportKey = nil
+
+        switch handoffAction {
+        case .reviewInApp:
+            if assessment.validation.isRejected {
+                sharedImportFailureAssessment = assessment
+            } else {
+                sharedImportAssessment = assessment
+            }
+
+        case .saveInApp:
+            if assessment.validation.canSave {
+                let recipeID = await savePreparedImportedRecipe(from: assessment.seed)
+                selection = .recipes
+                savedImportedRecipeRoute = SavedImportedRecipeRoute(recipeID: recipeID)
+            } else if assessment.validation.isRejected {
+                sharedImportFailureAssessment = assessment
+            } else {
+                sharedImportAssessment = assessment
+            }
+
+        case .createManuallyInApp:
+            sharedImportCreateSeed = assessment.seed
+        }
+
+        return true
+    }
+
+    @MainActor
+    private func savePreparedImportedRecipe(from seed: RecipeEditorSeed) async -> Recipe.ID {
+        var finalSeed = seed
+
+        if finalSeed.imageData == nil,
+           let remoteImageURL = finalSeed.remoteImageURL,
+           let imageData = await RecipeWebImportService.downloadImageData(from: remoteImageURL) {
+            finalSeed.imageData = imageData
+        }
+
+        let recipeID = UUID()
+        let destinationBookID = recipeStore.uncategorizedBookID
+        let imageURL = finalSeed.imageData.flatMap { recipeStore.storeImageData($0, for: recipeID) }
+        let recipe = finalSeed.makeRecipe(
+            id: recipeID,
+            bookID: destinationBookID,
+            imageURL: imageURL
+        )
+        recipeStore.addRecipe(recipe, to: destinationBookID)
+        return recipeID
     }
 
     @MainActor

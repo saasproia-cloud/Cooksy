@@ -79,6 +79,7 @@ configure_build_settings(app_target, common_settings.merge(
 ))
 
 configure_build_settings(extension_target, common_settings.merge(
+  'BACKEND_BASE_URL' => 'https://cooksy-production-7309.up.railway.app',
   'PRODUCT_BUNDLE_IDENTIFIER' => 'com.cooksy.app.shareextension',
   'INFOPLIST_FILE' => 'CooksyShareExtension/Info.plist',
   'CODE_SIGN_ENTITLEMENTS' => 'CooksyShareExtension/CooksyShareExtension.entitlements',
@@ -109,7 +110,11 @@ app_source_files = %w[
 ]
 
 shared_files_for_extension = %w[
+  Cooksy/Models/Recipe.swift
+  Cooksy/Models/RecipeBook.swift
+  Cooksy/Models/RecipeEditorSeed.swift
   Cooksy/Models/SharedImportDraft.swift
+  Cooksy/Services/RecipeValidationService.swift
   Cooksy/Services/SharedLinkInbox.swift
 ]
 

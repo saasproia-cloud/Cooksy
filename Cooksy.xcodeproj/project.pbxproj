@@ -34,10 +34,13 @@
 		5F56D2BDF9485747B0161ADC /* CooksyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C031CB0EB64DA601375638B9 /* CooksyApp.swift */; };
 		61819F06D3ECA41429EF3955 /* ImportGuideBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */; };
 		646B541B44F24D2497BEF4A7 /* RecipeBookDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 646B541A44F24D2497BEF4A7 /* RecipeBookDetailView.swift */; };
+		6F392F01C8A97CE4723725DF /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FFE86A462D70EEF79877DD9 /* Recipe.swift */; };
 		77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FFE86A462D70EEF79877DD9 /* Recipe.swift */; };
 		7BDDF7C3C56E41828A086F4B /* CreateRecipeBookSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDDF7C2C56E41828A086F4B /* CreateRecipeBookSheet.swift */; };
+		7F51341EEDA0EFB4D770E679 /* RecipeEditorSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */; };
 		873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14827D31D5DF8504B453F5E0 /* RootTabView.swift */; };
 		8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */; };
+		883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E295B4D72656690C64670ED8 /* RecipeBook.swift */; };
 		8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */; };
 		8E1A0A11123456789ABCDE01 /* RecipeNutritionEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A21123456789ABCDE01 /* RecipeNutritionEstimator.swift */; };
 		8E1A0A12123456789ABCDE01 /* RecipeDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */; };
@@ -62,6 +65,7 @@
 		D66E5382CB61F6BCC307F937 /* CooksyShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DF9D5C4EB2EE74782AA2994D /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		E4E9A669F8A587355B41ABD6 /* SharedImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A178E636136507ED9665AA0A /* SharedImportDraft.swift */; };
+		EB03BB00745A6F42077168F0 /* RecipeValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* RecipeValidationService.swift */; };
 		EF6766BBFB2920DA16C208E8 /* RecipeBookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */; };
 		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
 /* End PBXBuildFile section */
@@ -606,6 +610,10 @@
 				E4E9A669F8A587355B41ABD6 /* SharedImportDraft.swift in Sources */,
 				CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */,
 				04F2E80AE2B5FF9E255EDD28 /* ShareViewController.swift in Sources */,
+				6F392F01C8A97CE4723725DF /* Recipe.swift in Sources */,
+				7F51341EEDA0EFB4D770E679 /* RecipeEditorSeed.swift in Sources */,
+				EB03BB00745A6F42077168F0 /* RecipeValidationService.swift in Sources */,
+				883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -693,6 +701,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = CooksyShareExtension/CooksyShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -794,6 +803,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = CooksyShareExtension/CooksyShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;

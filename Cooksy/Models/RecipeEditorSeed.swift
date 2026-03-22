@@ -1,6 +1,6 @@
 import Foundation
 
-struct RecipeEditorSeed: Hashable {
+struct RecipeEditorSeed: Codable, Hashable {
     var title: String
     var sourceURL: URL?
     var ingredientDrafts: [IngredientDraft]
@@ -139,7 +139,7 @@ struct RecipeEditorSeed: Hashable {
     }
 }
 
-struct IngredientDraft: Identifiable, Hashable {
+struct IngredientDraft: Identifiable, Codable, Hashable {
     let id: UUID
     var amount: String
     var unit: String
@@ -158,7 +158,7 @@ struct IngredientDraft: Identifiable, Hashable {
     }
 }
 
-struct StepDraft: Identifiable, Hashable {
+struct StepDraft: Identifiable, Codable, Hashable {
     let id: UUID
     var detail: String
 

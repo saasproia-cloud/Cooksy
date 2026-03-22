@@ -10,13 +10,17 @@ Copiez `.env.example` vers `.env` puis remplacez uniquement les placeholders :
 cp .env.example .env
 ```
 
-Variables requises :
+Variables cœur :
 
 - `OPENAI_API_KEY`
 - `APIFY_TOKEN`
-- `SERPAPI_KEY`
+- `USDA_API_KEY`
 - `BACKEND_BASE_URL`
 - `APP_ENV`
+
+Variables optionnelles :
+
+- `SERPAPI_KEY`
 
 Notes de déploiement Railway :
 
@@ -28,6 +32,7 @@ Notes de déploiement Railway :
 
 ```bash
 npm install
+npm test
 npm run doctor
 npm run dev
 ```

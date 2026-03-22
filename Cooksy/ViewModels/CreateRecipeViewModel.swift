@@ -215,6 +215,10 @@ final class CreateRecipeViewModel: ObservableObject {
 
     private func summary(_ text: String, suffix: String) -> String? {
         guard let value = trimmed(text) else { return nil }
+        let lowercased = value.lowercased()
+        if lowercased.contains(suffix.lowercased()) || lowercased.hasSuffix(" g") || lowercased.hasSuffix(" kcal") || lowercased.hasSuffix(" min") {
+            return value
+        }
         return "\(value) \(suffix)"
     }
 
