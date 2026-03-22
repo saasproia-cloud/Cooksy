@@ -28,8 +28,11 @@ export async function importFromUrl(input: {
   const previewMode = options?.previewMode ?? false;
   const startedAt = Date.now();
   const resolvedSourceURL = await resolveImportSourceURL(input.url);
+  const sourcePlatform = platformFromUrl(resolvedSourceURL);
   const [pageSummary, socialContent] = await Promise.all([
-    fetchPageSummary(resolvedSourceURL).catch(() => null),
+    sourcePlatform === "web" || !previewMode
+      ? fetchPageSummary(resolvedSourceURL).catch(() => null)
+      : Promise.resolve(null),
     resolveSocialContent(resolvedSourceURL)
   ]);
   const canonicalSourceURL = pageSummary?.canonicalUrl ?? pageSummary?.url ?? resolvedSourceURL;
@@ -77,7 +80,7 @@ export async function importFromUrl(input: {
   };
 
   let recipe = preferStructuredRecipe(
-    await safeNormalize(baseRecipeContext, previewMode),
+    fallbackRecipeFromContext(baseRecipeContext),
     structuredRecipe
   );
 
@@ -101,6 +104,13 @@ export async function importFromUrl(input: {
       importStrategy = "web";
       importStrategySourceURL = linkedFallbackRecipe.sourceUrl;
     }
+  }
+
+  if ((!previewMode || !isStrongPreviewRecipe(recipe)) && importStrategy !== "web") {
+    recipe = preferStructuredRecipe(
+      await safeNormalize(baseRecipeContext, previewMode),
+      structuredRecipe
+    );
   }
 
   if (!previewMode && !transcript && shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)) {
@@ -215,6 +225,12 @@ function shouldTryLinkedWebFallback(
   return externalLinks.length > 0 && shouldFallbackToSearch(recipe);
 }
 
+function isStrongPreviewRecipe(recipe: RecipeImportResult): boolean {
+  return recipe.ingredientDrafts.length >= 3 &&
+    recipe.stepDrafts.length >= 2 &&
+    recipe.confidence !== "low";
+}
+
 function hasSparseSocialText(...values: Array<string | undefined>): boolean {
   const combined = values
     .map((value) => value?.trim() ?? "")
@@ -313,7 +329,7 @@ async function recipeFromFallbackPages(
     return null;
   }
 
-  const fallbackRecipe = await safeNormalize({
+  const baseContext = {
     mode: "url",
     sourceUrl,
     remoteImageUrl: pages.map((page) => page.imageUrl).find(Boolean),
@@ -322,11 +338,19 @@ async function recipeFromFallbackPages(
     pageDescription: pages.map((page) => page.description).find(Boolean),
     pageTextContent: pages.map((page) => page.textContent).filter(Boolean).join("\n\n"),
     pageStructuredData: pages.flatMap((page) => page.structuredDataBlocks)
-  }, previewMode);
+  } as const;
   const fallbackStructuredRecipe = structuredRecipeFromBlocks(
     pages.flatMap((page) => page.structuredDataBlocks)
   );
-  const normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
+  let normalizedFallbackRecipe = preferStructuredRecipe(
+    fallbackRecipeFromContext(baseContext),
+    fallbackStructuredRecipe
+  );
+
+  if (!previewMode || !isStrongPreviewRecipe(normalizedFallbackRecipe)) {
+    const fallbackRecipe = await safeNormalize(baseContext, previewMode);
+    normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
+  }
 
   return {
     recipe: normalizedFallbackRecipe,

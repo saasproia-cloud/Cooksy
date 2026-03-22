@@ -15,6 +15,7 @@ import {
   type NormalizerInput,
   type RecipeImportResult
 } from "../types/recipe.js";
+import { compactTextBlocks, truncate } from "../utils/text.js";
 
 const recipeJsonSchema = {
   type: "object",
@@ -228,24 +229,26 @@ export async function transcribeMediaFromUrl(
 }
 
 function buildNormalizationPrompt(input: NormalizerInput): string {
+  const structuredDataText = input.pageStructuredData?.length
+    ? compactTextBlocks(input.pageStructuredData.slice(0, 2), 2400)
+    : "";
+
   return [
     `Mode d'import : ${input.mode}`,
     input.sourceUrl ? `URL source : ${input.sourceUrl}` : "",
     input.remoteImageUrl ? `Image distante probable : ${input.remoteImageUrl}` : "",
-    input.pageTitle ? `Titre page : ${input.pageTitle}` : "",
-    input.pageDescription ? `Description page : ${input.pageDescription}` : "",
-    input.socialTitle ? `Titre social : ${input.socialTitle}` : "",
-    input.socialAuthor ? `Auteur social : ${input.socialAuthor}` : "",
-    input.socialCaption ? `Caption social : ${input.socialCaption}` : "",
-    input.socialDescription ? `Description sociale : ${input.socialDescription}` : "",
-    input.socialPageText ? `Texte social récupéré : ${input.socialPageText}` : "",
-    input.sharedText ? `Texte partagé : ${input.sharedText}` : "",
-    input.socialSubtitles ? `Sous-titres récupérés : ${input.socialSubtitles}` : "",
-    input.transcript ? `Transcription audio : ${input.transcript}` : "",
-    input.pageTextContent ? `Texte page : ${input.pageTextContent}` : "",
-    input.pageStructuredData?.length
-      ? `Données structurées : ${input.pageStructuredData.join("\n\n")}`
-      : "",
+    input.pageTitle ? `Titre page : ${truncate(input.pageTitle, 180)}` : "",
+    input.pageDescription ? `Description page : ${truncate(input.pageDescription, 420)}` : "",
+    input.socialTitle ? `Titre social : ${truncate(input.socialTitle, 180)}` : "",
+    input.socialAuthor ? `Auteur social : ${truncate(input.socialAuthor, 80)}` : "",
+    input.socialCaption ? `Caption social : ${truncate(input.socialCaption, 1200)}` : "",
+    input.socialDescription ? `Description sociale : ${truncate(input.socialDescription, 800)}` : "",
+    input.socialPageText ? `Texte social récupéré : ${truncate(input.socialPageText, 1600)}` : "",
+    input.sharedText ? `Texte partagé : ${truncate(input.sharedText, 1600)}` : "",
+    input.socialSubtitles ? `Sous-titres récupérés : ${truncate(input.socialSubtitles, 1800)}` : "",
+    input.transcript ? `Transcription audio : ${truncate(input.transcript, 2600)}` : "",
+    input.pageTextContent ? `Texte page : ${truncate(input.pageTextContent, 1200)}` : "",
+    structuredDataText ? `Données structurées : ${structuredDataText}` : "",
     [
       "Consignes métier :",
       "- Donne un titre court et naturel.",
