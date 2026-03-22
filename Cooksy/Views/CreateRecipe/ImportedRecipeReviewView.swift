@@ -48,6 +48,10 @@ struct ImportedRecipeReviewView: View {
                         .padding(.horizontal, 22)
                         .padding(.bottom, 22)
 
+                    if let importNotice = viewModel.importNotice {
+                        importNoticeSection(importNotice)
+                    }
+
                     sectionDivider
 
                     ingredientsSection
@@ -238,6 +242,26 @@ struct ImportedRecipeReviewView: View {
             .padding(.horizontal, 22)
             .padding(.bottom, 20)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+    }
+
+    private func importNoticeSection(_ notice: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(CooksyTheme.brandBlueDark)
+                .padding(.top, 2)
+
+            Text(notice)
+                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white)
     }
@@ -445,6 +469,10 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
 
     var canSave: Bool {
         validation.canSave
+    }
+
+    var importNotice: String? {
+        seed.importNotice
     }
 
     var reviewNotice: String? {

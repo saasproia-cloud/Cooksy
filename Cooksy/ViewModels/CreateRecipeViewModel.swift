@@ -192,7 +192,7 @@ final class CreateRecipeViewModel: ObservableObject {
         remoteImageURL = seed.remoteImageURL
         ingredientDrafts = seed.ingredientDrafts
         stepDrafts = seed.stepDrafts
-        notesText = seed.notesText
+        notesText = seed.editableNotesText
         prepTimeText = seed.prepTimeText
         cookTimeText = seed.cookTimeText
         servingsText = seed.servingsText

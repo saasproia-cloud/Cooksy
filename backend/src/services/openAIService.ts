@@ -234,6 +234,8 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
       "- Garde uniquement des ingrédients utiles à cuisiner, un ingrédient par ligne.",
       "- nutritionQuery doit être un nom d'aliment court en anglais exploitable par USDA.",
       "- Donne des étapes actionnables, numérotables et pas trop longues.",
+      "- Si une transcription audio est présente et que la légende est pauvre, appuie-toi en priorité sur l'audio pour reconstruire la recette.",
+      "- N'invente pas des ingrédients absents de la transcription ou de la légende sans le signaler brièvement dans notesText.",
       "- Ignore les boutons, pubs, 'Read More', 'View post', hashtags et textes people/news/fashion/travel.",
       "- Si le contenu décrit seulement un plat ou une photo, infère une recette maison plausible.",
       "- Note dans notesText ce qui est une déduction ou ce qui manque.",

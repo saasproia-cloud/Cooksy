@@ -18,7 +18,31 @@ export async function fetchPageSummary(url: string): Promise<HtmlPageSummary> {
   }
 
   const html = await response.text();
-  return parseHtmlPage(url, html);
+  return parseHtmlPage(response.url || url, html);
+}
+
+export async function resolveRemoteURL(
+  url: string,
+  options?: {
+    fetchImpl?: typeof fetch;
+  }
+): Promise<string> {
+  const fetchImpl = options?.fetchImpl ?? fetch;
+  const response = await fetchImpl(url, {
+    method: "GET",
+    headers: DEFAULT_HEADERS,
+    redirect: "follow",
+    signal: AbortSignal.timeout(12_000)
+  });
+
+  const resolvedURL = response.url || url;
+  try {
+    void response.body?.cancel();
+  } catch {
+    // Ignored: the redirect target is all we need here.
+  }
+
+  return resolvedURL;
 }
 
 export async function fetchRemoteBuffer(url: string, maxBytes: number): Promise<Buffer> {

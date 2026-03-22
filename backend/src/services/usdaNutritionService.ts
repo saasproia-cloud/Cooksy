@@ -62,7 +62,6 @@ export async function enrichRecipeNutrition(
   }
 
   let matchedIngredients = 0;
-  let consideredIngredients = 0;
   const totals: NutritionTotals = {
     calories: 0,
     protein: 0,
@@ -70,13 +69,12 @@ export async function enrichRecipeNutrition(
     fat: 0
   };
 
-  for (const ingredient of recipe.ingredientDrafts) {
-    if (isMinorIngredient(ingredient)) {
-      continue;
-    }
+  const consideredIngredients = recipe.ingredientDrafts.filter((ingredient) => !isMinorIngredient(ingredient));
+  const nutritionResults = await Promise.all(
+    consideredIngredients.map(async (ingredient) => estimateIngredientNutrition(ingredient, { apiKey, fetchImpl }))
+  );
 
-    consideredIngredients += 1;
-    const nutrition = await estimateIngredientNutrition(ingredient, { apiKey, fetchImpl });
+  for (const nutrition of nutritionResults) {
     if (!nutrition) {
       continue;
     }
@@ -88,8 +86,8 @@ export async function enrichRecipeNutrition(
     totals.fat += nutrition.fat;
   }
 
-  const nutritionCoverage = consideredIngredients > 0
-    ? matchedIngredients / consideredIngredients
+  const nutritionCoverage = consideredIngredients.length > 0
+    ? matchedIngredients / consideredIngredients.length
     : 0;
 
   if (matchedIngredients < 2 || totals.calories <= 0) {

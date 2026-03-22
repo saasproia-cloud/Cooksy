@@ -2,7 +2,7 @@ import { ApifyClient } from "apify-client";
 
 import { env, providerStatus } from "../config/env.js";
 import { fetchPageSummary } from "./generalPageService.js";
-import { platformFromUrl, safeUrl } from "../utils/text.js";
+import { hostFromUrl, platformFromUrl, safeUrl } from "../utils/text.js";
 
 export type SocialContentSnapshot = {
   platform: "tiktok" | "instagram" | "pinterest";
@@ -17,6 +17,7 @@ export type SocialContentSnapshot = {
   videoUrl?: string;
   audioUrl?: string;
   pageText?: string;
+  externalLinks: string[];
 };
 
 const apifyClient = providerStatus.apify ? new ApifyClient({ token: env.APIFY_TOKEN }) : null;
@@ -27,12 +28,22 @@ export async function resolveSocialContent(url: string): Promise<SocialContentSn
     return null;
   }
 
-  const apifySnapshot = await resolveViaApify(platform, url).catch(() => null);
+  const apifySnapshot = await withTimeout(
+    resolveViaApify(platform, url),
+    18_000,
+    new Error("Apify social lookup timed out.")
+  ).catch((error) => {
+    logProviderFailure("apify", platform, url, error);
+    return null;
+  });
   if (apifySnapshot) {
     return apifySnapshot;
   }
 
-  return resolveViaDirectFetch(platform, url).catch(() => null);
+  return resolveViaDirectFetch(platform, url).catch((error) => {
+    logProviderFailure("direct", platform, url, error);
+    return null;
+  });
 }
 
 async function resolveViaApify(
@@ -88,6 +99,7 @@ function mapApifyItemToSnapshot(
     item.transcript,
     item.captionText
   ]);
+  const externalLinks = extractExternalLinks(platform, item, url);
 
   return {
     platform,
@@ -106,23 +118,30 @@ function mapApifyItemToSnapshot(
     ]),
     subtitlesText,
     imageUrls,
-    videoUrl: safeUrl(
-      extractText([
-        item.videoUrl,
-        item.downloadUrl,
-        item.playUrl,
-        item.videoPlayUrl,
-        item.contentUrl
-      ])
-    ),
-    audioUrl: safeUrl(
-      extractText([
-        item.musicUrl,
-        item.audioUrl,
-        item.musicPlayUrl
-      ])
-    ),
-    pageText: extractText([item.text, item.caption, item.description, subtitlesText])
+    videoUrl: firstValidURL([
+      safeUrl(
+        extractText([
+          item.videoUrl,
+          item.downloadUrl,
+          item.playUrl,
+          item.videoPlayUrl,
+          item.contentUrl
+        ])
+      ),
+      extractUrlByKeyHints(item, ["video", "download", "play", "content", "stream"])
+    ]),
+    audioUrl: firstValidURL([
+      safeUrl(
+        extractText([
+          item.musicUrl,
+          item.audioUrl,
+          item.musicPlayUrl
+        ])
+      ),
+      extractUrlByKeyHints(item, ["music", "audio", "sound", "track"])
+    ]),
+    pageText: extractText([item.text, item.caption, item.description, subtitlesText]),
+    externalLinks
   };
 }
 
@@ -140,7 +159,8 @@ async function resolveViaDirectFetch(
     caption: page.description,
     description: page.description,
     imageUrls: page.imageUrl ? [page.imageUrl] : [],
-    pageText: page.textContent
+    pageText: page.textContent,
+    externalLinks: []
   };
 }
 
@@ -192,4 +212,155 @@ function extractUrls(values: unknown[]): string[] {
   }
 
   return Array.from(new Set(urls));
+}
+
+function firstValidURL(values: Array<string | undefined>): string | undefined {
+  return values.find((value): value is string => Boolean(value));
+}
+
+function extractExternalLinks(
+  platform: "tiktok" | "instagram" | "pinterest",
+  item: Record<string, unknown>,
+  sourceUrl: string
+): string[] {
+  const hintedUrls = extractUrls(Object.values(item));
+  const embeddedTextUrls = collectEmbeddedTextUrls(Object.values(item));
+  const sourceHost = hostFromUrl(sourceUrl);
+
+  return Array.from(new Set([...hintedUrls, ...embeddedTextUrls]))
+    .filter((candidate) => candidate !== sourceUrl)
+    .filter((candidate) => platformFromUrl(candidate) === "web")
+    .filter((candidate) => hostFromUrl(candidate) !== sourceHost)
+    .filter((candidate) => !isLikelyMediaAsset(candidate))
+    .slice(0, 5);
+}
+
+function collectEmbeddedTextUrls(values: unknown[]): string[] {
+  const matches: string[] = [];
+
+  for (const value of values) {
+    if (typeof value === "string") {
+      const embeddedMatches = value.match(/https?:\/\/[^\s<>"')]+/g) ?? [];
+      for (const embeddedMatch of embeddedMatches) {
+        const normalized = safeUrl(embeddedMatch);
+        if (normalized) {
+          matches.push(normalized);
+        }
+      }
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      matches.push(...collectEmbeddedTextUrls(value));
+      continue;
+    }
+
+    if (value && typeof value === "object") {
+      matches.push(...collectEmbeddedTextUrls(Object.values(value as Record<string, unknown>)));
+    }
+  }
+
+  return matches;
+}
+
+function isLikelyMediaAsset(url: string): boolean {
+  const lowercaseUrl = url.toLowerCase();
+  return [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
+    ".mp4",
+    ".mov",
+    ".mp3",
+    ".m4a",
+    ".aac",
+    ".wav",
+    ".m3u8"
+  ].some((suffix) => lowercaseUrl.includes(suffix));
+}
+
+function extractUrlByKeyHints(
+  value: unknown,
+  keyHints: string[]
+): string | undefined {
+  const matches: string[] = [];
+  collectHintedUrls(value, keyHints.map((hint) => hint.toLowerCase()), matches);
+  return matches[0];
+}
+
+function collectHintedUrls(
+  value: unknown,
+  keyHints: string[],
+  matches: string[],
+  currentKey = ""
+) {
+  if (matches.length > 0) {
+    return;
+  }
+
+  if (typeof value === "string") {
+    if (!currentKey || !keyHints.some((hint) => currentKey.includes(hint))) {
+      return;
+    }
+
+    const normalized = safeUrl(value);
+    if (normalized) {
+      matches.push(normalized);
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectHintedUrls(entry, keyHints, matches, currentKey);
+      if (matches.length > 0) {
+        return;
+      }
+    }
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    collectHintedUrls(entry, keyHints, matches, key.toLowerCase());
+    if (matches.length > 0) {
+      return;
+    }
+  }
+}
+
+function logProviderFailure(
+  provider: "apify" | "direct",
+  platform: "tiktok" | "instagram" | "pinterest",
+  url: string,
+  error: unknown
+) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[socialContentService] ${provider} failed for ${platform} ${url}: ${message}`);
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutError: Error
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(timeoutError), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }

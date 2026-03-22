@@ -73,6 +73,20 @@ struct RecipeEditorSeed: Codable, Hashable {
         trimmed(title) ?? ""
     }
 
+    var importNotice: String? {
+        let lines = notesLines
+        guard let first = lines.first, first.hasPrefix(Self.importNoticePrefix) else {
+            return nil
+        }
+
+        let notice = String(first.dropFirst(Self.importNoticePrefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return notice.isEmpty ? nil : notice
+    }
+
+    var editableNotesText: String {
+        notesWithoutImportNotice
+    }
+
     var details: RecipeDetails {
         RecipeDetails(
             prepTimeMinutes: Int(trimmed(prepTimeText) ?? ""),
@@ -128,9 +142,24 @@ struct RecipeEditorSeed: Codable, Hashable {
             nutrition: nutrition,
             ingredients: normalizedIngredients,
             steps: normalizedSteps,
-            notes: trimmed(notesText),
+            notes: trimmed(notesWithoutImportNotice),
             bookID: bookID
         )
+    }
+
+    private static let importNoticePrefix = "Import info:"
+
+    private var notesWithoutImportNotice: String {
+        notesLines
+            .filter { !$0.hasPrefix(Self.importNoticePrefix) }
+            .joined(separator: "\n")
+    }
+
+    private var notesLines: [String] {
+        notesText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     private func trimmed(_ text: String) -> String? {

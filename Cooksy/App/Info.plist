@@ -32,7 +32,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CooksyBackendBaseURL</key>
-	<string>https://cooksy-production-7309.up.railway.app</string>
+	<string>https://cooksy-production-bbd1.up.railway.app</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

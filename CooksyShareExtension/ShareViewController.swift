@@ -96,9 +96,7 @@ final class ShareViewController: UIViewController {
                     draft: fallbackDraft,
                     seed: fallbackDraft.map { fallbackSeed(from: $0) },
                     title: "Import impossible",
-                    message: error.localizedDescription.isEmpty
-                        ? "Cooksy n'a pas réussi à analyser ce partage."
-                        : error.localizedDescription,
+                    message: userFacingFailureMessage(for: error),
                     allowsRetry: fallbackDraft != nil
                 )
             )
@@ -108,16 +106,28 @@ final class ShareViewController: UIViewController {
     @MainActor
     private func makePreview(for draft: SharedImportDraft) async throws -> ShareRecipePreview {
         let sharedImageData = sharedLinkInbox.imageData(for: draft.sharedImageFilename)
-        var seed: RecipeEditorSeed
-
-        if let url = draft.preferredImportURL {
-            seed = try await ShareExtensionImportService.importURL(url, sharedText: draft.sharedText)
-        } else if let sharedText = nonEmpty(draft.sharedText) {
-            seed = try await ShareExtensionImportService.importText(sharedText, imageData: sharedImageData)
-        } else if let sharedImageData {
-            seed = try await ShareExtensionImportService.importPhoto(sharedImageData)
-        } else {
+        let attempts = importAttempts(for: draft, imageData: sharedImageData)
+        guard attempts.isEmpty == false else {
             throw ShareImportError.noURLFound
+        }
+
+        var lastError: Error?
+        var seed: RecipeEditorSeed?
+
+        for attempt in attempts {
+            do {
+                seed = try await attempt.execute()
+                break
+            } catch {
+                lastError = error
+                logger.error(
+                    "Share extension \(attempt.debugLabel, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+
+        guard var seed else {
+            throw lastError ?? ShareImportError.noURLFound
         }
 
         if seed.imageData == nil {
@@ -138,6 +148,36 @@ final class ShareViewController: UIViewController {
             assessment: assessment,
             heroImage: assessment.seed.imageData.flatMap(UIImage.init(data:))
         )
+    }
+
+    private func importAttempts(for draft: SharedImportDraft, imageData: Data?) -> [ShareImportAttempt] {
+        var attempts: [ShareImportAttempt] = []
+
+        if let url = draft.preferredImportURL {
+            attempts.append(
+                ShareImportAttempt(debugLabel: "URL import") {
+                    try await ShareExtensionImportService.importURL(url, sharedText: draft.sharedText)
+                }
+            )
+        }
+
+        if let sharedText = nonEmpty(draft.sharedText) {
+            attempts.append(
+                ShareImportAttempt(debugLabel: "text import") {
+                    try await ShareExtensionImportService.importText(sharedText, imageData: imageData)
+                }
+            )
+        }
+
+        if let imageData {
+            attempts.append(
+                ShareImportAttempt(debugLabel: "photo import") {
+                    try await ShareExtensionImportService.importPhoto(imageData)
+                }
+            )
+        }
+
+        return attempts
     }
 
     @MainActor
@@ -222,16 +262,31 @@ final class ShareViewController: UIViewController {
         var foundImageFilename: String?
 
         for item in items {
+            if foundText == nil {
+                foundText = firstNonEmptySharedText(in: item)
+
+                if foundURL == nil, let text = foundText, let url = firstURL(in: text) {
+                    foundURL = url
+                }
+            }
+
             for provider in item.attachments ?? [] {
+                logger.debug(
+                    "Share extension provider advertised types: \(provider.registeredTypeIdentifiers.joined(separator: ","), privacy: .public)"
+                )
+
                 if foundURL == nil,
                    provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
-                   let url = try await loadURL(from: provider) {
+                   let url = await bestEffortLoadURL(from: provider) {
                     foundURL = url
                 }
 
                 if foundText == nil,
-                   provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
-                   let text = try await loadString(from: provider) {
+                   (
+                    provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ||
+                    provider.hasItemConformingToTypeIdentifier(UTType.text.identifier)
+                   ),
+                   let text = await bestEffortLoadString(from: provider) {
                     foundText = text
 
                     if foundURL == nil, let url = firstURL(in: text) {
@@ -241,7 +296,7 @@ final class ShareViewController: UIViewController {
 
                 if foundImageFilename == nil,
                    provider.hasItemConformingToTypeIdentifier(UTType.image.identifier),
-                   let imageData = try await loadImageData(from: provider) {
+                   let imageData = await bestEffortLoadImageData(from: provider) {
                     foundImageFilename = sharedLinkInbox.storePendingImageData(imageData)
                 }
             }
@@ -274,6 +329,69 @@ final class ShareViewController: UIViewController {
         }
 
         return draft
+    }
+
+    private func firstNonEmptySharedText(in item: NSExtensionItem) -> String? {
+        let candidates: [String?] = [
+            item.attributedContentText?.string,
+            item.attributedTitle?.string
+        ]
+
+        for candidate in candidates {
+            if let value = nonEmpty(candidate) {
+                logger.debug("Share extension found text directly on NSExtensionItem.")
+                return value
+            }
+        }
+
+        return nil
+    }
+
+    private func userFacingFailureMessage(for error: Error) -> String {
+        if let shareImportError = error as? ShareImportError,
+           let description = shareImportError.errorDescription {
+            return description
+        }
+
+        if let importError = error as? ShareExtensionImportError {
+            switch importError {
+            case .missingBackendURL, .invalidBackendURL, .invalidRequestURL:
+                return "Cooksy n'a pas réussi à contacter le service d'import."
+            case .invalidResponse:
+                return "Le contenu partagé n'a pas pu être relu correctement."
+            case .timedOut:
+                return "L'analyse a pris trop de temps. Réessaie dans quelques instants."
+            case .serverError(let message):
+                return sanitizedFailureMessage(from: message)
+            }
+        }
+
+        return sanitizedFailureMessage(from: error.localizedDescription)
+    }
+
+    private func sanitizedFailureMessage(from rawMessage: String) -> String {
+        let trimmedMessage = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedMessage.isEmpty == false else {
+            return "Cooksy n'a pas réussi à analyser ce partage."
+        }
+
+        let lowercaseMessage = trimmedMessage.lowercased()
+        let technicalFragments = [
+            "application not found",
+            "nsitemprovider",
+            "cfprefs",
+            "operation couldn",
+            "couldn't communicate",
+            "unsupported",
+            "timed out",
+            "network connection"
+        ]
+
+        if technicalFragments.contains(where: { lowercaseMessage.contains($0) }) {
+            return "TikTok n'a pas fourni un contenu exploitable à Cooksy. Réessaie ou copie le lien de la vidéo dans l'app."
+        }
+
+        return trimmedMessage
     }
 
     @MainActor
@@ -325,6 +443,18 @@ final class ShareViewController: UIViewController {
         }
     }
 
+    private func bestEffortLoadURL(from provider: NSItemProvider) async -> URL? {
+        do {
+            return try await loadURL(from: provider)
+        } catch {
+            let typeList = provider.registeredTypeIdentifiers.joined(separator: ",")
+            logger.error(
+                "Share extension could not load URL from provider \(typeList, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
     private func loadString(from provider: NSItemProvider) async throws -> String? {
         try await withCheckedThrowingContinuation { continuation in
             provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, error in
@@ -354,6 +484,50 @@ final class ShareViewController: UIViewController {
         }
     }
 
+    private func bestEffortLoadString(from provider: NSItemProvider) async -> String? {
+        do {
+            if let text = try await loadString(from: provider) {
+                return text
+            }
+
+            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
+                return try await withCheckedThrowingContinuation { continuation in
+                    provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { item, error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                            return
+                        }
+
+                        if let text = item as? String {
+                            continuation.resume(returning: text)
+                            return
+                        }
+
+                        if let attributedString = item as? NSAttributedString {
+                            continuation.resume(returning: attributedString.string)
+                            return
+                        }
+
+                        if let data = item as? Data,
+                           let text = String(data: data, encoding: .utf8) {
+                            continuation.resume(returning: text)
+                            return
+                        }
+
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+        } catch {
+            let typeList = provider.registeredTypeIdentifiers.joined(separator: ",")
+            logger.error(
+                "Share extension could not load text from provider \(typeList, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+
+        return nil
+    }
+
     private func loadImageData(from provider: NSItemProvider) async throws -> Data? {
         try await withCheckedThrowingContinuation { continuation in
             provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { item, error in
@@ -380,6 +554,18 @@ final class ShareViewController: UIViewController {
 
                 continuation.resume(returning: nil)
             }
+        }
+    }
+
+    private func bestEffortLoadImageData(from provider: NSItemProvider) async -> Data? {
+        do {
+            return try await loadImageData(from: provider)
+        } catch {
+            let typeList = provider.registeredTypeIdentifiers.joined(separator: ",")
+            logger.error(
+                "Share extension could not load image from provider \(typeList, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
         }
     }
 
@@ -444,6 +630,11 @@ private struct ShareRecipeFailure {
     let title: String
     let message: String
     let allowsRetry: Bool
+}
+
+private struct ShareImportAttempt {
+    let debugLabel: String
+    let execute: @Sendable () async throws -> RecipeEditorSeed
 }
 
 private struct ShareExtensionRootView: View {
@@ -585,6 +776,10 @@ private struct ShareRecipePreviewView: View {
                 headerSection
                     .padding(.horizontal, 18)
                     .padding(.bottom, 22)
+
+                if let importNotice = preview.assessment.seed.importNotice {
+                    importNoticeSection(importNotice)
+                }
 
                 ShareSectionDivider()
 
@@ -771,6 +966,26 @@ private struct ShareRecipePreviewView: View {
             .padding(.horizontal, 18)
             .padding(.bottom, 20)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+    }
+
+    private func importNoticeSection(_ notice: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color(hex: 0x5C89D8))
+                .padding(.top, 2)
+
+            Text(notice)
+                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .foregroundStyle(Color(hex: 0x221A14))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white)
     }
@@ -1062,8 +1277,8 @@ private enum ShareExtensionImportService {
 
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 25
-        configuration.timeoutIntervalForResource = 40
+        configuration.timeoutIntervalForRequest = 60
+        configuration.timeoutIntervalForResource = 120
         return URLSession(configuration: configuration)
     }()
 
@@ -1170,7 +1385,19 @@ private enum ShareExtensionImportService {
             throw ShareExtensionImportError.invalidResponse
         }
 
+        let responseURLString = httpResponse.url?.absoluteString ?? request.url?.absoluteString ?? "(nil)"
+        logger.debug(
+            "Share extension backend response \(httpResponse.statusCode) from \(responseURLString, privacy: .public)"
+        )
+
         guard 200 ..< 300 ~= httpResponse.statusCode else {
+            if !data.isEmpty {
+                let responseBody = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+                logger.error(
+                    "Share extension backend error payload for \(responseURLString, privacy: .public): \(String(responseBody.prefix(500)), privacy: .public)"
+                )
+            }
+
             if let backendError = try? JSONDecoder().decode(ShareBackendErrorEnvelope.self, from: data),
                let message = nonEmpty(backendError.message) ?? nonEmpty(backendError.error) {
                 throw ShareExtensionImportError.serverError(message)

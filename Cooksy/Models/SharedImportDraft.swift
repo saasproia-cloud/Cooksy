@@ -21,11 +21,15 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
     }
 
     var preferredImportURL: URL? {
+        if let sharedTextURL = Self.preferredWebURL(in: sharedText, relativeTo: url) {
+            return sharedTextURL
+        }
+
         if let url, url.isWebImportURL {
             return url
         }
 
-        return Self.firstWebURL(in: sharedText)
+        return nil
     }
 
     var hasPayload: Bool {
@@ -81,17 +85,28 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
         .joined(separator: "|")
     }
 
-    private static func firstWebURL(in text: String?) -> URL? {
+    private static func preferredWebURL(in text: String?, relativeTo baseURL: URL?) -> URL? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
             return nil
         }
 
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
-
-        return detector?.matches(in: text, options: [], range: range)
+        let webURLs = detector?.matches(in: text, options: [], range: range)
             .compactMap(\.url)
-            .first(where: { $0.isWebImportURL })
+            .filter(\.isWebImportURL) ?? []
+
+        guard webURLs.isEmpty == false else {
+            return nil
+        }
+
+        if let baseURL, baseURL.isSocialImportURL {
+            if let externalRecipeURL = webURLs.first(where: { !$0.isSocialImportURL }) {
+                return externalRecipeURL
+            }
+        }
+
+        return webURLs.first
     }
 }
 
@@ -99,5 +114,14 @@ private extension URL {
     var isWebImportURL: Bool {
         guard let scheme = scheme?.lowercased() else { return false }
         return scheme == "http" || scheme == "https"
+    }
+
+    var isSocialImportURL: Bool {
+        guard let host = host?.lowercased() else { return false }
+
+        return host.contains("tiktok") ||
+            host.contains("instagram") ||
+            host.contains("pinterest") ||
+            host.contains("pin.it")
     }
 }
