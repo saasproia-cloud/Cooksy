@@ -1,18 +1,19 @@
 import SwiftUI
 import WebKit
+import OSLog
 
 @MainActor
 struct BrowserImportView: View {
     @Environment(\.dismiss) private var dismiss
 
     let initialURL: URL?
-    let onImported: (RecipeEditorSeed) -> Void
+    let onImported: (RecipeImportAssessment) -> Void
 
     @StateObject private var viewModel = BrowserImportViewModel()
     @State private var importErrorMessage = ""
     @State private var showsImportError = false
 
-    init(initialURL: URL? = nil, onImported: @escaping (RecipeEditorSeed) -> Void) {
+    init(initialURL: URL? = nil, onImported: @escaping (RecipeImportAssessment) -> Void) {
         self.initialURL = initialURL
         self.onImported = onImported
     }
@@ -299,6 +300,8 @@ struct BrowserImportView: View {
 }
 
 private final class BrowserImportViewModel: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
+    private let logger = Logger(subsystem: "com.cooksy.ios", category: "BrowserImportViewModel")
+
     enum RecipeDetectionState: Equatable {
         case idle
         case scanning
@@ -367,6 +370,7 @@ private final class BrowserImportViewModel: NSObject, ObservableObject, WKNaviga
         resetDetectionState()
         addressText = url.absoluteString
         isLoading = true
+        logger.debug("Browser import loading \(url.absoluteString, privacy: .public)")
         webView.load(URLRequest(url: url))
     }
 
@@ -387,7 +391,7 @@ private final class BrowserImportViewModel: NSObject, ObservableObject, WKNaviga
         webView.goForward()
     }
 
-    func importCurrentPage() async throws -> RecipeEditorSeed {
+    func importCurrentPage() async throws -> RecipeImportAssessment {
         guard hasLoadedPage else {
             throw RecipeWebImportError.noRecipeFound
         }
@@ -398,14 +402,15 @@ private final class BrowserImportViewModel: NSObject, ObservableObject, WKNaviga
         do {
             let snapshotJSON = try await currentSnapshotJSON()
             return try await Task.detached(priority: .userInitiated) {
-                try RecipeWebImportService.importRecipe(from: snapshotJSON)
+                let seed = try RecipeWebImportService.importRecipe(from: snapshotJSON)
+                return RecipeValidationService.assess(seed, sourceKind: .url)
             }.value
         } catch {
             guard let currentURL = webView.url else {
                 throw error
             }
 
-            return try await RecipeImportPipeline.importURL(currentURL)
+            return try await RecipeImportPipeline.importURLAssessment(currentURL)
         }
     }
 
@@ -497,16 +502,52 @@ private final class BrowserImportViewModel: NSObject, ObservableObject, WKNaviga
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        if let explicitURL = URL(string: trimmed), explicitURL.scheme != nil {
+        if
+            let explicitComponents = URLComponents(string: trimmed),
+            let scheme = explicitComponents.scheme,
+            !scheme.isEmpty,
+            let explicitURL = explicitComponents.url
+        {
             return explicitURL
         }
 
         if !trimmed.contains(" "), trimmed.contains(".") {
-            return URL(string: "https://\(trimmed)")
+            return httpsURL(for: trimmed)
         }
 
-        let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
-        return URL(string: "https://www.google.com/search?q=\(query)")
+        return googleSearchURL(for: trimmed)
+    }
+
+    private func httpsURL(for input: String) -> URL? {
+        let separatorIndex = input.firstIndex(of: "/") ?? input.endIndex
+        let host = String(input[..<separatorIndex])
+        guard !host.isEmpty else { return nil }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = host
+
+        if separatorIndex != input.endIndex {
+            let remainder = String(input[separatorIndex...])
+            if let remainderComponents = URLComponents(string: remainder) {
+                components.percentEncodedPath = remainderComponents.percentEncodedPath
+                components.queryItems = remainderComponents.queryItems
+                components.fragment = remainderComponents.fragment
+            } else {
+                components.percentEncodedPath = remainder
+            }
+        }
+
+        return components.url
+    }
+
+    private func googleSearchURL(for query: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.google.com"
+        components.path = "/search"
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        return components.url
     }
 
     private func isSupportedInAppURL(_ url: URL) -> Bool {

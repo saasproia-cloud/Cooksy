@@ -16,6 +16,7 @@ struct ImportedRecipeReviewView: View {
     init(
         store: RecipeStore,
         seed: RecipeEditorSeed,
+        validation: RecipeValidationResult,
         preferredBookID: RecipeBook.ID? = nil,
         onSaved: ((Recipe.ID) -> Void)? = nil
     ) {
@@ -25,6 +26,7 @@ struct ImportedRecipeReviewView: View {
             wrappedValue: ImportedRecipeReviewViewModel(
                 store: store,
                 seed: seed,
+                validation: validation,
                 preferredBookID: preferredBookID
             )
         )
@@ -137,6 +139,12 @@ struct ImportedRecipeReviewView: View {
                     .foregroundStyle(CooksyTheme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
+                if let sourceLabel = viewModel.sourceLabel {
+                    Text(sourceLabel)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                }
+
                 Button(action: { showsEditor = true }) {
                     HStack(spacing: 12) {
                         Image(systemName: "pencil")
@@ -236,6 +244,14 @@ struct ImportedRecipeReviewView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 12) {
+            if let reviewNotice = viewModel.reviewNotice {
+                Text(reviewNotice)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(viewModel.canSave ? CooksyTheme.ctaOrangeDark : Color.red.opacity(0.82))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
+
             Button(action: { showsBookPicker = true }) {
                 HStack(spacing: 14) {
                     Text(viewModel.selectedBookLabel)
@@ -264,21 +280,21 @@ struct ImportedRecipeReviewView: View {
             Button(action: saveRecipe) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(CooksyTheme.ctaOrange)
+                        .fill(viewModel.canSave ? CooksyTheme.ctaOrange : CooksyTheme.stroke.opacity(0.55))
                         .frame(height: 66)
 
                     if viewModel.isSaving {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Enregistrer")
+                        Text(viewModel.canSave ? "Enregistrer" : "Modifier avant d'enregistrer")
                             .font(.system(size: 21, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                     }
                 }
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isSaving)
+            .disabled(viewModel.isSaving || !viewModel.canSave)
 
             Button(action: { showsReportAlert = true }) {
                 HStack(spacing: 10) {
@@ -377,11 +393,18 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     @Published var selectedBookID: RecipeBook.ID?
 
     private let store: RecipeStore
+    private let validation: RecipeValidationResult
     private let preferredBookID: RecipeBook.ID?
     private var cancellables = Set<AnyCancellable>()
 
-    init(store: RecipeStore, seed: RecipeEditorSeed, preferredBookID: RecipeBook.ID? = nil) {
+    init(
+        store: RecipeStore,
+        seed: RecipeEditorSeed,
+        validation: RecipeValidationResult,
+        preferredBookID: RecipeBook.ID? = nil
+    ) {
         self.store = store
+        self.validation = validation
         self.preferredBookID = preferredBookID
         self.seed = seed
         self.heroImage = seed.imageData.flatMap(UIImage.init(data:))
@@ -406,6 +429,28 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         return book.kind == .uncategorized ? "Non catégorisé" : book.title
     }
 
+    var sourceLabel: String? {
+        let trimmedNotes = seed.notesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let firstLine = trimmedNotes.components(separatedBy: "\n").first,
+           firstLine.hasPrefix("Source demo : ") {
+            return firstLine
+        }
+
+        guard let host = seed.sourceURL?.host(percentEncoded: false), !host.isEmpty else {
+            return nil
+        }
+
+        return host
+    }
+
+    var canSave: Bool {
+        validation.canSave
+    }
+
+    var reviewNotice: String? {
+        validation.reviewNotice
+    }
+
     func selectBook(_ bookID: RecipeBook.ID) {
         selectedBookID = bookID
     }
@@ -420,7 +465,7 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
 
     @discardableResult
     func saveRecipe() async -> Recipe.ID? {
-        guard !isSaving else { return nil }
+        guard !isSaving, canSave else { return nil }
         isSaving = true
         defer { isSaving = false }
 

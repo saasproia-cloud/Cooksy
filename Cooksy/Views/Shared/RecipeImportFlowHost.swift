@@ -17,6 +17,12 @@ private enum QuickImportPhotoSource: String, Identifiable {
     }
 }
 
+private enum ImportRetrySource {
+    case browser
+    case pasteText
+    case photo
+}
+
 private struct RecipeImportFlowHost: ViewModifier {
     @EnvironmentObject private var recipeStore: RecipeStore
 
@@ -26,15 +32,15 @@ private struct RecipeImportFlowHost: ViewModifier {
     @State private var showsCreateRecipe = false
     @State private var showsPasteTextImport = false
     @State private var showsBrowserImport = false
-    @State private var showsImportReview = false
     @State private var showsPhotoSourceDialog = false
     @State private var showsCameraUnavailableAlert = false
-    @State private var showsPhotoImportError = false
     @State private var activePhotoImportSource: QuickImportPhotoSource?
-    @State private var photoImportErrorMessage = ""
+    @State private var browserImportInitialURL: URL?
     @State private var isProcessingPhotoImport = false
     @State private var createRecipeSeed: RecipeEditorSeed?
-    @State private var importReviewSeed: RecipeEditorSeed?
+    @State private var importReviewAssessment: RecipeImportAssessment?
+    @State private var importFailureAssessment: RecipeImportAssessment?
+    @State private var importFailureRetrySource: ImportRetrySource?
 
     func body(content: Content) -> some View {
         content
@@ -48,6 +54,7 @@ private struct RecipeImportFlowHost: ViewModifier {
                         }
                     },
                     onBrowserImport: {
+                        browserImportInitialURL = nil
                         isPresented = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                             showsBrowserImport = true
@@ -89,11 +96,6 @@ private struct RecipeImportFlowHost: ViewModifier {
             } message: {
                 Text("La caméra n'est pas disponible sur cet appareil. Vous pouvez choisir une image depuis la galerie.")
             }
-            .alert("Import photo incomplet", isPresented: $showsPhotoImportError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(photoImportErrorMessage)
-            }
             .sheet(item: $activePhotoImportSource) { source in
                 SystemImagePicker(sourceType: source.pickerSourceType) { data in
                     handleImportedImage(data)
@@ -101,31 +103,63 @@ private struct RecipeImportFlowHost: ViewModifier {
                 .ignoresSafeArea()
             }
             .fullScreenCover(isPresented: $showsBrowserImport) {
-                BrowserImportView { seed in
-                    importReviewSeed = seed
+                BrowserImportView(initialURL: browserImportInitialURL) { assessment in
                     showsBrowserImport = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        showsImportReview = true
+                        presentImportedAssessment(assessment, retrySource: .browser)
                     }
                 }
             }
             .fullScreenCover(isPresented: $showsPasteTextImport) {
-                PasteTextImportView { seed in
-                    importReviewSeed = seed
+                PasteTextImportView { assessment in
                     showsPasteTextImport = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        showsImportReview = true
+                        presentImportedAssessment(assessment, retrySource: .pasteText)
                     }
                 }
             }
-            .fullScreenCover(isPresented: $showsImportReview, onDismiss: {
-                importReviewSeed = nil
-            }) {
-                if let importReviewSeed {
+            .fullScreenCover(
+                isPresented: Binding(
+                    get: { importReviewAssessment != nil },
+                    set: { if !$0 { importReviewAssessment = nil } }
+                ),
+                onDismiss: {
+                    importReviewAssessment = nil
+                }
+            ) {
+                if let reviewAssessment = importReviewAssessment {
                     ImportedRecipeReviewView(
                         store: recipeStore,
-                        seed: importReviewSeed,
+                        seed: reviewAssessment.seed,
+                        validation: reviewAssessment.validation,
                         preferredBookID: preferredBookID
+                    )
+                }
+            }
+            .fullScreenCover(
+                isPresented: Binding(
+                    get: { importFailureAssessment != nil },
+                    set: { if !$0 { importFailureAssessment = nil } }
+                ),
+                onDismiss: {
+                    importFailureAssessment = nil
+                    importFailureRetrySource = nil
+                }
+            ) {
+                if let failureAssessment = importFailureAssessment {
+                    RecipeImportFailureView(
+                        store: recipeStore,
+                        seed: failureAssessment.seed,
+                        preferredBookID: preferredBookID,
+                        onRetry: retryLastImport,
+                        onCancel: {
+                            importFailureAssessment = nil
+                            importFailureRetrySource = nil
+                        },
+                        onManualSaved: {
+                            importFailureAssessment = nil
+                            importFailureRetrySource = nil
+                        }
                     )
                 }
             }
@@ -165,24 +199,47 @@ private struct RecipeImportFlowHost: ViewModifier {
         isProcessingPhotoImport = true
 
         Task {
-            let seed = await RecipeImportPipeline.importPhoto(from: data)
+            let assessment = await RecipeImportPipeline.importPhotoAssessment(from: data)
 
             await MainActor.run {
                 isProcessingPhotoImport = false
+                presentImportedAssessment(assessment, retrySource: .photo)
+            }
+        }
+    }
 
-                if seed.normalizedIngredients.isEmpty && seed.normalizedSteps.isEmpty {
-                    photoImportErrorMessage = "Cooksy n'a pas trouve de recette complete dans cette image. Vous pouvez continuer manuellement."
-                    showsPhotoImportError = true
-                    createRecipeSeed = seed
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        showsCreateRecipe = true
-                    }
-                } else {
-                    importReviewSeed = seed
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        showsImportReview = true
-                    }
-                }
+    private func presentImportedAssessment(
+        _ assessment: RecipeImportAssessment,
+        retrySource: ImportRetrySource
+    ) {
+        browserImportInitialURL = assessment.seed.sourceURL
+        importFailureRetrySource = retrySource
+
+        if assessment.validation.isRejected {
+            importFailureAssessment = assessment
+        } else {
+            importReviewAssessment = assessment
+        }
+    }
+
+    private func retryLastImport() {
+        let retrySource = importFailureRetrySource
+        let retryURL = importFailureAssessment?.seed.sourceURL
+
+        importFailureAssessment = nil
+        importFailureRetrySource = nil
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            switch retrySource {
+            case .browser:
+                browserImportInitialURL = retryURL
+                showsBrowserImport = true
+            case .pasteText:
+                showsPasteTextImport = true
+            case .photo:
+                showsPhotoSourceDialog = true
+            case nil:
+                break
             }
         }
     }

@@ -10,17 +10,18 @@ struct MealPlanView: View {
 
     var body: some View {
         ZStack {
-            PlanningBackground()
+            Color(hex: 0xFBF8F2)
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
-                    topHeader
-                    planningCard
+                    planningOverviewCard
+                    selectedDayHeader
+                    mealSections
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 156)
+                .padding(.top, 12)
+                .padding(.bottom, 132)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -40,79 +41,34 @@ struct MealPlanView: View {
         }
     }
 
-    private var topHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Plan.")
-                    .font(.system(size: 38, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Spacer(minLength: 0)
-
-                Button(action: { viewModel.showCurrentWeek() }) {
-                    Text("Aujourd’hui")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .frame(height: 36)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.white.opacity(0.12))
-                        )
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-
-            Text("Organisez les repas de la semaine sans décalage ni zones coupées.")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.74))
-        }
-    }
-
-    private var planningCard: some View {
+    private var planningOverviewCard: some View {
         VStack(alignment: .leading, spacing: 22) {
             planningHeader
             weekStrip
             objectiveCard
-            selectedDayHeader
-            mealSections
         }
         .padding(20)
         .background(
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: 0xF8F4ED), Color(hex: 0xF2EDE4)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .stroke(Color.white.opacity(0.7), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color(hex: 0xE9E0D4), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.16), radius: 26, y: 16)
+        .shadow(color: Color.black.opacity(0.05), radius: 18, y: 8)
     }
 
     private var planningHeader: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Planning")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                Text(viewModel.currentMonthLabel)
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
                     .foregroundStyle(Color(hex: 0x413731))
 
-                Text(viewModel.currentMonthLabel)
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(hex: 0xA39889))
-
                 Text(viewModel.weekCaptionLabel)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0xB0A491))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(hex: 0x9A8E80))
             }
 
             Spacer(minLength: 0)
@@ -204,7 +160,7 @@ struct MealPlanView: View {
 
                         Capsule()
                             .fill(Color(hex: 0x93AD7F))
-                            .frame(width: max(18, proxy.size.width * summary.progress))
+                            .frame(width: summary.progress > 0 ? max(18, proxy.size.width * summary.progress) : 0)
                     }
                 }
                 .frame(width: 104, height: 7)
@@ -233,6 +189,7 @@ struct MealPlanView: View {
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(Color(hex: 0x413731))
         }
+        .padding(.horizontal, 2)
     }
 
     private var mealSections: some View {
@@ -266,44 +223,22 @@ private struct MealPickerContext: Identifiable {
     }
 }
 
-private struct PlanningBackground: View {
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(hex: 0x1F1715), Color(hex: 0x140F0E)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(spacing: 0) {
-                HStack(spacing: 14) {
-                    ForEach(0..<14, id: \.self) { _ in
-                        Circle()
-                            .fill(Color(hex: 0x84695A).opacity(0.34))
-                            .frame(width: 3, height: 3)
-                    }
-                }
-                .padding(.top, 18)
-
-                Spacer()
-            }
-        }
-    }
-}
-
 private struct PlanningActionButton: View {
     let systemImage: String
 
     var body: some View {
-        Circle()
-            .fill(Color.white.opacity(0.96))
-            .frame(width: 38, height: 38)
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Color(hex: 0xF7F2EA))
+            .frame(width: 42, height: 42)
             .overlay {
                 Image(systemName: systemImage)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Color(hex: 0x5D5349))
             }
-            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color(hex: 0xE2D8CC), lineWidth: 1)
+            )
     }
 }
 
@@ -345,7 +280,7 @@ private struct PlanningDayTile: View {
         .frame(height: 106)
         .background(tileBackground)
         .overlay(tileBorder)
-        .shadow(color: shadowColor, radius: 10, y: 6)
+        .shadow(color: shadowColor, radius: 8, y: 4)
     }
 
     private var tileBackground: some ShapeStyle {
@@ -476,12 +411,13 @@ private struct MealPlanMealSection: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color(hex: 0xF6F1E8))
+                .fill(Color.white)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color(hex: 0xE3DACE), lineWidth: 1)
+                .stroke(Color(hex: 0xE8DED1), lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.035), radius: 14, y: 6)
     }
 }
 

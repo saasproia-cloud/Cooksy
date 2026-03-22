@@ -17,7 +17,8 @@ struct RootTabView: View {
     @State private var showsQuickImportSheet = false
     @State private var isProcessingSharedImport = false
     @State private var currentSharedImportHostLabel = ""
-    @State private var sharedImportSeed: RecipeEditorSeed?
+    @State private var sharedImportAssessment: RecipeImportAssessment?
+    @State private var sharedImportFailureAssessment: RecipeImportAssessment?
     @State private var lastDeferredSharedImportKey: String?
     @State private var sharedImportErrorMessage = ""
     @State private var showsSharedImportError = false
@@ -94,16 +95,42 @@ struct RootTabView: View {
         }
         .fullScreenCover(
             isPresented: Binding(
-                get: { sharedImportSeed != nil },
-                set: { if !$0 { sharedImportSeed = nil } }
+                get: { sharedImportAssessment != nil },
+                set: { if !$0 { sharedImportAssessment = nil } }
             )
         ) {
-            if let sharedImportSeed {
+            if let reviewAssessment = sharedImportAssessment {
                 ImportedRecipeReviewView(
                     store: recipeStore,
-                    seed: sharedImportSeed,
+                    seed: reviewAssessment.seed,
+                    validation: reviewAssessment.validation,
                     onSaved: { recipeID in
                         handleSharedImportSaved(recipeID: recipeID)
+                    }
+                )
+            }
+        }
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { sharedImportFailureAssessment != nil },
+                set: { if !$0 { sharedImportFailureAssessment = nil } }
+            )
+        ) {
+            if let failureAssessment = sharedImportFailureAssessment {
+                RecipeImportFailureView(
+                    store: recipeStore,
+                    seed: failureAssessment.seed,
+                    onRetry: {
+                        sharedImportFailureAssessment = nil
+                        Task {
+                            await processPendingSharedImportIfNeeded(force: true)
+                        }
+                    },
+                    onCancel: {
+                        dismissSharedImportFailure()
+                    },
+                    onManualSaved: {
+                        dismissSharedImportFailure()
                     }
                 )
             }
@@ -152,10 +179,15 @@ struct RootTabView: View {
         currentSharedImportHostLabel = draft.hostLabel
 
         do {
-            let seed = try await RecipeImportPipeline.importSharedDraft(draft)
-            sharedLinkInbox.clear()
-            lastDeferredSharedImportKey = nil
-            sharedImportSeed = seed
+            let assessment = try await RecipeImportPipeline.importSharedDraftAssessment(draft)
+            if assessment.validation.isRejected {
+                lastDeferredSharedImportKey = draft.dedupeKey
+                sharedImportFailureAssessment = assessment
+            } else {
+                sharedLinkInbox.clear()
+                lastDeferredSharedImportKey = nil
+                sharedImportAssessment = assessment
+            }
         } catch {
             lastDeferredSharedImportKey = draft.dedupeKey
             sharedImportErrorMessage = makeSharedImportErrorMessage(for: error, hostLabel: draft.hostLabel)
@@ -168,13 +200,19 @@ struct RootTabView: View {
 
     @MainActor
     private func handleSharedImportSaved(recipeID: Recipe.ID) {
-        sharedImportSeed = nil
+        sharedImportAssessment = nil
         lastDeferredSharedImportKey = nil
         selection = .recipes
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             savedImportedRecipeRoute = SavedImportedRecipeRoute(recipeID: recipeID)
         }
+    }
+
+    private func dismissSharedImportFailure() {
+        sharedImportFailureAssessment = nil
+        lastDeferredSharedImportKey = nil
+        sharedLinkInbox.clear()
     }
 
     private func makeSharedImportErrorMessage(for error: Error, hostLabel: String) -> String {

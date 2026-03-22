@@ -1,8 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
+import OSLog
 
 final class ShareViewController: UIViewController {
+    private let logger = Logger(subsystem: "com.cooksy.ios", category: "ShareViewController")
     private let state = ShareExtensionState()
     private let sharedLinkInbox = SharedLinkInbox()
 
@@ -80,13 +82,25 @@ final class ShareViewController: UIViewController {
             }
         }
 
-        let draft = SharedImportDraft(
+        var draft = SharedImportDraft(
             urlString: foundURL?.absoluteString,
             sourceApp: nil,
             sharedText: foundText,
             sharedImageFilename: foundImageFilename,
             capturedAt: .now
         )
+
+        if let rawURLString = draft.urlString {
+            logger.debug("Share Extension extracted raw URL: \(rawURLString, privacy: .public)")
+        }
+
+        draft.urlString = draft.preferredImportURL?.absoluteString
+
+        if let preferredURLString = draft.urlString {
+            logger.debug("Share Extension handoff URL: \(preferredURLString, privacy: .public)")
+        } else {
+            logger.notice("Share Extension did not find a valid web URL in the shared payload.")
+        }
 
         guard draft.hasPayload else {
             throw ShareImportError.noURLFound
@@ -126,7 +140,7 @@ final class ShareViewController: UIViewController {
 
                 if let data = item as? Data,
                    let text = String(data: data, encoding: .utf8) {
-                    continuation.resume(returning: URL(string: text))
+                    continuation.resume(returning: Self.validatedURL(from: text))
                     return
                 }
 
@@ -198,6 +212,12 @@ final class ShareViewController: UIViewController {
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         let match = detector?.firstMatch(in: text, options: [], range: range)
         return match?.url
+    }
+
+    nonisolated private static func validatedURL(from rawValue: String) -> URL? {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return nil }
+        return URLComponents(string: trimmedValue)?.url
     }
 }
 

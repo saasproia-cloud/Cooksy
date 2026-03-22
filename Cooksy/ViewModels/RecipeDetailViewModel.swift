@@ -1,9 +1,12 @@
 import Combine
 import Foundation
+import OSLog
 import UIKit
 
 @MainActor
 final class RecipeDetailViewModel: ObservableObject {
+    private let logger = Logger(subsystem: "com.cooksy.ios", category: "RecipeDetailViewModel")
+
     enum AssistantPreset {
         case replaceIngredient
         case simplify
@@ -74,6 +77,9 @@ final class RecipeDetailViewModel: ObservableObject {
         if host.contains("tiktok") { return "Ouvrez TikTok" }
         if host.contains("instagram") { return "Ouvrez Instagram" }
         if host.contains("youtube") { return "Ouvrez YouTube" }
+        if host.contains("cooksy.app"), sourceURL?.path(percentEncoded: false).contains("/demo/") == true {
+            return "Voir la source demo"
+        }
         return "Ouvrez la source"
     }
 
@@ -252,7 +258,14 @@ final class RecipeDetailViewModel: ObservableObject {
             return
         }
 
+        guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else {
+            logger.error("Skipping invalid hero image URL: \(url.absoluteString, privacy: .public)")
+            heroImage = nil
+            return
+        }
+
         Task {
+            logger.debug("Loading hero image from \(url.absoluteString, privacy: .public)")
             guard let (data, _) = try? await URLSession.shared.data(from: url) else { return }
             guard !Task.isCancelled else { return }
             heroImage = UIImage(data: data)

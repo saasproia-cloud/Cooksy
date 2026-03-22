@@ -1,7 +1,10 @@
 import Foundation
+import OSLog
 
 enum CooksyBackendError: LocalizedError {
     case missingBaseURL
+    case invalidBaseURL(String)
+    case invalidRequestURL(String)
     case invalidResponse
     case localBackendOnPhysicalDevice
     case timedOut
@@ -11,7 +14,11 @@ enum CooksyBackendError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingBaseURL:
-            return "BACKEND_BASE_URL n'est pas configurée."
+            return AppConfiguration.backendBaseURLValidationError ?? "BACKEND_BASE_URL n'est pas configurée."
+        case .invalidBaseURL(let message):
+            return message
+        case .invalidRequestURL(let message):
+            return message
         case .invalidResponse:
             return "Le backend Cooksy a renvoyé une réponse invalide."
         case .localBackendOnPhysicalDevice:
@@ -26,7 +33,17 @@ enum CooksyBackendError: LocalizedError {
     }
 }
 
+private enum CooksyBackendEndpoint: String {
+    case health = "/health"
+    case importURL = "/api/import/url"
+    case importText = "/api/import/text"
+    case importPhoto = "/api/import/photo"
+    case shoppingEnrich = "/api/shopping/enrich"
+}
+
 enum CooksyBackendService {
+    private static let logger = Logger(subsystem: "com.cooksy.ios", category: "CooksyBackendService")
+
     static var isAvailable: Bool {
         AppConfiguration.backendBaseURL != nil
     }
@@ -38,14 +55,19 @@ enum CooksyBackendService {
         return URLSession(configuration: configuration)
     }()
 
+    static func healthCheck() async throws -> BackendHealthEnvelope {
+        let request = try makeRequest(endpoint: .health, method: "GET", contentType: nil)
+        return try await send(request, as: BackendHealthEnvelope.self)
+    }
+
     static func importURL(_ url: URL, sharedText: String? = nil) async throws -> RecipeEditorSeed {
         let requestBody = URLImportRequest(
-            url: url.absoluteString,
+            url: encodedAbsoluteString(for: url),
             sharedText: nonEmpty(sharedText)
         )
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
-            path: "/api/import/url",
+            endpoint: .importURL,
             requestBody: requestBody
         )
         return envelope.recipe.asSeed()
@@ -58,7 +80,7 @@ enum CooksyBackendService {
         )
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
-            path: "/api/import/text",
+            endpoint: .importText,
             requestBody: requestBody
         )
         return envelope.recipe.asSeed()
@@ -67,7 +89,7 @@ enum CooksyBackendService {
     static func importPhoto(_ imageData: Data) async throws -> RecipeEditorSeed {
         let boundary = "CooksyBoundary-\(UUID().uuidString)"
         let request = try makeRequest(
-            path: "/api/import/photo",
+            endpoint: .importPhoto,
             method: "POST",
             contentType: "multipart/form-data; boundary=\(boundary)"
         )
@@ -100,7 +122,7 @@ enum CooksyBackendService {
         )
 
         let response: ShoppingImageResponseEnvelope = try await sendJSON(
-            path: "/api/shopping/enrich",
+            endpoint: .shoppingEnrich,
             requestBody: payload
         )
 
@@ -119,10 +141,10 @@ enum CooksyBackendService {
     }
 
     private static func sendJSON<Request: Encodable, Response: Decodable>(
-        path: String,
+        endpoint: CooksyBackendEndpoint,
         requestBody: Request
     ) async throws -> Response {
-        var request = try makeRequest(path: path)
+        var request = try makeRequest(endpoint: endpoint)
         request.httpBody = try JSONEncoder().encode(requestBody)
         return try await send(request, as: Response.self)
     }
@@ -135,6 +157,11 @@ enum CooksyBackendService {
         let response: URLResponse
 
         do {
+            if let urlString = request.url?.absoluteString {
+                logger.debug("Sending backend request to \(urlString, privacy: .public)")
+            } else {
+                logger.error("Attempted backend request with nil URL.")
+            }
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
             switch error.code {
@@ -142,6 +169,9 @@ enum CooksyBackendService {
                 throw CooksyBackendError.timedOut
             case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
                 throw CooksyBackendError.unreachable
+            case .badURL, .unsupportedURL:
+                let urlString = request.url?.absoluteString ?? "(nil)"
+                throw CooksyBackendError.invalidRequestURL("L'URL finale du backend est invalide: \(urlString)")
             default:
                 throw CooksyBackendError.serverError(error.localizedDescription)
             }
@@ -151,7 +181,19 @@ enum CooksyBackendService {
             throw CooksyBackendError.invalidResponse
         }
 
+        let responseURLString = httpResponse.url?.absoluteString ?? request.url?.absoluteString ?? "(nil)"
+        logger.debug(
+            "Backend response \(httpResponse.statusCode) from \(responseURLString, privacy: .public)"
+        )
+
         guard 200 ..< 300 ~= httpResponse.statusCode else {
+            if !data.isEmpty {
+                let responseBody = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+                logger.error(
+                    "Backend error payload for \(responseURLString, privacy: .public): \(String(responseBody.prefix(500)), privacy: .public)"
+                )
+            }
+
             if
                 let backendError = try? JSONDecoder().decode(BackendErrorEnvelope.self, from: data),
                 let message = nonEmpty(backendError.message) ?? nonEmpty(backendError.error)
@@ -170,25 +212,74 @@ enum CooksyBackendService {
     }
 
     private static func makeRequest(
-        path: String,
+        endpoint: CooksyBackendEndpoint,
         method: String = "POST",
-        contentType: String = "application/json"
+        contentType: String? = "application/json"
     ) throws -> URLRequest {
         guard let baseURL = AppConfiguration.backendBaseURL else {
-            throw CooksyBackendError.missingBaseURL
+            throw CooksyBackendError.invalidBaseURL(
+                AppConfiguration.backendBaseURLValidationError ?? "BACKEND_BASE_URL n'est pas configurée."
+            )
         }
 
         if isRunningOnPhysicalDevice, isLocalDevelopmentHost(baseURL.host) {
             throw CooksyBackendError.localBackendOnPhysicalDevice
         }
 
-        let normalizedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        let url = baseURL.appending(path: normalizedPath)
+        let url = try buildURL(baseURL: baseURL, endpoint: endpoint)
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        if let contentType {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
+    }
+
+    private static func buildURL(baseURL: URL, endpoint: CooksyBackendEndpoint) throws -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw CooksyBackendError.invalidBaseURL(
+                "BACKEND_BASE_URL est mal formée: \(AppConfiguration.backendBaseURLDebugValue ?? baseURL.absoluteString)"
+            )
+        }
+
+        guard let scheme = components.scheme?.lowercased(), !scheme.isEmpty else {
+            throw CooksyBackendError.invalidBaseURL("BACKEND_BASE_URL doit inclure un schéma valide.")
+        }
+
+        if isRunningOnPhysicalDevice, scheme != "https" {
+            throw CooksyBackendError.invalidBaseURL("BACKEND_BASE_URL doit commencer par https:// sur iPhone réel.")
+        }
+
+        let basePath = components.percentEncodedPath
+        components.percentEncodedPath = joinedPath(basePath: basePath, endpointPath: endpoint.rawValue)
+
+        guard let url = components.url else {
+            throw CooksyBackendError.invalidRequestURL(
+                "Impossible de construire une URL valide pour \(endpoint.rawValue) depuis \(baseURL.absoluteString)"
+            )
+        }
+
+        return url
+    }
+
+    private static func joinedPath(basePath: String, endpointPath: String) -> String {
+        let trimmedBasePath = basePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let trimmedEndpointPath = endpointPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        if trimmedBasePath.isEmpty {
+            return "/\(trimmedEndpointPath)"
+        }
+
+        return "/\(trimmedBasePath)/\(trimmedEndpointPath)"
+    }
+
+    private static func encodedAbsoluteString(for url: URL) -> String {
+        if let normalizedURL = URLComponents(url: url, resolvingAgainstBaseURL: false)?.url {
+            return normalizedURL.absoluteString
+        }
+
+        return url.absoluteString
     }
 }
 
@@ -270,6 +361,11 @@ private struct BackendStepDraft: Decodable {
 
 private struct ShoppingImageResponseEnvelope: Decodable {
     let items: [ShoppingImageResponseItem]
+}
+
+struct BackendHealthEnvelope: Decodable {
+    let status: String
+    let env: String?
 }
 
 private struct ShoppingImageResponseItem: Decodable {

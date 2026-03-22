@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 enum RecipeImportPipelineError: LocalizedError {
     case emptyImport
@@ -15,9 +16,32 @@ enum RecipeImportPipelineError: LocalizedError {
 }
 
 enum RecipeImportPipeline {
+    private static let logger = Logger(subsystem: "com.cooksy.ios", category: "RecipeImportPipeline")
+
+    static func importPhotoAssessment(from imageData: Data) async -> RecipeImportAssessment {
+        let seed = await importPhoto(from: imageData)
+        return RecipeValidationService.assess(seed, sourceKind: .photo)
+    }
+
+    static func importTextAssessment(_ text: String, imageData: Data? = nil) async -> RecipeImportAssessment {
+        let seed = await importText(text, imageData: imageData)
+        return RecipeValidationService.assess(seed, sourceKind: .text)
+    }
+
+    static func importSharedDraftAssessment(_ draft: SharedImportDraft) async throws -> RecipeImportAssessment {
+        let seed = try await importSharedDraft(draft)
+        return RecipeValidationService.assess(seed, sourceKind: .shared)
+    }
+
+    static func importURLAssessment(_ url: URL?, sharedText: String? = nil) async throws -> RecipeImportAssessment {
+        let seed = try await importURL(url, sharedText: sharedText)
+        return RecipeValidationService.assess(seed, sourceKind: .url)
+    }
+
     static func importPhoto(from imageData: Data) async -> RecipeEditorSeed {
         if let backendSeed = try? await CooksyBackendService.importPhoto(imageData),
-           shouldUseImportedSeed(backendSeed, sourceKind: .photo) {
+           shouldUseImportedSeed(backendSeed, sourceKind: .photo),
+           shouldAcceptImportedSeed(backendSeed, validationSourceKind: .photo) {
             var seed = backendSeed
             seed.imageData = seed.imageData ?? imageData
             return seed
@@ -46,9 +70,14 @@ enum RecipeImportPipeline {
     static func importText(_ text: String, imageData: Data? = nil) async -> RecipeEditorSeed {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        if let demoSeed = DemoRecipeMatcherService.match(sharedText: trimmedText) {
+            return demoSeed
+        }
+
         if !trimmedText.isEmpty,
            let backendSeed = try? await CooksyBackendService.importText(trimmedText, imageData: imageData),
-           shouldUseImportedSeed(backendSeed, sourceKind: .text) {
+           shouldUseImportedSeed(backendSeed, sourceKind: .text),
+           shouldAcceptImportedSeed(backendSeed, validationSourceKind: .text) {
             var seed = backendSeed
             seed.imageData = seed.imageData ?? imageData
             return seed
@@ -79,7 +108,11 @@ enum RecipeImportPipeline {
 
         let sharedImageData = SharedLinkInbox().imageData(for: draft.sharedImageFilename)
 
-        if let url = draft.url {
+        if let demoSeed = DemoRecipeMatcherService.match(url: draft.url, sharedText: draft.sharedText) {
+            return demoSeed
+        }
+
+        if let url = resolvedImportURL(primaryURL: draft.url, sharedText: draft.sharedText) {
             var seed = try await importURL(url, sharedText: draft.sharedText)
             if seed.imageData == nil {
                 seed.imageData = sharedImageData
@@ -99,13 +132,41 @@ enum RecipeImportPipeline {
     }
 
     static func importURL(_ url: URL?, sharedText: String? = nil) async throws -> RecipeEditorSeed {
-        let isSocialImport = url.map(isSocialImportURL) ?? false
-        var backendError: Error?
+        let resolvedURL = resolvedImportURL(primaryURL: url, sharedText: sharedText)
 
-        if let url {
+        if let demoSeed = DemoRecipeMatcherService.match(url: url, sharedText: sharedText) {
+            return demoSeed
+        }
+
+        let isSocialImport = resolvedURL.map(isSocialImportURL) ?? textLooksLikeSocialShare(sharedText)
+        let shouldSkipLocalWebFetch = resolvedURL.map(shouldBypassLocalWebFetch(for:)) ?? false
+        var backendError: Error?
+        var pageSummary: RecipePageSummary?
+
+        if let url = resolvedURL, shouldSkipLocalWebFetch {
+            logger.notice(
+                "Skipping local web fetch for social URL '\(url.absoluteString, privacy: .public)' and relying on backend import."
+            )
+        }
+
+        if let url = resolvedURL, !shouldSkipLocalWebFetch {
+            pageSummary = try? await RecipeWebImportService.fetchPageSummary(from: url)
+            if let demoSeed = DemoRecipeMatcherService.match(
+                url: url,
+                sharedText: sharedText,
+                pageTitle: pageSummary?.title,
+                socialCaption: pageSummary?.description,
+                pageDescription: pageSummary?.textContent
+            ) {
+                return demoSeed
+            }
+        }
+
+        if let url = resolvedURL {
             do {
                 let backendSeed = try await CooksyBackendService.importURL(url, sharedText: sharedText)
-                if shouldUseImportedSeed(backendSeed, sourceKind: .url) {
+                if shouldUseImportedSeed(backendSeed, sourceKind: .url),
+                   shouldAcceptImportedSeed(backendSeed, validationSourceKind: .url) {
                     return backendSeed
                 }
             } catch {
@@ -113,12 +174,19 @@ enum RecipeImportPipeline {
             }
         }
 
-        var pageSummary: RecipePageSummary?
         var bestSeed: RecipeEditorSeed?
 
-        if let url {
-            pageSummary = try? await RecipeWebImportService.fetchPageSummary(from: url)
-            bestSeed = try? await RecipeWebImportService.importRecipe(from: url)
+        if let url = resolvedURL, !shouldSkipLocalWebFetch {
+            if let pageSummary {
+                bestSeed = try? RecipeWebImportService.importRecipe(from: pageSummary)
+                if bestSeed == nil {
+                    bestSeed = parsedTextSeed(sharedText: nil, pageSummary: pageSummary)
+                }
+            }
+
+            if bestSeed == nil, pageSummary == nil {
+                bestSeed = try? await RecipeWebImportService.importRecipe(from: url)
+            }
         }
 
         if let parsedTextSeed = parsedTextSeed(sharedText: sharedText, pageSummary: pageSummary) {
@@ -126,19 +194,29 @@ enum RecipeImportPipeline {
         }
 
         if let strongSeed = bestSeed, isMeaningful(strongSeed) {
-            return merged(strongSeed, pageSummary: pageSummary, sharedText: sharedText)
+            let mergedSeed = merged(strongSeed, pageSummary: pageSummary, sharedText: sharedText)
+            if shouldAcceptImportedSeed(mergedSeed, validationSourceKind: .url) {
+                return mergedSeed
+            }
         }
 
-        if let query = bestSearchQuery(sharedText: sharedText, pageSummary: pageSummary, seed: bestSeed) {
+        if !shouldSkipLocalWebFetch,
+           let query = bestSearchQuery(sharedText: sharedText, pageSummary: pageSummary, seed: bestSeed) {
             for candidateURL in (try? await RecipeSearchFallbackService.search(query: query)) ?? [] {
                 if let importedSeed = try? await RecipeWebImportService.importRecipe(from: candidateURL) {
-                    return merged(importedSeed, pageSummary: pageSummary, sharedText: sharedText)
+                    let mergedSeed = merged(importedSeed, pageSummary: pageSummary, sharedText: sharedText)
+                    if shouldAcceptImportedSeed(mergedSeed, validationSourceKind: .url) {
+                        return mergedSeed
+                    }
                 }
             }
         }
 
         if let bestSeed, shouldUseImportedSeed(bestSeed, sourceKind: .url) {
-            return merged(bestSeed, pageSummary: pageSummary, sharedText: sharedText)
+            let mergedSeed = merged(bestSeed, pageSummary: pageSummary, sharedText: sharedText)
+            if shouldAcceptImportedSeed(mergedSeed, validationSourceKind: .url) {
+                return mergedSeed
+            }
         }
 
         if isSocialImport, let backendError {
@@ -166,8 +244,7 @@ enum RecipeImportPipeline {
     private static func parsedTextSeed(sharedText: String?, pageSummary: RecipePageSummary?) -> RecipeEditorSeed? {
         let textBlob = [
             sharedText?.trimmingCharacters(in: .whitespacesAndNewlines),
-            pageSummary?.description,
-            pageSummary?.textContent
+            pageSummary.flatMap(RecipeWebImportService.fallbackReconstructionText(from:))
         ]
         .compactMap { value in
             guard let value, !value.isEmpty else { return nil }
@@ -226,12 +303,11 @@ enum RecipeImportPipeline {
             sourceURL: summary.url,
             notesText: [
                 sharedText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                summary.description,
-                summary.textContent
+                RecipeWebImportService.safeFallbackNotes(from: summary)
             ]
             .compactMap { value in
                 guard let value, !value.isEmpty else { return nil }
-                return String(value.prefix(1800))
+                return String(value.prefix(320))
             }
             .joined(separator: "\n\n"),
             remoteImageURL: summary.imageURL
@@ -354,9 +430,77 @@ enum RecipeImportPipeline {
         }
     }
 
+    private static func shouldAcceptImportedSeed(
+        _ seed: RecipeEditorSeed,
+        validationSourceKind: RecipeImportSourceKind
+    ) -> Bool {
+        !RecipeValidationService.assess(seed, sourceKind: validationSourceKind).validation.isRejected
+    }
+
     private static func isSocialImportURL(_ url: URL) -> Bool {
         let host = url.host?.lowercased() ?? ""
         return host.contains("tiktok") || host.contains("instagram") || host.contains("pinterest") || host.contains("pin.it")
+    }
+
+    private static func shouldBypassLocalWebFetch(for url: URL) -> Bool {
+        let host = url.host?.lowercased() ?? ""
+
+        if host.contains("tiktok") {
+            return true
+        }
+
+        if host == "instagram.com" || host == "www.instagram.com" || host.hasSuffix(".instagram.com") {
+            return true
+        }
+
+        return host == "pin.it"
+    }
+
+    private static func resolvedImportURL(primaryURL: URL?, sharedText: String?) -> URL? {
+        if let primaryURL, isWebImportURL(primaryURL) {
+            return primaryURL
+        }
+
+        if let sharedTextURL = firstWebURL(in: sharedText) {
+            if let primaryURL {
+                logger.notice(
+                    "Replacing non-web shared URL '\(primaryURL.absoluteString, privacy: .public)' with '\(sharedTextURL.absoluteString, privacy: .public)'"
+                )
+            }
+            return sharedTextURL
+        }
+
+        if let primaryURL, !isWebImportURL(primaryURL) {
+            logger.notice("Ignoring non-web shared URL '\(primaryURL.absoluteString, privacy: .public)'")
+        }
+
+        return nil
+    }
+
+    private static func firstWebURL(in text: String?) -> URL? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            return nil
+        }
+
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+
+        return detector?.matches(in: text, options: [], range: range)
+            .compactMap(\.url)
+            .first(where: { isWebImportURL($0) })
+    }
+
+    private static func isWebImportURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return scheme == "http" || scheme == "https"
+    }
+
+    private static func textLooksLikeSocialShare(_ text: String?) -> Bool {
+        let normalizedText = text?.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) ?? ""
+        return normalizedText.contains("tiktok") ||
+            normalizedText.contains("instagram") ||
+            normalizedText.contains("pinterest") ||
+            normalizedText.contains("pin.it")
     }
 
     private static func mergeDetectedIngredients(_ detectedIngredients: [String], into seed: inout RecipeEditorSeed) {
@@ -384,9 +528,17 @@ enum RecipeImportPipeline {
 }
 
 private enum RecipeSearchFallbackService {
+    private static let logger = Logger(subsystem: "com.cooksy.ios", category: "RecipeSearchFallbackService")
+
     static func search(query: String) async throws -> [URL] {
-        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        guard let url = URL(string: "https://html.duckduckgo.com/html/?q=\(encodedQuery)") else {
+        guard var components = URLComponents(string: "https://html.duckduckgo.com") else {
+            return []
+        }
+
+        components.path = "/html/"
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+
+        guard let url = components.url else {
             return []
         }
 
@@ -398,6 +550,7 @@ private enum RecipeSearchFallbackService {
         )
         request.setValue("fr-FR,fr;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
 
+        logger.debug("Searching fallback URLs with \(url.absoluteString, privacy: .public)")
         let (data, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,
            !(200 ..< 400).contains(httpResponse.statusCode) {

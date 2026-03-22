@@ -5,7 +5,7 @@ import SwiftUI
 struct PasteTextImportView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let onImport: (RecipeEditorSeed) -> Void
+    let onImport: (RecipeImportAssessment) -> Void
 
     @State private var recipeText = ""
     @State private var showsAdvice = true
@@ -186,11 +186,14 @@ struct PasteTextImportView: View {
         isImporting = true
 
         Task {
-            let seed = await RecipeImportPipeline.importText(recipeText, imageData: selectedImageData)
+            let assessment = await RecipeImportPipeline.importTextAssessment(
+                recipeText,
+                imageData: selectedImageData
+            )
 
             await MainActor.run {
                 isImporting = false
-                onImport(seed)
+                onImport(assessment)
             }
         }
     }

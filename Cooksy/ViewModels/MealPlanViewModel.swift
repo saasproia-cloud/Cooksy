@@ -194,7 +194,12 @@ final class MealPlanViewModel: ObservableObject {
 
         let completionProgress = Double(filledMeals) / Double(MealPlanEntry.MealKind.allCases.count)
         let calorieProgress = calories > 0 ? min(Double(calories) / 2100, 1) : 0
-        let progress = max(max(completionProgress, calorieProgress), filledMeals == 0 ? 0.08 : 0.22)
+        let progress: Double
+        if filledMeals == 0, calories == 0 {
+            progress = 0
+        } else {
+            progress = max(max(completionProgress, calorieProgress), 0.22)
+        }
 
         let label: String
         switch filledMeals {

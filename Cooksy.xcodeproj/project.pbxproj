@@ -43,6 +43,8 @@
 		8E1A0A12123456789ABCDE01 /* RecipeDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */; };
 		8E1A0A13123456789ABCDE01 /* RecipeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A23123456789ABCDE01 /* RecipeDetailView.swift */; };
 		8E1A0A14123456789ABCDE01 /* StepByStepCookingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */; };
+		91D0AA10123456789ABCDE01 /* DemoRecipeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */; };
+		91D0AA11123456789ABCDE01 /* DemoRecipeMatcherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */; };
 		A1C0F0011A11111111111111 /* ShoppingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1011A11111111111111 /* ShoppingItem.swift */; };
 		A1C0F0021A11111111111111 /* ShoppingCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1021A11111111111111 /* ShoppingCatalog.swift */; };
 		A1C0F0031A11111111111111 /* ShoppingListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1031A11111111111111 /* ShoppingListViewModel.swift */; };
@@ -50,6 +52,10 @@
 		A1C0F0051A11111111111111 /* MealPlanEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1051A11111111111111 /* MealPlanEntry.swift */; };
 		A1C0F0061A11111111111111 /* MealPlanViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1061A11111111111111 /* MealPlanViewModel.swift */; };
 		A1C0F0071A11111111111111 /* MealPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1071A11111111111111 /* MealPlanView.swift */; };
+		A20000000000000000000001 /* RecipeValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* RecipeValidationService.swift */; };
+		A20000000000000000000002 /* RecipeImportFailureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* RecipeImportFailureView.swift */; };
+		A20000000000000000000003 /* RecipeValidationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* RecipeValidationServiceTests.swift */; };
+		A20000000000000000000004 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* XCTest.framework */; };
 		B59D8AF82D964A6D8D92D2BC /* RecipeWebImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E76937A97BDE51B26E1F365F /* Foundation.framework */; };
@@ -61,6 +67,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		A20000000000000000000051 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 887139783D33E0D937603AB7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E431250D5247FE7DDA21D139;
+			remoteInfo = Cooksy;
+		};
 		FFD8500E6FCB5DCD06A6529C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 887139783D33E0D937603AB7 /* Project object */;
@@ -112,7 +125,9 @@
 		8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeDetailViewModel.swift; sourceTree = "<group>"; };
 		8E1A0A23123456789ABCDE01 /* RecipeDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeDetailView.swift; sourceTree = "<group>"; };
 		8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StepByStepCookingView.swift; sourceTree = "<group>"; };
-		9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IngredientPhotoClassifierService.swift; path = IngredientPhotoClassifierService.swift; sourceTree = "<group>"; };
+		91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoRecipeCatalog.swift; sourceTree = "<group>"; };
+		91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoRecipeMatcherService.swift; sourceTree = "<group>"; };
+		9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientPhotoClassifierService.swift; sourceTree = "<group>"; };
 		A178E636136507ED9665AA0A /* SharedImportDraft.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedImportDraft.swift; sourceTree = "<group>"; };
 		A1C0F1011A11111111111111 /* ShoppingItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingItem.swift; sourceTree = "<group>"; };
 		A1C0F1021A11111111111111 /* ShoppingCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingCatalog.swift; sourceTree = "<group>"; };
@@ -121,6 +136,11 @@
 		A1C0F1051A11111111111111 /* MealPlanEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanEntry.swift; sourceTree = "<group>"; };
 		A1C0F1061A11111111111111 /* MealPlanViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanViewModel.swift; sourceTree = "<group>"; };
 		A1C0F1071A11111111111111 /* MealPlanView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanView.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* RecipeValidationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeValidationService.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* RecipeImportFailureView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeImportFailureView.swift; sourceTree = "<group>"; };
+		A20000000000000000000013 /* RecipeValidationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeValidationServiceTests.swift; sourceTree = "<group>"; };
+		A20000000000000000000014 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		A20000000000000000000015 /* CooksyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CooksyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C031CB0EB64DA601375638B9 /* CooksyApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyApp.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
 		DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
@@ -142,6 +162,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A20000000000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000004 /* XCTest.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,6 +199,9 @@
 				8E1A0A21123456789ABCDE01 /* RecipeNutritionEstimator.swift */,
 				A1C0F1021A11111111111111 /* ShoppingCatalog.swift */,
 				4B8E5E722E7E46B2A2B1C1F4 /* RecipeTextParser.swift */,
+				91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */,
+				91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */,
+				A20000000000000000000011 /* RecipeValidationService.swift */,
 				FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */,
 				EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */,
 				EF7DA30D65C0C079B9DF09F4 /* RecipeOCRService.swift */,
@@ -215,6 +246,7 @@
 			isa = PBXGroup;
 			children = (
 				E76937A97BDE51B26E1F365F /* Foundation.framework */,
+				A20000000000000000000014 /* XCTest.framework */,
 			);
 			name = iOS;
 			sourceTree = "<group>";
@@ -249,6 +281,7 @@
 				1C2D52E5A11B4E2292A91C10 /* CreateRecipeView.swift */,
 				3AB42E99C0D14F96A2B30411 /* BrowserImportView.swift */,
 				5B98F0C3A2D3481EBE2D57B2 /* ImportedRecipeReviewView.swift */,
+				A20000000000000000000012 /* RecipeImportFailureView.swift */,
 				32A9D222A55E4F0B9E4B7F61 /* PasteTextImportView.swift */,
 			);
 			path = CreateRecipe;
@@ -291,10 +324,19 @@
 			path = Plan;
 			sourceTree = "<group>";
 		};
+		A20000000000000000000021 /* CooksyTests */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000013 /* RecipeValidationServiceTests.swift */,
+			);
+			path = CooksyTests;
+			sourceTree = "<group>";
+		};
 		B112FB767A46FF60171FF77D /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				7F763EBB46AFDA55207CD4C1 /* Cooksy.app */,
+				A20000000000000000000015 /* CooksyTests.xctest */,
 				04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */,
 			);
 			name = Products;
@@ -319,6 +361,7 @@
 				B112FB767A46FF60171FF77D /* Products */,
 				8B5A25527D785C0CAB526183 /* Frameworks */,
 				DBF22409252D66CE309B8A32 /* Cooksy */,
+				A20000000000000000000021 /* CooksyTests */,
 				052302CBC178FF0507C06637 /* CooksyShareExtension */,
 			);
 			sourceTree = "<group>";
@@ -374,6 +417,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A20000000000000000000041 /* CooksyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A20000000000000000000063 /* Build configuration list for PBXNativeTarget "CooksyTests" */;
+			buildPhases = (
+				A20000000000000000000032 /* Sources */,
+				A20000000000000000000031 /* Frameworks */,
+				A20000000000000000000033 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A20000000000000000000052 /* PBXTargetDependency */,
+			);
+			name = CooksyTests;
+			productName = CooksyTests;
+			productReference = A20000000000000000000015 /* CooksyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		DF44B2F4DD15733196EA3471 /* CooksyShareExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0D41FE0A11D9B0120B731E70 /* Build configuration list for PBXNativeTarget "CooksyShareExtension" */;
@@ -419,6 +480,12 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					A20000000000000000000041 = {
+						CreatedOnToolsVersion = 26.3;
+						DevelopmentTeam = HDW2CA2JDT;
+						ProvisioningStyle = Automatic;
+						TestTargetID = E431250D5247FE7DDA21D139;
+					};
 					DF44B2F4DD15733196EA3471 = {
 						CreatedOnToolsVersion = 26.3;
 						DevelopmentTeam = HDW2CA2JDT;
@@ -445,12 +512,20 @@
 			projectRoot = "";
 			targets = (
 				E431250D5247FE7DDA21D139 /* Cooksy */,
+				A20000000000000000000041 /* CooksyTests */,
 				DF44B2F4DD15733196EA3471 /* CooksyShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A20000000000000000000033 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DE5E64668A487B1DA58AB07A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -487,6 +562,8 @@
 				8E1A0A11123456789ABCDE01 /* RecipeNutritionEstimator.swift in Sources */,
 				A1C0F0021A11111111111111 /* ShoppingCatalog.swift in Sources */,
 				4B8E5E732E7E46B2A2B1C1F4 /* RecipeTextParser.swift in Sources */,
+				91D0AA10123456789ABCDE01 /* DemoRecipeCatalog.swift in Sources */,
+				91D0AA11123456789ABCDE01 /* DemoRecipeMatcherService.swift in Sources */,
 				3AB42E9AC0D14F96A2B30411 /* BrowserImportView.swift in Sources */,
 				5B98F0C4A2D3481EBE2D57B2 /* ImportedRecipeReviewView.swift in Sources */,
 				B59D8AF82D964A6D8D92D2BC /* RecipeWebImportService.swift in Sources */,
@@ -515,8 +592,10 @@
 				5C71BCE1FBF06DF48D21F74D /* RecipeOCRService.swift in Sources */,
 				5998D31F786C2C63BBDACE34 /* RecipeImportPipeline.swift in Sources */,
 				8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */,
+				A20000000000000000000001 /* RecipeValidationService.swift in Sources */,
 				0A516B3735420DAB941A709B /* AppConfiguration.swift in Sources */,
 				8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */,
+				A20000000000000000000002 /* RecipeImportFailureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -530,6 +609,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A20000000000000000000032 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000003 /* RecipeValidationServiceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -538,6 +625,12 @@
 			name = CooksyShareExtension;
 			target = DF44B2F4DD15733196EA3471 /* CooksyShareExtension */;
 			targetProxy = FFD8500E6FCB5DCD06A6529C /* PBXContainerItemProxy */;
+		};
+		A20000000000000000000052 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Cooksy;
+			target = E431250D5247FE7DDA21D139 /* Cooksy */;
+			targetProxy = A20000000000000000000051 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -624,6 +717,47 @@
 			};
 			name = Release;
 		};
+		A20000000000000000000061 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HDW2CA2JDT;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.iosTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cooksy.app/Cooksy";
+			};
+			name = Debug;
+		};
+		A20000000000000000000062 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HDW2CA2JDT;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.iosTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cooksy.app/Cooksy";
+			};
+			name = Release;
+		};
 		BA7D9FDE3DB501872B31C814 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -631,7 +765,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BACKEND_BASE_URL = "http://localhost:3000";
+				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = Cooksy/Cooksy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -690,7 +824,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BACKEND_BASE_URL = "http://localhost:3000";
+				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = Cooksy/Cooksy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -802,6 +936,15 @@
 			buildConfigurations = (
 				E2F657710E39075F4DDB894D /* Release */,
 				BA7D9FDE3DB501872B31C814 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A20000000000000000000063 /* Build configuration list for PBXNativeTarget "CooksyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A20000000000000000000062 /* Release */,
+				A20000000000000000000061 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

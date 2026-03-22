@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 enum RecipeWebImportError: LocalizedError {
     case invalidPageSnapshot
@@ -15,6 +16,8 @@ enum RecipeWebImportError: LocalizedError {
 }
 
 enum RecipeWebImportService {
+    private static let logger = Logger(subsystem: "com.cooksy.ios", category: "RecipeWebImportService")
+
     static let pageExtractionJavaScript = #"""
     (() => {
       const clean = value => (value || "").toString().replace(/\s+/g, " ").trim();
@@ -88,11 +91,12 @@ enum RecipeWebImportService {
     """#
 
     static func canImportRecipe(from snapshotJSON: String) -> Bool {
-        guard let extractedContent = try? extractRecipeContent(from: snapshotJSON) else {
+        guard let seed = try? importRecipe(from: snapshotJSON) else {
             return false
         }
 
-        return !extractedContent.ingredientLines.isEmpty || !extractedContent.stepLines.isEmpty
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .url)
+        return !assessment.validation.isRejected
     }
 
     static func importRecipe(from snapshotJSON: String) throws -> RecipeEditorSeed {
@@ -146,6 +150,7 @@ enum RecipeWebImportService {
         guard ["https", "http"].contains(url.scheme?.lowercased() ?? "") else { return nil }
 
         do {
+            logger.debug("Downloading remote image from \(url.absoluteString, privacy: .public)")
             let (data, response) = try await URLSession.shared.data(from: url)
             guard
                 let httpResponse = response as? HTTPURLResponse,
@@ -161,6 +166,10 @@ enum RecipeWebImportService {
 
     static func importRecipe(from url: URL) async throws -> RecipeEditorSeed {
         let summary = try await fetchPageSummary(from: url)
+        return try importRecipe(from: summary)
+    }
+
+    static func importRecipe(from summary: RecipePageSummary) throws -> RecipeEditorSeed {
         let snapshot = summary.snapshot
 
         if let snapshotData = try? JSONEncoder().encode(snapshot),
@@ -178,33 +187,40 @@ enum RecipeWebImportService {
             return enrichedSeed
         }
 
-        let combinedText = [
-            summary.title,
-            summary.description,
-            summary.textContent
-        ]
-        .compactMap(cleanedText)
-        .joined(separator: "\n\n")
-
-        var fallbackSeed = RecipeTextParser.parse(combinedText)
-        fallbackSeed.title = fallbackSeed.normalizedTitle.isEmpty
-            ? (summary.title ?? "Recette importee")
-            : fallbackSeed.title
-        fallbackSeed.sourceURL = summary.url
-        fallbackSeed.remoteImageURL = fallbackSeed.remoteImageURL ?? summary.imageURL
-        if fallbackSeed.notesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let description = summary.description {
-            fallbackSeed.notesText = description
+        if let fallbackSeed = conservativeFallbackSeed(from: summary) {
+            return fallbackSeed
         }
 
-        guard !fallbackSeed.normalizedIngredients.isEmpty || !fallbackSeed.normalizedSteps.isEmpty else {
-            throw RecipeWebImportError.noRecipeFound
+        throw RecipeWebImportError.noRecipeFound
+    }
+
+    static func fallbackReconstructionText(from summary: RecipePageSummary) -> String? {
+        let ingredientLines = filteredIngredientLines(summary.snapshot.sectionIngredients)
+        let stepLines = filteredInstructionLines(summary.snapshot.sectionInstructions)
+
+        var sections: [String] = []
+        if !ingredientLines.isEmpty {
+            sections.append("Ingredients\n" + ingredientLines.joined(separator: "\n"))
+        }
+        if !stepLines.isEmpty {
+            sections.append("Instructions\n" + stepLines.joined(separator: "\n"))
         }
 
-        return fallbackSeed
+        return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
+    }
+
+    static func safeFallbackNotes(from summary: RecipePageSummary) -> String? {
+        guard let description = cleanedText(summary.description) else { return nil }
+        guard !looksLikeArticleParagraph(description) else { return nil }
+        return String(description.prefix(220))
     }
 
     static func fetchPageSummary(from url: URL) async throws -> RecipePageSummary {
+        guard ["https", "http"].contains(url.scheme?.lowercased() ?? "") else {
+            throw RecipeWebImportError.invalidPageSnapshot
+        }
+
+        logger.debug("Fetching page summary from \(url.absoluteString, privacy: .public)")
         let page = try await fetchHTMLPage(from: url)
         let snapshot = buildSnapshot(fromHTML: page.html, url: page.url)
 
@@ -269,7 +285,16 @@ enum RecipeWebImportService {
         request.setValue("fr-FR,fr;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            logger.debug("Requesting HTML page at \(url.absoluteString, privacy: .public)")
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where error.code == .badURL || error.code == .unsupportedURL {
+            logger.error("Invalid page URL requested: \(url.absoluteString, privacy: .public)")
+            throw RecipeWebImportError.invalidPageSnapshot
+        }
 
         if let httpResponse = response as? HTTPURLResponse,
            !(200 ..< 400).contains(httpResponse.statusCode) {
@@ -532,28 +557,38 @@ enum RecipeWebImportService {
         from snapshot: WebRecipeImportSnapshot,
         structuredRecipe: StructuredRecipeCandidate?
     ) -> [String] {
-        let lines = firstNonEmptyLineSet(
+        let lineSets = nonEmptyLineSets(
             structuredRecipe?.ingredients,
             snapshot.microIngredients,
             snapshot.sectionIngredients
         )
-        return lines
-            .map(cleanIngredientLine(_:))
-            .filter { !$0.isEmpty }
+        return firstRecipeLikeLineSet(
+            lineSets,
+            minimumCount: 3,
+            transform: cleanIngredientLine(_:),
+            validator: looksLikeIngredientCandidate(_:),
+            paragraphValidator: looksLikeArticleParagraph(_:),
+            maxLineLength: 120
+        )
     }
 
     private static func preferredStepLines(
         from snapshot: WebRecipeImportSnapshot,
         structuredRecipe: StructuredRecipeCandidate?
     ) -> [String] {
-        let lines = firstNonEmptyLineSet(
+        let lineSets = nonEmptyLineSets(
             structuredRecipe?.instructions,
             snapshot.microInstructions,
             snapshot.sectionInstructions
         )
-        return lines
-            .map(cleanInstructionLine(_:))
-            .filter { !$0.isEmpty }
+        return firstRecipeLikeLineSet(
+            lineSets,
+            minimumCount: 2,
+            transform: cleanInstructionLine(_:),
+            validator: looksLikeInstructionCandidate(_:),
+            paragraphValidator: looksLikeArticleParagraph(_:),
+            maxLineLength: 240
+        )
     }
 
     private static func extractStructuredRecipe(from rawJSONString: String) -> StructuredRecipeCandidate? {
@@ -811,20 +846,166 @@ enum RecipeWebImportService {
         return IngredientDraft(name: cleaned)
     }
 
-    private static func firstNonEmptyLineSet(_ candidates: [String]?...) -> [String] {
-        for candidate in candidates {
-            guard let candidate else { continue }
-
+    private static func nonEmptyLineSets(_ candidates: [String]?...) -> [[String]] {
+        candidates.compactMap { candidate in
+            guard let candidate else { return nil }
             let cleaned = candidate
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
+            return cleaned.isEmpty ? nil : cleaned
+        }
+    }
 
-            if !cleaned.isEmpty {
-                return cleaned
+    private static func firstRecipeLikeLineSet(
+        _ lineSets: [[String]],
+        minimumCount: Int,
+        transform: (String) -> String,
+        validator: (String) -> Bool,
+        paragraphValidator: (String) -> Bool,
+        maxLineLength: Int
+    ) -> [String] {
+        for lineSet in lineSets {
+            let cleaned = lineSet
+                .map(transform)
+                .map(cleanedText(_:))
+                .compactMap { $0 }
+                .filter { !isNoiseLine($0) }
+
+            let filtered = cleaned.filter { line in
+                line.count <= maxLineLength &&
+                    !paragraphValidator(line) &&
+                    validator(line)
+            }
+
+            if filtered.count >= minimumCount {
+                return filtered
+            }
+
+            if !filtered.isEmpty && filtered.count == cleaned.count {
+                return filtered
             }
         }
 
         return []
+    }
+
+    private static func filteredIngredientLines(_ lines: [String]) -> [String] {
+        firstRecipeLikeLineSet(
+            [lines],
+            minimumCount: 3,
+            transform: cleanIngredientLine(_:),
+            validator: looksLikeIngredientCandidate(_:),
+            paragraphValidator: looksLikeArticleParagraph(_:),
+            maxLineLength: 120
+        )
+    }
+
+    private static func filteredInstructionLines(_ lines: [String]) -> [String] {
+        firstRecipeLikeLineSet(
+            [lines],
+            minimumCount: 2,
+            transform: cleanInstructionLine(_:),
+            validator: looksLikeInstructionCandidate(_:),
+            paragraphValidator: looksLikeArticleParagraph(_:),
+            maxLineLength: 240
+        )
+    }
+
+    private static func conservativeFallbackSeed(from summary: RecipePageSummary) -> RecipeEditorSeed? {
+        let ingredientLines = filteredIngredientLines(summary.snapshot.sectionIngredients)
+        let stepLines = filteredInstructionLines(summary.snapshot.sectionInstructions)
+
+        guard !ingredientLines.isEmpty || !stepLines.isEmpty else {
+            return nil
+        }
+
+        return RecipeEditorSeed(
+            title: summary.title ?? "Recette importee",
+            sourceURL: summary.url,
+            ingredientDrafts: ingredientLines.map(parseIngredientLine(_:)),
+            stepDrafts: stepLines.map { StepDraft(detail: $0) },
+            notesText: safeFallbackNotes(from: summary) ?? "",
+            remoteImageURL: summary.imageURL
+        )
+    }
+
+    private static func isNoiseLine(_ line: String) -> Bool {
+        let normalized = normalizedPhrase(line)
+        let noise = [
+            "read more",
+            "view post",
+            "continue reading",
+            "voir plus",
+            "newsletter",
+            "subscribe",
+            "jump to recipe"
+        ]
+
+        return noise.contains(normalized)
+    }
+
+    private static func looksLikeIngredientCandidate(_ line: String) -> Bool {
+        let normalized = normalizedPhrase(line)
+        guard !normalized.isEmpty else { return false }
+        guard !normalized.contains("read more"), !normalized.contains("view post") else { return false }
+
+        let tokens = normalized.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        let quantityRegex = try? NSRegularExpression(pattern: #"(^|\s)(\d+([\/.,]\d+)?|[¼½¾⅓⅔⅛])(\s|$)"#)
+        let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+        let hasQuantity = quantityRegex?.firstMatch(in: normalized, range: range) != nil
+        let hasUnit = tokens.contains { token in
+            ["g", "kg", "ml", "l", "cup", "cups", "tbsp", "tsp", "cas", "cac", "cl"].contains(token)
+        }
+        let hasFood = tokens.contains { token in
+            [
+                "egg", "eggs", "flour", "milk", "sugar", "salt", "butter", "cheese", "chicken",
+                "tomato", "tomatoes", "garlic", "onion", "rice", "pasta", "oil", "cream",
+                "oeuf", "oeufs", "œuf", "œufs", "farine", "sucre", "sel", "beurre", "fromage",
+                "poulet", "tomate", "tomates", "ail", "oignon", "riz", "huile", "creme", "crème"
+            ].contains(token)
+        }
+
+        return (hasQuantity && (hasUnit || hasFood)) || (hasUnit && hasFood) || (hasFood && tokens.count <= 6)
+    }
+
+    private static func looksLikeInstructionCandidate(_ line: String) -> Bool {
+        let normalized = normalizedPhrase(line)
+        guard !normalized.isEmpty else { return false }
+        guard !normalized.contains("read more"), !normalized.contains("view post") else { return false }
+
+        let tokens = normalized.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard tokens.count >= 3, tokens.count <= 32 else { return false }
+
+        let verbs: Set<String> = [
+            "add", "bake", "blend", "boil", "bring", "chop", "combine", "cook", "heat", "melt",
+            "mix", "place", "pour", "preheat", "roast", "season", "serve", "simmer", "stir",
+            "toss", "whisk",
+            "ajoutez", "chauffez", "coupez", "cuisez", "enfournez", "fouettez", "melangez",
+            "mélangez", "placez", "prechauffez", "préchauffez", "servez", "versez"
+        ]
+
+        return Array(tokens.prefix(8)).contains(where: verbs.contains(_:)) ||
+            tokens.contains(where: verbs.contains(_:))
+    }
+
+    private static func looksLikeArticleParagraph(_ line: String) -> Bool {
+        let normalized = normalizedPhrase(line)
+        let words = normalized.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.count
+        return words > 24 ||
+            line.count > 180 ||
+            normalized.contains("celebrity") ||
+            normalized.contains("fashion") ||
+            normalized.contains("travel") ||
+            normalized.contains("newsletter")
+    }
+
+    private static func normalizedPhrase(_ text: String) -> String {
+        text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: #"[^\p{L}\p{N}\s]"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
