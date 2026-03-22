@@ -1,6 +1,9 @@
 {
   "name": "cooksy-root",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "cd backend && npm run start"
   }

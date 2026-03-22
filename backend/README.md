@@ -18,6 +18,12 @@ Variables requises :
 - `BACKEND_BASE_URL`
 - `APP_ENV`
 
+Notes de déploiement Railway :
+
+- `BACKEND_BASE_URL` doit être une URL publique complète, par exemple `https://cooksy-production-7309.up.railway.app`
+- si vous utilisez `RAILWAY_PUBLIC_DOMAIN`, le backend normalise automatiquement la valeur vers `https://...`
+- le backend cible Node `22.x` en production
+
 ## Démarrage local
 
 ```bash
