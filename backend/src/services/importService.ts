@@ -53,7 +53,9 @@ export async function importFromUrl(input: {
   const sourcePlatform = platformFromUrl(resolvedSourceURL);
   const [pageSummary, socialContent] = await Promise.all([
     fetchPageSummary(resolvedSourceURL).catch(() => null),
-    resolveSocialContent(resolvedSourceURL)
+    resolveSocialContent(resolvedSourceURL, {
+      preferDirectFetch: sourcePlatform === "tiktok"
+    })
   ]);
   const canonicalSourceURL = pageSummary?.canonicalUrl ?? pageSummary?.url ?? resolvedSourceURL;
   const structuredRecipe = structuredRecipeFromBlocks(pageSummary?.structuredDataBlocks ?? []);
@@ -370,23 +372,36 @@ async function importPreviewFromUrl(
     if (socialTimeoutMs) {
       socialContent = await resolveSocialContent(state.resolvedSourceURL, {
         timeoutMs: socialTimeoutMs,
-        allowDirectFetch: false
+        allowDirectFetch: true,
+        skipApify: true,
+        preferDirectFetch: true
       }).catch(() => null);
     }
 
     if (socialContent) {
-      const socialRecipe = fallbackRecipeFromContext({
-        mode: "url",
-        sourceUrl: socialContent.canonicalUrl || state.resolvedSourceURL,
-        remoteImageUrl: socialContent.imageUrls[0],
-        sharedText: input.sharedText,
-        socialTitle: socialContent.title,
-        socialCaption: socialContent.caption,
-        socialDescription: socialContent.description,
-        socialPageText: socialContent.pageText,
-        socialAuthor: socialContent.authorName,
-        socialSubtitles: socialContent.subtitlesText
-      });
+      const socialRecipeContext = socialContent.source === "direct" && sourcePlatform === "tiktok"
+        ? {
+            mode: "url" as const,
+            sourceUrl: socialContent.canonicalUrl || state.resolvedSourceURL,
+            remoteImageUrl: socialContent.imageUrls[0],
+            sharedText: input.sharedText,
+            socialTitle: socialContent.title,
+            socialPageText: socialContent.pageText,
+            socialAuthor: socialContent.authorName
+          }
+        : {
+            mode: "url" as const,
+            sourceUrl: socialContent.canonicalUrl || state.resolvedSourceURL,
+            remoteImageUrl: socialContent.imageUrls[0],
+            sharedText: input.sharedText,
+            socialTitle: socialContent.title,
+            socialCaption: socialContent.caption,
+            socialDescription: socialContent.description,
+            socialPageText: socialContent.pageText,
+            socialAuthor: socialContent.authorName,
+            socialSubtitles: socialContent.subtitlesText
+          };
+      const socialRecipe = fallbackRecipeFromContext(socialRecipeContext);
 
       if (scoreRecipe(socialRecipe) >= scoreRecipe(recipe)) {
         recipe = socialRecipe;

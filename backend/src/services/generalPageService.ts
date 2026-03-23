@@ -6,12 +6,28 @@ const DEFAULT_HEADERS = {
   "accept-language": "fr-FR,fr;q=0.9,en;q=0.8"
 };
 
+export type HtmlPageDocument = {
+  url: string;
+  html: string;
+  summary: HtmlPageSummary;
+};
+
 export async function fetchPageSummary(
   url: string,
   options?: {
     timeoutMs?: number;
   }
 ): Promise<HtmlPageSummary> {
+  const document = await fetchPageDocument(url, options);
+  return document.summary;
+}
+
+export async function fetchPageDocument(
+  url: string,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<HtmlPageDocument> {
   const response = await fetch(url, {
     headers: DEFAULT_HEADERS,
     redirect: "follow",
@@ -23,7 +39,13 @@ export async function fetchPageSummary(
   }
 
   const html = await response.text();
-  return parseHtmlPage(response.url || url, html);
+  const resolvedUrl = response.url || url;
+
+  return {
+    url: resolvedUrl,
+    html,
+    summary: parseHtmlPage(resolvedUrl, html)
+  };
 }
 
 export async function resolveRemoteURL(

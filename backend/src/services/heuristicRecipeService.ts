@@ -21,6 +21,7 @@ export function fallbackRecipeFromContext(input: NormalizerInput): RecipeImportR
     input.pageTitle,
     input.socialCaption,
     input.socialDescription,
+    input.socialPageText,
     input.pageDescription,
     input.sharedText,
     input.socialSubtitles,
