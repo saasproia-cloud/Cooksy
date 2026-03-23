@@ -60,10 +60,15 @@ enum CooksyBackendService {
         return try await send(request, as: BackendHealthEnvelope.self)
     }
 
-    static func importURL(_ url: URL, sharedText: String? = nil) async throws -> RecipeEditorSeed {
+    static func importURL(
+        _ url: URL,
+        sharedText: String? = nil,
+        previewMode: Bool = false
+    ) async throws -> RecipeEditorSeed {
         let requestBody = URLImportRequest(
             url: encodedAbsoluteString(for: url),
-            sharedText: nonEmpty(sharedText)
+            sharedText: nonEmpty(sharedText),
+            previewMode: previewMode
         )
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
@@ -75,10 +80,15 @@ enum CooksyBackendService {
         return envelope.recipe.asSeed(debug: debug)
     }
 
-    static func importText(_ text: String, imageData: Data? = nil) async throws -> RecipeEditorSeed {
+    static func importText(
+        _ text: String,
+        imageData: Data? = nil,
+        previewMode: Bool = false
+    ) async throws -> RecipeEditorSeed {
         let requestBody = TextImportRequest(
             text: text,
-            imageBase64: imageData?.base64EncodedString()
+            imageBase64: imageData?.base64EncodedString(),
+            previewMode: previewMode
         )
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
@@ -314,11 +324,13 @@ enum CooksyBackendService {
 private struct URLImportRequest: Encodable {
     let url: String
     let sharedText: String?
+    let previewMode: Bool?
 }
 
 private struct TextImportRequest: Encodable {
     let text: String
     let imageBase64: String?
+    let previewMode: Bool?
 }
 
 private struct ShoppingImageRequestEnvelope: Encodable {

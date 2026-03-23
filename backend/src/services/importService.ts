@@ -93,8 +93,10 @@ export async function importFromUrl(input: {
     fallbackRecipeFromContext(baseRecipeContext),
     structuredRecipe
   );
+  const shouldTrustInitialSocialRecipe = shouldTrustFastSocialRecipe(recipe, sourcePlatform);
 
-  const linkedFallbackPages = shouldTryLinkedWebFallback(recipe, socialContent?.externalLinks ?? [])
+  const linkedFallbackPages = !shouldTrustInitialSocialRecipe &&
+    shouldTryLinkedWebFallback(recipe, socialContent?.externalLinks ?? [])
     ? await fetchFallbackPagesFromLinks(socialContent?.externalLinks ?? [])
     : [];
 
@@ -116,7 +118,7 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (importStrategy !== "web") {
+  if (importStrategy !== "web" && !shouldTrustFastSocialRecipe(recipe, sourcePlatform)) {
     recipe = preferStructuredRecipe(
       await safeNormalize(baseRecipeContext, false),
       structuredRecipe
@@ -244,6 +246,21 @@ function shouldTryLinkedWebFallback(
 function isStrongPreviewRecipe(recipe: RecipeImportResult): boolean {
   return recipe.ingredientDrafts.length >= 3 &&
     recipe.stepDrafts.length >= 2 &&
+    recipe.confidence !== "low";
+}
+
+function shouldTrustFastSocialRecipe(
+  recipe: RecipeImportResult,
+  sourcePlatform: ReturnType<typeof platformFromUrl>
+): boolean {
+  if (sourcePlatform === "web") {
+    return false;
+  }
+
+  return recipe.ingredientDrafts.length >= 3 &&
+    recipe.stepDrafts.length >= 2 &&
+    recipe.title.trim().length > 2 &&
+    !recipe.needsWebFallback &&
     recipe.confidence !== "low";
 }
 

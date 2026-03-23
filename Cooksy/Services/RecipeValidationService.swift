@@ -101,8 +101,6 @@ struct RecipeValidationResult {
     }
 
     var reviewNotice: String? {
-        guard !isRejected else { return nil }
-
         if !canSave {
             return "Import incomplet. Modifiez la recette pour l'enregistrer."
         }

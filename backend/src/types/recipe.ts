@@ -379,7 +379,7 @@ function dedupeSteps(steps: Array<{ detail: string }>): Array<{ detail: string }
     result.push(step);
   }
 
-  return result;
+  return result.slice(0, 16);
 }
 
 function isPlausibleIngredientName(name: string): boolean {

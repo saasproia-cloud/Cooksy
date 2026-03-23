@@ -201,11 +201,20 @@ struct RootTabView: View {
             if try await handlePreparedSharedImportIfNeeded(draft) == false {
                 let assessment = try await RecipeImportPipeline.importSharedDraftAssessment(draft)
                 if assessment.validation.isRejected {
-                    logger.error(
-                        "App shared import rejected host=\(draft.hostLabel, privacy: .public) reason=\(assessment.userFacingFailureMessage, privacy: .public)"
-                    )
-                    lastDeferredSharedImportKey = draft.dedupeKey
-                    sharedImportFailureAssessment = assessment
+                    if shouldRouteRejectedSharedImportToReview(assessment, draft: draft) {
+                        logger.notice(
+                            "App shared import routed to editable review host=\(draft.hostLabel, privacy: .public) title=\(assessment.seed.normalizedTitle, privacy: .public)"
+                        )
+                        sharedLinkInbox.clear()
+                        lastDeferredSharedImportKey = nil
+                        sharedImportAssessment = assessment
+                    } else {
+                        logger.error(
+                            "App shared import rejected host=\(draft.hostLabel, privacy: .public) reason=\(assessment.userFacingFailureMessage, privacy: .public)"
+                        )
+                        lastDeferredSharedImportKey = draft.dedupeKey
+                        sharedImportFailureAssessment = assessment
+                    }
                 } else {
                     logger.debug(
                         "App shared import ready host=\(draft.hostLabel, privacy: .public) title=\(assessment.seed.normalizedTitle, privacy: .public)"
@@ -226,6 +235,33 @@ struct RootTabView: View {
 
         currentSharedImportHostLabel = ""
         isProcessingSharedImport = false
+    }
+
+    private func shouldRouteRejectedSharedImportToReview(
+        _ assessment: RecipeImportAssessment,
+        draft: SharedImportDraft
+    ) -> Bool {
+        let ingredientCount = assessment.seed.normalizedIngredients.count
+        let stepCount = assessment.seed.normalizedSteps.count
+        let hasTitle = !assessment.seed.normalizedTitle.isEmpty
+        let reasons = Set(assessment.validation.rejectionReasons)
+
+        let hasEditableStructure = (ingredientCount >= 3 && hasTitle) ||
+            (ingredientCount >= 2 && stepCount >= 1) ||
+            stepCount >= 2
+
+        guard hasEditableStructure else { return false }
+
+        if reasons.contains(.repeatedTextDetected) || reasons.contains(.ingredientLineTooLong) {
+            return false
+        }
+
+        let isSocialDraft = draft.preferredImportURL.map { url in
+            let host = url.host?.lowercased() ?? ""
+            return host.contains("tiktok") || host.contains("instagram") || host.contains("pinterest") || host.contains("pin.it")
+        } ?? false
+
+        return isSocialDraft || !(draft.sharedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
 
     @MainActor

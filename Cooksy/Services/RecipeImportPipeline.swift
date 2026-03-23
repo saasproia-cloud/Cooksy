@@ -67,7 +67,11 @@ enum RecipeImportPipeline {
         return seed
     }
 
-    static func importText(_ text: String, imageData: Data? = nil) async -> RecipeEditorSeed {
+    static func importText(
+        _ text: String,
+        imageData: Data? = nil,
+        preferPreviewBackend: Bool = false
+    ) async -> RecipeEditorSeed {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let demoSeed = DemoRecipeMatcherService.match(sharedText: trimmedText) {
@@ -75,7 +79,11 @@ enum RecipeImportPipeline {
         }
 
         if !trimmedText.isEmpty,
-           let backendSeed = try? await CooksyBackendService.importText(trimmedText, imageData: imageData),
+           let backendSeed = try? await CooksyBackendService.importText(
+            trimmedText,
+            imageData: imageData,
+            previewMode: preferPreviewBackend
+           ),
            shouldUseImportedSeed(backendSeed, sourceKind: .text),
            shouldAcceptImportedSeed(backendSeed, validationSourceKind: .text) {
             var seed = backendSeed
@@ -113,7 +121,12 @@ enum RecipeImportPipeline {
         }
 
         if let url = resolvedImportURL(primaryURL: draft.url, sharedText: draft.sharedText) {
-            var seed = try await importURL(url, sharedText: draft.sharedText)
+            var seed = try await importURL(
+                url,
+                sharedText: draft.sharedText,
+                preferPreviewBackend: true,
+                allowWeakSocialFallback: true
+            )
             if seed.imageData == nil {
                 seed.imageData = sharedImageData
             }
@@ -121,7 +134,11 @@ enum RecipeImportPipeline {
         }
 
         if let sharedText = draft.sharedText?.trimmingCharacters(in: .whitespacesAndNewlines), !sharedText.isEmpty {
-            return await importText(sharedText, imageData: sharedImageData)
+            return await importText(
+                sharedText,
+                imageData: sharedImageData,
+                preferPreviewBackend: true
+            )
         }
 
         if let sharedImageData {
@@ -131,7 +148,12 @@ enum RecipeImportPipeline {
         throw RecipeImportPipelineError.emptyImport
     }
 
-    static func importURL(_ url: URL?, sharedText: String? = nil) async throws -> RecipeEditorSeed {
+    static func importURL(
+        _ url: URL?,
+        sharedText: String? = nil,
+        preferPreviewBackend: Bool = false,
+        allowWeakSocialFallback: Bool = false
+    ) async throws -> RecipeEditorSeed {
         let resolvedURL = resolvedImportURL(primaryURL: url, sharedText: sharedText)
 
         if let demoSeed = DemoRecipeMatcherService.match(url: url, sharedText: sharedText) {
@@ -142,6 +164,7 @@ enum RecipeImportPipeline {
         let shouldSkipLocalWebFetch = resolvedURL.map(shouldBypassLocalWebFetch(for:)) ?? false
         var backendError: Error?
         var pageSummary: RecipePageSummary?
+        var bestSeed: RecipeEditorSeed?
 
         if let url = resolvedURL, shouldSkipLocalWebFetch {
             logger.notice(
@@ -164,7 +187,12 @@ enum RecipeImportPipeline {
 
         if let url = resolvedURL {
             do {
-                let backendSeed = try await CooksyBackendService.importURL(url, sharedText: sharedText)
+                let backendSeed = try await CooksyBackendService.importURL(
+                    url,
+                    sharedText: sharedText,
+                    previewMode: preferPreviewBackend && isSocialImport
+                )
+                bestSeed = chooseBetterSeed(backendSeed, over: bestSeed)
                 if shouldUseImportedSeed(backendSeed, sourceKind: .url),
                    shouldAcceptImportedSeed(backendSeed, validationSourceKind: .url) {
                     return backendSeed
@@ -173,8 +201,6 @@ enum RecipeImportPipeline {
                 backendError = error
             }
         }
-
-        var bestSeed: RecipeEditorSeed?
 
         if let url = resolvedURL, !shouldSkipLocalWebFetch {
             if let pageSummary {
@@ -217,6 +243,11 @@ enum RecipeImportPipeline {
             if shouldAcceptImportedSeed(mergedSeed, validationSourceKind: .url) {
                 return mergedSeed
             }
+        }
+
+        if allowWeakSocialFallback,
+           let recoverableSeed = recoverableSharedSeed(bestSeed, sharedText: sharedText) {
+            return merged(recoverableSeed, pageSummary: pageSummary, sharedText: sharedText)
         }
 
         if isSocialImport, let backendError {
@@ -435,6 +466,32 @@ enum RecipeImportPipeline {
         validationSourceKind: RecipeImportSourceKind
     ) -> Bool {
         !RecipeValidationService.assess(seed, sourceKind: validationSourceKind).validation.isRejected
+    }
+
+    private static func recoverableSharedSeed(
+        _ seed: RecipeEditorSeed?,
+        sharedText: String?
+    ) -> RecipeEditorSeed? {
+        if let seed, isRecoverableSharedSeed(seed) {
+            return seed
+        }
+
+        guard let sharedText = sharedText?.trimmingCharacters(in: .whitespacesAndNewlines), !sharedText.isEmpty else {
+            return nil
+        }
+
+        let parsedSeed = RecipeTextParser.parse(sharedText)
+        return isRecoverableSharedSeed(parsedSeed) ? parsedSeed : nil
+    }
+
+    private static func isRecoverableSharedSeed(_ seed: RecipeEditorSeed) -> Bool {
+        let ingredientCount = seed.normalizedIngredients.count
+        let stepCount = seed.normalizedSteps.count
+        let hasTitle = !seed.normalizedTitle.isEmpty
+
+        return (ingredientCount >= 3 && hasTitle) ||
+            (ingredientCount >= 2 && stepCount >= 1) ||
+            stepCount >= 2
     }
 
     private static func isSocialImportURL(_ url: URL) -> Bool {
