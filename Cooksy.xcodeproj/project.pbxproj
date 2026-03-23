@@ -701,7 +701,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
+				BACKEND_BASE_URL = "https://cooksy-production-bbd1.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = CooksyShareExtension/CooksyShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -774,7 +774,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
+				BACKEND_BASE_URL = "https://cooksy-production-bbd1.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = Cooksy/Cooksy.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -803,7 +803,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
+				BACKEND_BASE_URL = "https://cooksy-production-bbd1.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = CooksyShareExtension/CooksyShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -834,7 +834,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				BACKEND_BASE_URL = "https://cooksy-production-7309.up.railway.app";
+				BACKEND_BASE_URL = "https://cooksy-production-bbd1.up.railway.app";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = Cooksy/Cooksy.entitlements;
 				CODE_SIGN_STYLE = Automatic;

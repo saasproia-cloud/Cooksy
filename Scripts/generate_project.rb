@@ -66,7 +66,7 @@ common_settings = {
 }
 
 configure_build_settings(app_target, common_settings.merge(
-  'BACKEND_BASE_URL' => 'https://cooksy-production-7309.up.railway.app',
+  'BACKEND_BASE_URL' => 'https://cooksy-production-bbd1.up.railway.app',
   'PRODUCT_BUNDLE_IDENTIFIER' => 'com.cooksy.app',
   'INFOPLIST_FILE' => 'Cooksy/App/Info.plist',
   'CODE_SIGN_ENTITLEMENTS' => 'Cooksy/Cooksy.entitlements',
@@ -79,7 +79,7 @@ configure_build_settings(app_target, common_settings.merge(
 ))
 
 configure_build_settings(extension_target, common_settings.merge(
-  'BACKEND_BASE_URL' => 'https://cooksy-production-7309.up.railway.app',
+  'BACKEND_BASE_URL' => 'https://cooksy-production-bbd1.up.railway.app',
   'PRODUCT_BUNDLE_IDENTIFIER' => 'com.cooksy.app.shareextension',
   'INFOPLIST_FILE' => 'CooksyShareExtension/Info.plist',
   'CODE_SIGN_ENTITLEMENTS' => 'CooksyShareExtension/CooksyShareExtension.entitlements',

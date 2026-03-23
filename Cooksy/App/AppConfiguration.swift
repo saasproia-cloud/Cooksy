@@ -105,7 +105,7 @@ enum AppConfiguration {
                 rawValue: rawValue,
                 normalizedValue: trimmedValue,
                 url: nil,
-                validationError: "BACKEND_BASE_URL doit inclure un schéma complet, par exemple https://cooksy-production-7309.up.railway.app"
+                validationError: "BACKEND_BASE_URL doit inclure un schéma complet, par exemple https://cooksy-production-bbd1.up.railway.app"
             )
         }
 
