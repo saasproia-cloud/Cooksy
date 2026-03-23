@@ -9,6 +9,9 @@ import {
 } from "./heuristicRecipeService.js";
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
+  importFailureReason,
+  importMissingParts,
+  isLikelyValidRecipe,
   sanitizeRecipeImport,
   scoreRecipe,
   shouldFallbackToSearch,
@@ -21,18 +24,35 @@ type ImportExecutionOptions = {
   previewMode?: boolean;
 };
 
+type ImportStrategy = "social" | "web" | "fallback" | "audio" | "text" | "photo";
+
+const PREVIEW_TOTAL_LIMIT_MS = 9_000;
+const PREVIEW_RESOLVE_TIMEOUT_MS = 2_500;
+const PREVIEW_SOCIAL_TIMEOUT_MS = 4_500;
+const PREVIEW_WEB_TIMEOUT_MS = 2_000;
+const PREVIEW_RESERVE_MS = 700;
+
 export async function importFromUrl(input: {
   url: string;
   sharedText?: string;
 }, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
   const previewMode = options?.previewMode ?? false;
   const startedAt = Date.now();
-  const resolvedSourceURL = await resolveImportSourceURL(input.url);
+  const resolvedSourceURL = await resolveImportSourceURL(
+    input.url,
+    previewMode ? PREVIEW_RESOLVE_TIMEOUT_MS : undefined
+  );
+
+  if (previewMode) {
+    return importPreviewFromUrl(input, {
+      startedAt,
+      resolvedSourceURL
+    });
+  }
+
   const sourcePlatform = platformFromUrl(resolvedSourceURL);
   const [pageSummary, socialContent] = await Promise.all([
-    sourcePlatform === "web" || !previewMode
-      ? fetchPageSummary(resolvedSourceURL).catch(() => null)
-      : Promise.resolve(null),
+    fetchPageSummary(resolvedSourceURL).catch(() => null),
     resolveSocialContent(resolvedSourceURL)
   ]);
   const canonicalSourceURL = pageSummary?.canonicalUrl ?? pageSummary?.url ?? resolvedSourceURL;
@@ -46,20 +66,8 @@ export async function importFromUrl(input: {
     pageSummary?.description
   );
   let transcript: string | null = null;
-  let importStrategy: "social" | "audio" | "web" = "social";
+  let importStrategy: ImportStrategy = sourcePlatform === "web" ? "web" : "social";
   let importStrategySourceURL: string | undefined;
-  const shouldTranscribeFirst = previewMode &&
-    captionWasSparse &&
-    Boolean(mediaURL) &&
-    (socialContent?.externalLinks.length ?? 0) == 0 &&
-    structuredRecipe == null;
-
-  if (shouldTranscribeFirst) {
-    transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(previewMode)).catch(() => null);
-    if (transcript) {
-      importStrategy = "audio";
-    }
-  }
 
   const baseRecipeContext = {
     mode: "url" as const,
@@ -95,7 +103,7 @@ export async function importFromUrl(input: {
       linkedFallbackPages,
       input.sharedText,
       canonicalSourceURL,
-      previewMode
+      false
     );
 
     if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -106,22 +114,22 @@ export async function importFromUrl(input: {
     }
   }
 
-  if ((!previewMode || !isStrongPreviewRecipe(recipe)) && importStrategy !== "web") {
+  if (importStrategy !== "web") {
     recipe = preferStructuredRecipe(
-      await safeNormalize(baseRecipeContext, previewMode),
+      await safeNormalize(baseRecipeContext, false),
       structuredRecipe
     );
   }
 
-  if (!previewMode && !transcript && shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)) {
-    transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(previewMode)).catch(() => null);
+  if (!transcript && shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)) {
+    transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(false)).catch(() => null);
 
     if (transcript) {
       const transcribedRecipe = preferStructuredRecipe(
         await safeNormalize({
           ...baseRecipeContext,
           transcript
-        }, previewMode),
+        }, false),
         structuredRecipe
       );
 
@@ -133,7 +141,7 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (!previewMode && shouldFallbackToSearch(recipe)) {
+  if (shouldFallbackToSearch(recipe)) {
     const query = recipe.searchQuery || recipe.title || socialContent?.caption || pageSummary?.title || input.sharedText || "";
     const fallbackPages = await fetchFallbackPages(query);
 
@@ -142,7 +150,7 @@ export async function importFromUrl(input: {
         fallbackPages,
         input.sharedText,
         canonicalSourceURL,
-        previewMode
+        false
       );
 
       if (fallbackRecipe && scoreRecipe(fallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -168,26 +176,32 @@ export async function importFromUrl(input: {
   );
 
   const finalizedRecipe = await finalizeImportedRecipe(recipeWithImportContext, {
-    skipNutrition: previewMode
+    skipNutrition: false
+  });
+  const durationMs = Date.now() - startedAt;
+  const debug = buildImportDebug(finalizedRecipe.recipe, {
+    platform: socialContent?.platform,
+    sourceKind: "url",
+    strategy: importStrategy,
+    durationMs,
+    usedApify: socialContent?.source === "apify",
+    usedTranscription: Boolean(transcript),
+    usedWebFallback,
+    usedUsda: finalizedRecipe.usedUsda,
+    nutritionCoverage: finalizedRecipe.nutritionCoverage,
+    matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
+    preferWeakMetadataReason: sourcePlatform !== "web" && captionWasSparse
   });
 
+  logImportDebug(finalizedRecipe.recipe, debug);
   console.info(
-    `[importService] URL import completed in ${Date.now() - startedAt}ms` +
+    `[importService] URL import completed in ${durationMs}ms` +
     ` (preview=${previewMode} strategy=${importStrategy} transcript=${Boolean(transcript)} webFallback=${usedWebFallback} usda=${finalizedRecipe.usedUsda}) for ${canonicalSourceURL}`
   );
 
   return {
     recipe: finalizedRecipe.recipe,
-    debug: {
-      platform: socialContent?.platform,
-      usedApify: socialContent?.source === "apify",
-      usedTranscription: Boolean(transcript),
-      usedWebFallback,
-      usedUsda: finalizedRecipe.usedUsda,
-      nutritionCoverage: finalizedRecipe.nutritionCoverage,
-      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
-      sourceKind: "url"
-    }
+    debug
   };
 }
 
@@ -248,7 +262,7 @@ function hasSparseSocialText(...values: Array<string | undefined>): boolean {
 function applyImportContextNotes(
   recipe: RecipeImportResult,
   input: {
-    importStrategy: "social" | "audio" | "web";
+    importStrategy: ImportStrategy;
     captionWasSparse: boolean;
     webSourceUrl?: string;
   }
@@ -291,7 +305,207 @@ function hostLabelForImportNotice(sourceUrl?: string): string | undefined {
   }
 }
 
-async function fetchFallbackPagesFromLinks(urls: string[]): Promise<Array<{
+async function importPreviewFromUrl(
+  input: {
+    url: string;
+    sharedText?: string;
+  },
+  state: {
+    startedAt: number;
+    resolvedSourceURL: string;
+  }
+): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+  const previewDeadline = state.startedAt + PREVIEW_TOTAL_LIMIT_MS;
+  const sourcePlatform = platformFromUrl(state.resolvedSourceURL);
+  const previewFromSharedText = fallbackRecipeFromContext({
+    mode: "url",
+    sourceUrl: state.resolvedSourceURL,
+    sharedText: input.sharedText
+  });
+
+  if (sourcePlatform === "web") {
+    const pageTimeoutMs = boundedPreviewTimeout(previewDeadline, 3_000);
+    const pageSummary = pageTimeoutMs
+      ? await fetchPageSummary(state.resolvedSourceURL, { timeoutMs: pageTimeoutMs }).catch(() => null)
+      : null;
+    const structuredRecipe = structuredRecipeFromBlocks(pageSummary?.structuredDataBlocks ?? []);
+    const previewRecipe = preferStructuredRecipe(
+      fallbackRecipeFromContext({
+        mode: "url",
+        sourceUrl: pageSummary?.canonicalUrl ?? pageSummary?.url ?? state.resolvedSourceURL,
+        remoteImageUrl: pageSummary?.imageUrl,
+        sharedText: input.sharedText,
+        pageTitle: pageSummary?.title,
+        pageDescription: pageSummary?.description,
+        pageTextContent: pageSummary?.textContent,
+        pageStructuredData: pageSummary?.structuredDataBlocks
+      }),
+      structuredRecipe
+    );
+
+    return finalizePreviewResult(
+      previewRecipe,
+      {
+        startedAt: state.startedAt,
+        sourceKind: "url",
+        platform: sourcePlatform,
+        strategy: "web",
+        usedApify: false,
+        usedTranscription: false,
+        usedWebFallback: false,
+        preferWeakMetadataReason: false
+      }
+    );
+  }
+
+  let recipe = previewFromSharedText;
+  let importStrategy: ImportStrategy = previewFromSharedText.title || previewFromSharedText.ingredientDrafts.length || previewFromSharedText.stepDrafts.length
+    ? "fallback"
+    : "social";
+  let usedWebFallback = false;
+  let socialContent = null as Awaited<ReturnType<typeof resolveSocialContent>> | null;
+
+  if (!isLikelyValidRecipe(recipe) && hasPreviewBudget(previewDeadline)) {
+    const socialTimeoutMs = boundedPreviewTimeout(previewDeadline, PREVIEW_SOCIAL_TIMEOUT_MS);
+    if (socialTimeoutMs) {
+      socialContent = await resolveSocialContent(state.resolvedSourceURL, {
+        timeoutMs: socialTimeoutMs,
+        allowDirectFetch: false
+      }).catch(() => null);
+    }
+
+    if (socialContent) {
+      const socialRecipe = fallbackRecipeFromContext({
+        mode: "url",
+        sourceUrl: socialContent.canonicalUrl || state.resolvedSourceURL,
+        remoteImageUrl: socialContent.imageUrls[0],
+        sharedText: input.sharedText,
+        socialTitle: socialContent.title,
+        socialCaption: socialContent.caption,
+        socialDescription: socialContent.description,
+        socialPageText: socialContent.pageText,
+        socialAuthor: socialContent.authorName,
+        socialSubtitles: socialContent.subtitlesText
+      });
+
+      if (scoreRecipe(socialRecipe) >= scoreRecipe(recipe)) {
+        recipe = socialRecipe;
+        importStrategy = "social";
+      }
+    }
+  }
+
+  if (
+    socialContent?.externalLinks.length &&
+    shouldTryLinkedWebFallback(recipe, socialContent.externalLinks) &&
+    hasPreviewBudget(previewDeadline, PREVIEW_RESERVE_MS)
+  ) {
+    const linkedPages = await fetchFallbackPagesFromLinks(socialContent.externalLinks, {
+      limit: 1,
+      timeoutMs: boundedPreviewTimeout(previewDeadline, PREVIEW_WEB_TIMEOUT_MS, PREVIEW_RESERVE_MS)
+    });
+
+    if (linkedPages.length) {
+      const linkedFallbackRecipe = await recipeFromFallbackPages(
+        linkedPages,
+        input.sharedText,
+        socialContent?.canonicalUrl || state.resolvedSourceURL,
+        true
+      );
+
+      if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
+        recipe = linkedFallbackRecipe.recipe;
+        importStrategy = "web";
+        usedWebFallback = true;
+      }
+    }
+  }
+
+  const captionWasSparse = hasSparseSocialText(
+    input.sharedText,
+    socialContent?.caption,
+    socialContent?.description,
+    socialContent?.subtitlesText
+  );
+  const previewRecipe = applyImportContextNotes(
+    {
+      ...recipe,
+      sourceUrl: recipe.sourceUrl || socialContent?.canonicalUrl || state.resolvedSourceURL,
+      remoteImageUrl: recipe.remoteImageUrl || socialContent?.imageUrls[0] || ""
+    },
+    {
+      importStrategy,
+      captionWasSparse,
+      webSourceUrl: socialContent?.externalLinks[0]
+    }
+  );
+
+  return finalizePreviewResult(
+    previewRecipe,
+    {
+      startedAt: state.startedAt,
+      sourceKind: "url",
+      platform: socialContent?.platform,
+      strategy: importStrategy,
+      usedApify: socialContent?.source === "apify",
+      usedTranscription: false,
+      usedWebFallback,
+      preferWeakMetadataReason: captionWasSparse && !socialContent?.externalLinks.length
+    }
+  );
+}
+
+async function finalizePreviewResult(
+  recipe: RecipeImportResult,
+  context: {
+    startedAt: number;
+    sourceKind: "url" | "text" | "photo";
+    platform?: string;
+    strategy: ImportStrategy;
+    usedApify: boolean;
+    usedTranscription: boolean;
+    usedWebFallback: boolean;
+    preferWeakMetadataReason: boolean;
+  }
+): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+  const finalizedRecipe = await finalizeImportedRecipe(recipe, {
+    skipNutrition: true
+  });
+  const durationMs = Date.now() - context.startedAt;
+  const debug = buildImportDebug(finalizedRecipe.recipe, {
+    platform: context.platform,
+    sourceKind: context.sourceKind,
+    strategy: context.strategy,
+    durationMs,
+    usedApify: context.usedApify,
+    usedTranscription: context.usedTranscription,
+    usedWebFallback: context.usedWebFallback,
+    usedUsda: false,
+    nutritionCoverage: 0,
+    matchedNutritionIngredients: 0,
+    preferWeakMetadataReason: context.preferWeakMetadataReason,
+    timedOut: durationMs > PREVIEW_TOTAL_LIMIT_MS
+  });
+
+  logImportDebug(finalizedRecipe.recipe, debug);
+  console.info(
+    `[importService] URL import completed in ${durationMs}ms` +
+    ` (preview=true strategy=${context.strategy} transcript=${context.usedTranscription} webFallback=${context.usedWebFallback} usda=false) for ${finalizedRecipe.recipe.sourceUrl || "(unknown)"}`
+  );
+
+  return {
+    recipe: finalizedRecipe.recipe,
+    debug
+  };
+}
+
+async function fetchFallbackPagesFromLinks(
+  urls: string[],
+  options?: {
+    limit?: number;
+    timeoutMs?: number;
+  }
+): Promise<Array<{
   url: string;
   title?: string;
   description?: string;
@@ -300,9 +514,11 @@ async function fetchFallbackPagesFromLinks(urls: string[]): Promise<Array<{
   imageUrl?: string;
 }>> {
   const pages = await Promise.all(
-    urls.slice(0, 3).map(async (url) => {
+    urls.slice(0, options?.limit ?? 3).map(async (url) => {
       try {
-        return await fetchPageSummary(url);
+        return await fetchPageSummary(url, {
+          timeoutMs: options?.timeoutMs
+        });
       } catch {
         return null;
       }
@@ -347,7 +563,7 @@ async function recipeFromFallbackPages(
     fallbackStructuredRecipe
   );
 
-  if (!previewMode || !isStrongPreviewRecipe(normalizedFallbackRecipe)) {
+  if (!previewMode) {
     const fallbackRecipe = await safeNormalize(baseContext, previewMode);
     normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
   }
@@ -358,13 +574,94 @@ async function recipeFromFallbackPages(
   };
 }
 
-async function resolveImportSourceURL(url: string): Promise<string> {
+function buildImportDebug(
+  recipe: RecipeImportResult,
+  context: {
+    platform?: string;
+    sourceKind: "url" | "text" | "photo";
+    strategy: ImportStrategy;
+    durationMs: number;
+    usedApify: boolean;
+    usedTranscription: boolean;
+    usedWebFallback: boolean;
+    usedUsda?: boolean;
+    nutritionCoverage?: number;
+    matchedNutritionIngredients?: number;
+    preferWeakMetadataReason: boolean;
+    timedOut?: boolean;
+  }
+): ImportDebug {
+  const missing = importMissingParts(recipe);
+  const isLikelyValid = isLikelyValidRecipe(recipe);
+  const failureReason = isLikelyValid
+    ? undefined
+    : importFailureReason(recipe, {
+      preferWeakMetadata: context.preferWeakMetadataReason,
+      timedOut: context.timedOut
+    });
+
+  return {
+    platform: context.platform,
+    usedApify: context.usedApify,
+    usedTranscription: context.usedTranscription,
+    usedWebFallback: context.usedWebFallback,
+    usedUsda: context.usedUsda,
+    nutritionCoverage: context.nutritionCoverage,
+    matchedNutritionIngredients: context.matchedNutritionIngredients,
+    sourceKind: context.sourceKind,
+    ingredientsCount: recipe.ingredientDrafts.length,
+    stepsCount: recipe.stepDrafts.length,
+    strategy: context.strategy,
+    durationMs: context.durationMs,
+    isLikelyValid,
+    missing,
+    failureReason
+  };
+}
+
+function logImportDebug(recipe: RecipeImportResult, debug: ImportDebug) {
+  const missing = debug.missing.length ? debug.missing.join(",") : "none";
+  const failureReason = debug.failureReason ?? "none";
+  console.info(
+    [
+      "[IMPORT DEBUG]",
+      `title=${recipe.title || "(empty)"}`,
+      `ingredients=${debug.ingredientsCount}`,
+      `steps=${debug.stepsCount}`,
+      `hasTranscript=${debug.usedTranscription}`,
+      `strategy=${debug.strategy}`,
+      `duration=${debug.durationMs}ms`,
+      `validCandidate=${debug.isLikelyValid}`,
+      `missing=${missing}`,
+      `failureReason=${failureReason}`
+    ].join("\n")
+  );
+}
+
+function hasPreviewBudget(deadline: number, reserveMs = 0): boolean {
+  return boundedPreviewTimeout(deadline, Number.MAX_SAFE_INTEGER, reserveMs) != null;
+}
+
+function boundedPreviewTimeout(
+  deadline: number,
+  desiredMs: number,
+  reserveMs = 0
+): number | undefined {
+  const remainingMs = deadline - Date.now() - reserveMs;
+  if (remainingMs <= 0) {
+    return undefined;
+  }
+
+  return Math.max(250, Math.min(desiredMs, remainingMs));
+}
+
+async function resolveImportSourceURL(url: string, timeoutMs?: number): Promise<string> {
   if (platformFromUrl(url) === "web") {
     return url;
   }
 
   try {
-    const resolvedURL = await resolveRemoteURL(url);
+    const resolvedURL = await resolveRemoteURL(url, { timeoutMs });
     if (resolvedURL !== url) {
       console.info(`[importService] Resolved social import URL ${url} -> ${resolvedURL}`);
     }
@@ -381,6 +678,7 @@ export async function importFromText(input: {
   imageDataUrl?: string;
 }, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
   const previewMode = options?.previewMode ?? false;
+  const startedAt = Date.now();
   const recipe = await safeNormalize({
     mode: "text",
     sharedText: input.text,
@@ -390,17 +688,23 @@ export async function importFromText(input: {
     skipNutrition: previewMode
   });
 
+  const debug = buildImportDebug(finalizedRecipe.recipe, {
+    sourceKind: "text",
+    strategy: "text",
+    durationMs: Date.now() - startedAt,
+    usedApify: false,
+    usedTranscription: false,
+    usedWebFallback: false,
+    usedUsda: finalizedRecipe.usedUsda,
+    nutritionCoverage: finalizedRecipe.nutritionCoverage,
+    matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
+    preferWeakMetadataReason: false
+  });
+  logImportDebug(finalizedRecipe.recipe, debug);
+
   return {
     recipe: finalizedRecipe.recipe,
-    debug: {
-      usedApify: false,
-      usedTranscription: false,
-      usedWebFallback: false,
-      usedUsda: finalizedRecipe.usedUsda,
-      nutritionCoverage: finalizedRecipe.nutritionCoverage,
-      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
-      sourceKind: "text"
-    }
+    debug
   };
 }
 
@@ -408,6 +712,7 @@ export async function importFromPhoto(input: {
   imageDataUrl: string;
 }, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
   const previewMode = options?.previewMode ?? false;
+  const startedAt = Date.now();
   const recipe = await safeNormalize({
     mode: "photo",
     imageDataUrl: input.imageDataUrl
@@ -416,17 +721,23 @@ export async function importFromPhoto(input: {
     skipNutrition: previewMode
   });
 
+  const debug = buildImportDebug(finalizedRecipe.recipe, {
+    sourceKind: "photo",
+    strategy: "photo",
+    durationMs: Date.now() - startedAt,
+    usedApify: false,
+    usedTranscription: false,
+    usedWebFallback: false,
+    usedUsda: finalizedRecipe.usedUsda,
+    nutritionCoverage: finalizedRecipe.nutritionCoverage,
+    matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
+    preferWeakMetadataReason: false
+  });
+  logImportDebug(finalizedRecipe.recipe, debug);
+
   return {
     recipe: finalizedRecipe.recipe,
-    debug: {
-      usedApify: false,
-      usedTranscription: false,
-      usedWebFallback: false,
-      usedUsda: finalizedRecipe.usedUsda,
-      nutritionCoverage: finalizedRecipe.nutritionCoverage,
-      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
-      sourceKind: "photo"
-    }
+    debug
   };
 }
 
@@ -436,7 +747,7 @@ async function safeNormalize(
 ): Promise<RecipeImportResult> {
   try {
     return await normalizeRecipeFromContext(input, {
-      timeoutMs: previewMode ? 20_000 : 60_000
+      timeoutMs: previewMode ? 8_000 : 60_000
     });
   } catch (error) {
     if (isOpenAIUnavailable(error) || isTimeoutLikeError(error)) {

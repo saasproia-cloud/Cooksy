@@ -8,6 +8,7 @@ struct RecipeImportFailureView: View {
     private let onRetry: () -> Void
     private let onCancel: () -> Void
     private let onManualSaved: (() -> Void)?
+    private let message: String
 
     let seed: RecipeEditorSeed
     let preferredBookID: RecipeBook.ID?
@@ -17,6 +18,7 @@ struct RecipeImportFailureView: View {
     init(
         store: RecipeStore,
         seed: RecipeEditorSeed,
+        message: String = "Le contenu partagé ne contient pas une recette exploitable",
         preferredBookID: RecipeBook.ID? = nil,
         onRetry: @escaping () -> Void,
         onCancel: @escaping () -> Void,
@@ -24,6 +26,7 @@ struct RecipeImportFailureView: View {
     ) {
         self.store = store
         self.seed = seed
+        self.message = message
         self.preferredBookID = preferredBookID
         self.onRetry = onRetry
         self.onCancel = onCancel
@@ -55,7 +58,7 @@ struct RecipeImportFailureView: View {
                             .foregroundStyle(CooksyTheme.primaryText)
                             .multilineTextAlignment(.center)
 
-                        Text("Le contenu partagé ne contient pas une recette exploitable")
+                        Text(message)
                             .font(.system(size: 17, weight: .medium, design: .rounded))
                             .foregroundStyle(CooksyTheme.secondaryText)
                             .multilineTextAlignment(.center)

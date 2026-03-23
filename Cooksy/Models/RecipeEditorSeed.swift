@@ -1,5 +1,47 @@
 import Foundation
 
+struct RecipeImportDebugInfo: Codable, Hashable {
+    let ingredientsCount: Int
+    let stepsCount: Int
+    let strategy: String
+    let durationMs: Int
+    let isLikelyValid: Bool
+    let missing: [String]
+    let failureReason: String?
+
+    var userFacingFailureMessage: String? {
+        switch failureReason {
+        case "import_too_slow":
+            return "Import trop lent"
+        case "weak_tiktok_metadata":
+            return "Données TikTok insuffisantes"
+        case "not_enough_ingredients":
+            return "Pas assez d’ingrédients"
+        case "not_enough_steps":
+            return "Pas assez d’étapes"
+        case "no_recipe_detected":
+            return "Aucune recette détectée"
+        case "invalid_recipe_result":
+            return "Résultat de recette invalide"
+        default:
+            break
+        }
+
+        let missingParts = Set(missing)
+        if missingParts.contains("ingredients") && missingParts.contains("steps") {
+            return "Aucune recette détectée"
+        }
+        if missingParts.contains("ingredients") {
+            return "Pas assez d’ingrédients"
+        }
+        if missingParts.contains("steps") {
+            return "Pas assez d’étapes"
+        }
+
+        return isLikelyValid ? nil : "Résultat de recette invalide"
+    }
+}
+
 struct RecipeEditorSeed: Codable, Hashable {
     var title: String
     var sourceURL: URL?
@@ -15,6 +57,7 @@ struct RecipeEditorSeed: Codable, Hashable {
     var fatText: String
     var imageData: Data?
     var remoteImageURL: URL?
+    var importDebug: RecipeImportDebugInfo?
 
     init(
         title: String = "",
@@ -30,7 +73,8 @@ struct RecipeEditorSeed: Codable, Hashable {
         carbsText: String = "",
         fatText: String = "",
         imageData: Data? = nil,
-        remoteImageURL: URL? = nil
+        remoteImageURL: URL? = nil,
+        importDebug: RecipeImportDebugInfo? = nil
     ) {
         self.title = title
         self.sourceURL = sourceURL
@@ -46,6 +90,7 @@ struct RecipeEditorSeed: Codable, Hashable {
         self.fatText = fatText
         self.imageData = imageData
         self.remoteImageURL = remoteImageURL
+        self.importDebug = importDebug
     }
 
     init(recipe: Recipe, imageData: Data? = nil) {
@@ -65,7 +110,8 @@ struct RecipeEditorSeed: Codable, Hashable {
             carbsText: recipe.nutrition?.carbs ?? "",
             fatText: recipe.nutrition?.fat ?? "",
             imageData: imageData,
-            remoteImageURL: recipe.heroImageURL
+            remoteImageURL: recipe.heroImageURL,
+            importDebug: nil
         )
     }
 

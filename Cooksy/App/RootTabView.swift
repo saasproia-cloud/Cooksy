@@ -133,6 +133,7 @@ struct RootTabView: View {
                 RecipeImportFailureView(
                     store: recipeStore,
                     seed: failureAssessment.seed,
+                    message: failureAssessment.userFacingFailureMessage,
                     onRetry: {
                         sharedImportFailureAssessment = nil
                         Task {

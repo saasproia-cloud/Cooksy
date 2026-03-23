@@ -70,7 +70,9 @@ enum CooksyBackendService {
             endpoint: .importURL,
             requestBody: requestBody
         )
-        return envelope.recipe.asSeed()
+        let debug = envelope.debug?.asImportDebug()
+        logBackendDebug(debug)
+        return envelope.recipe.asSeed(debug: debug)
     }
 
     static func importText(_ text: String, imageData: Data? = nil) async throws -> RecipeEditorSeed {
@@ -83,7 +85,9 @@ enum CooksyBackendService {
             endpoint: .importText,
             requestBody: requestBody
         )
-        return envelope.recipe.asSeed()
+        let debug = envelope.debug?.asImportDebug()
+        logBackendDebug(debug)
+        return envelope.recipe.asSeed(debug: debug)
     }
 
     static func importPhoto(_ imageData: Data) async throws -> RecipeEditorSeed {
@@ -105,7 +109,9 @@ enum CooksyBackendService {
         uploadRequest.httpBody = body
 
         let envelope: RecipeImportEnvelope = try await send(uploadRequest, as: RecipeImportEnvelope.self)
-        var seed = envelope.recipe.asSeed()
+        let debug = envelope.debug?.asImportDebug()
+        logBackendDebug(debug)
+        var seed = envelope.recipe.asSeed(debug: debug)
         seed.imageData = seed.imageData ?? imageData
         return seed
     }
@@ -157,12 +163,17 @@ enum CooksyBackendService {
         let response: URLResponse
 
         do {
+            let requestStartedAt = Date()
             if let urlString = request.url?.absoluteString {
-                logger.debug("Sending backend request to \(urlString, privacy: .public)")
+                logger.debug(
+                    "Backend request start t=\(requestStartedAt.timeIntervalSince1970, privacy: .public) url=\(urlString, privacy: .public)"
+                )
             } else {
                 logger.error("Attempted backend request with nil URL.")
             }
             (data, response) = try await session.data(for: request)
+            let durationMs = Int(Date().timeIntervalSince(requestStartedAt) * 1000)
+            logger.debug("Backend response received in \(durationMs)ms")
         } catch let error as URLError {
             switch error.code {
             case .timedOut:
@@ -281,6 +292,23 @@ enum CooksyBackendService {
 
         return url.absoluteString
     }
+
+    private static func logBackendDebug(_ debug: RecipeImportDebugInfo?) {
+        guard let debug else { return }
+        let missing = debug.missing.joined(separator: ",")
+        let failureReason = debug.failureReason ?? "none"
+        let message = [
+            "Backend import debug",
+            "strategy=\(debug.strategy)",
+            "ingredients=\(debug.ingredientsCount)",
+            "steps=\(debug.stepsCount)",
+            "duration=\(debug.durationMs)ms",
+            "valid=\(debug.isLikelyValid)",
+            "missing=\(missing)",
+            "failureReason=\(failureReason)"
+        ].joined(separator: " ")
+        logger.debug("\(message, privacy: .public)")
+    }
 }
 
 private struct URLImportRequest: Encodable {
@@ -305,6 +333,7 @@ private struct ShoppingImageRequest: Encodable {
 
 private struct RecipeImportEnvelope: Decodable {
     let recipe: BackendRecipeSeed
+    let debug: BackendRecipeImportDebug?
 }
 
 private struct BackendRecipeSeed: Decodable {
@@ -322,7 +351,7 @@ private struct BackendRecipeSeed: Decodable {
     let carbsText: String
     let fatText: String
 
-    func asSeed() -> RecipeEditorSeed {
+    func asSeed(debug: RecipeImportDebugInfo?) -> RecipeEditorSeed {
         RecipeEditorSeed(
             title: title,
             sourceURL: urlIfPresent(sourceUrl),
@@ -336,7 +365,30 @@ private struct BackendRecipeSeed: Decodable {
             proteinText: proteinText,
             carbsText: carbsText,
             fatText: fatText,
-            remoteImageURL: urlIfPresent(remoteImageUrl)
+            remoteImageURL: urlIfPresent(remoteImageUrl),
+            importDebug: debug
+        )
+    }
+}
+
+private struct BackendRecipeImportDebug: Decodable {
+    let ingredientsCount: Int
+    let stepsCount: Int
+    let strategy: String
+    let durationMs: Int
+    let isLikelyValid: Bool
+    let missing: [String]
+    let failureReason: String?
+
+    func asImportDebug() -> RecipeImportDebugInfo {
+        RecipeImportDebugInfo(
+            ingredientsCount: ingredientsCount,
+            stepsCount: stepsCount,
+            strategy: strategy,
+            durationMs: durationMs,
+            isLikelyValid: isLikelyValid,
+            missing: missing,
+            failureReason: failureReason
         )
     }
 }

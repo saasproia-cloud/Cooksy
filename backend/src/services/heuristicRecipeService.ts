@@ -54,7 +54,7 @@ export function structuredRecipeFromBlocks(blocks: string[]): RecipeImportResult
 }
 
 function parseRecipeText(input: string): RecipeImportResult {
-  const lines = normalizedLines(input);
+  const lines = heuristicLines(input);
   if (!lines.length) {
     return emptyRecipe();
   }
@@ -354,6 +354,46 @@ function normalizedLines(input: string): string[] {
     .split("\n")
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+function heuristicLines(input: string): string[] {
+  const directLines = normalizedLines(input);
+  const expandedInput = input
+    .replaceAll("\r\n", "\n")
+    .replace(/[•·▪◦●]/g, "\n- ")
+    .replace(/\s*[|;]+\s*/g, "\n")
+    .replace(
+      /\b(ingredients?|ingrédients?|instructions?|étapes?|etapes|préparation|preparation|method|méthode|methode)\b\s*:/giu,
+      "\n$1\n"
+    )
+    .replace(/(?:^|\s)(\d+[\).\-\:])\s*/g, "\n$1 ")
+    .replace(
+      /([.!?])\s+(?=(?:ajouter|mélanger|melanger|cuire|faire|verser|laisser|chauffer|mettre|servir|add|mix|cook|stir|serve|ingredients?|instructions?|étapes?|etapes|préparation|preparation|\d+[.)-]))/giu,
+      "$1\n"
+    )
+    .replace(
+      /,\s+(?=(?:\d+(?:[.,]\d+)?|\d+\/\d+)\s*(?:g|kg|ml|cl|l|cas|cac|c\s*a\s*s|c\s*a\s*c|tablespoons?|teaspoons?|cups?|lb|lbs|oz)\b)/giu,
+      "\n"
+    );
+
+  const expandedLines = normalizedLines(expandedInput);
+  return uniqueNonEmptyLines(expandedLines.length >= directLines.length ? expandedLines : directLines);
+}
+
+function uniqueNonEmptyLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const line of lines) {
+    if (seen.has(line)) {
+      continue;
+    }
+
+    seen.add(line);
+    result.push(line);
+  }
+
+  return result;
 }
 
 function explicitTitle(lines: string[]): string | null {

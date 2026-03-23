@@ -22,7 +22,13 @@ export type SocialContentSnapshot = {
 
 const apifyClient = providerStatus.apify ? new ApifyClient({ token: env.APIFY_TOKEN }) : null;
 
-export async function resolveSocialContent(url: string): Promise<SocialContentSnapshot | null> {
+export async function resolveSocialContent(
+  url: string,
+  options?: {
+    timeoutMs?: number;
+    allowDirectFetch?: boolean;
+  }
+): Promise<SocialContentSnapshot | null> {
   const platform = platformFromUrl(url);
   if (platform === "web") {
     return null;
@@ -30,7 +36,7 @@ export async function resolveSocialContent(url: string): Promise<SocialContentSn
 
   const apifySnapshot = await withTimeout(
     resolveViaApify(platform, url),
-    18_000,
+    options?.timeoutMs ?? 18_000,
     new Error("Apify social lookup timed out.")
   ).catch((error) => {
     logProviderFailure("apify", platform, url, error);
@@ -38,6 +44,10 @@ export async function resolveSocialContent(url: string): Promise<SocialContentSn
   });
   if (apifySnapshot) {
     return apifySnapshot;
+  }
+
+  if (options?.allowDirectFetch === false) {
+    return null;
   }
 
   return resolveViaDirectFetch(platform, url).catch((error) => {

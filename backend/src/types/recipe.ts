@@ -36,6 +36,15 @@ export const recipeImportSchema = z.object({
 export type RecipeIngredientDraft = z.infer<typeof recipeIngredientSchema>;
 export type RecipeImportResult = z.infer<typeof recipeImportSchema>;
 
+export type ImportDebugMissing = "ingredients" | "steps";
+export type ImportFailureReason =
+  | "no_recipe_detected"
+  | "not_enough_ingredients"
+  | "not_enough_steps"
+  | "weak_tiktok_metadata"
+  | "import_too_slow"
+  | "invalid_recipe_result";
+
 export type ImportDebug = {
   platform?: string;
   usedApify: boolean;
@@ -45,6 +54,13 @@ export type ImportDebug = {
   nutritionCoverage?: number;
   matchedNutritionIngredients?: number;
   sourceKind: "url" | "text" | "photo";
+  ingredientsCount: number;
+  stepsCount: number;
+  strategy: string;
+  durationMs: number;
+  isLikelyValid: boolean;
+  missing: ImportDebugMissing[];
+  failureReason?: ImportFailureReason;
 };
 
 export type NormalizerInput = {
@@ -151,6 +167,66 @@ export function shouldFallbackToSearch(recipe: RecipeImportResult): boolean {
     recipe.ingredientDrafts.length < 3 ||
     recipe.stepDrafts.length < 2 ||
     isLikelyArticleTitle(recipe.title);
+}
+
+export function importMissingParts(recipe: RecipeImportResult): ImportDebugMissing[] {
+  const missing: ImportDebugMissing[] = [];
+
+  if (recipe.ingredientDrafts.length < 3) {
+    missing.push("ingredients");
+  }
+
+  if (recipe.stepDrafts.length < 2) {
+    missing.push("steps");
+  }
+
+  return missing;
+}
+
+export function isLikelyValidRecipe(recipe: RecipeImportResult): boolean {
+  const normalizedTitle = clean(recipe.title);
+  return normalizedTitle.length > 2 &&
+    normalizedTitle.length <= 90 &&
+    !isLikelyArticleTitle(normalizedTitle) &&
+    importMissingParts(recipe).length === 0;
+}
+
+export function importFailureReason(
+  recipe: RecipeImportResult,
+  options?: {
+    preferWeakMetadata?: boolean;
+    timedOut?: boolean;
+  }
+): ImportFailureReason | undefined {
+  if (options?.timedOut) {
+    return "import_too_slow";
+  }
+
+  const missing = importMissingParts(recipe);
+  if (!missing.length) {
+    if (isLikelyArticleTitle(recipe.title)) {
+      return "invalid_recipe_result";
+    }
+    return undefined;
+  }
+
+  if (options?.preferWeakMetadata) {
+    return "weak_tiktok_metadata";
+  }
+
+  if (missing.length === 2) {
+    return "no_recipe_detected";
+  }
+
+  if (missing.includes("ingredients")) {
+    return "not_enough_ingredients";
+  }
+
+  if (missing.includes("steps")) {
+    return "not_enough_steps";
+  }
+
+  return "invalid_recipe_result";
 }
 
 function sanitizeTitle(value: string): string {

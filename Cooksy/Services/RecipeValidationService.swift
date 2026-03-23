@@ -4,6 +4,31 @@ import OSLog
 struct RecipeImportAssessment {
     var seed: RecipeEditorSeed
     var validation: RecipeValidationResult
+
+    var userFacingFailureMessage: String {
+        if let backendMessage = seed.importDebug?.userFacingFailureMessage {
+            return backendMessage
+        }
+
+        let reasons = Set(validation.rejectionReasons)
+        if reasons.contains(.notEnoughIngredients) && reasons.contains(.stepsNotValid) {
+            return "Aucune recette détectée"
+        }
+        if reasons.contains(.notEnoughIngredients) {
+            return "Pas assez d’ingrédients"
+        }
+        if reasons.contains(.stepsNotValid) {
+            return "Pas assez d’étapes"
+        }
+        if reasons.contains(.articleLikeContentDetected) || reasons.contains(.sourcePageNotRecipe) {
+            return "Données TikTok insuffisantes"
+        }
+        if reasons.contains(.repeatedTextDetected) || reasons.contains(.ingredientLineTooLong) {
+            return "Résultat de recette invalide"
+        }
+
+        return "Résultat de recette invalide"
+    }
 }
 
 enum RecipeImportSourceKind: String {
@@ -715,7 +740,10 @@ enum RecipeValidationService {
             "ingredients=\(result.metrics.validIngredientCount)/\(result.metrics.ingredientCount)",
             "steps=\(result.metrics.validStepCount)/\(result.metrics.stepCount)",
             "articleSignals=\(result.metrics.articleSignalCount)",
-            "repeatedSignals=\(result.metrics.repeatedSignalCount)"
+            "repeatedSignals=\(result.metrics.repeatedSignalCount)",
+            "backendReason=\(seed.importDebug?.failureReason ?? "none")",
+            "backendStrategy=\(seed.importDebug?.strategy ?? "unknown")",
+            "backendDurationMs=\(seed.importDebug?.durationMs ?? 0)"
         ]
         .joined(separator: " | ")
 

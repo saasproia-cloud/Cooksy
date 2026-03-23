@@ -62,6 +62,7 @@ final class ShareViewController: UIViewController {
 
     @MainActor
     private func importSharedContent() async {
+        let importStartedAt = Date()
         let loadingState = ShareLoadingState(
             title: "Cooksy prépare votre recette",
             message: "Nous analysons ce partage pour reconstruire les ingrédients, les étapes et les infos utiles."
@@ -73,30 +74,41 @@ final class ShareViewController: UIViewController {
         do {
             let draft = try await extractSharedDraft()
             state.latestDraft = draft
+            logger.debug("Share extension import started for host \(draft.hostLabel, privacy: .public)")
 
             let preview = try await makePreview(for: draft)
             if preview.assessment.validation.isRejected {
+                let failureMessage = preview.assessment.userFacingFailureMessage
+                let durationMs = Int(Date().timeIntervalSince(importStartedAt) * 1000)
+                logger.error(
+                    "Share extension validation failure after \(durationMs)ms: \(failureMessage, privacy: .public)"
+                )
+                logger.error("Share extension UI error shown: \(failureMessage, privacy: .public)")
                 state.phase = .failure(
                     ShareRecipeFailure(
                         draft: draft,
                         seed: preview.assessment.seed,
                         title: "Impossible d’importer cette recette",
-                        message: "Le contenu partagé ne contient pas une recette exploitable",
+                        message: failureMessage,
                         allowsRetry: true
                     )
                 )
             } else {
+                let durationMs = Int(Date().timeIntervalSince(importStartedAt) * 1000)
+                logger.debug("Share extension preview ready after \(durationMs)ms")
                 state.phase = .preview(preview)
             }
         } catch {
             logger.error("Share extension import failed: \(error.localizedDescription, privacy: .public)")
             let fallbackDraft = state.latestDraft
+            let failureMessage = userFacingFailureMessage(for: error)
+            logger.error("Share extension UI error shown: \(failureMessage, privacy: .public)")
             state.phase = .failure(
                 ShareRecipeFailure(
                     draft: fallbackDraft,
                     seed: fallbackDraft.map { fallbackSeed(from: $0) },
                     title: "Import impossible",
-                    message: userFacingFailureMessage(for: error),
+                    message: failureMessage,
                     allowsRetry: fallbackDraft != nil
                 )
             )
@@ -142,6 +154,16 @@ final class ShareViewController: UIViewController {
 
         var assessment = RecipeValidationService.assess(seed, sourceKind: .shared)
         assessment.seed.imageData = assessment.seed.imageData ?? seed.imageData
+        let rejectionReasons = assessment.validation.rejectionReasons.map(\.rawValue).joined(separator: ",")
+        let backendReason = assessment.seed.importDebug?.failureReason ?? "none"
+        let validationMessage = [
+            "Share extension validation result",
+            "status=\(String(describing: assessment.validation.status))",
+            "score=\(assessment.validation.qualityScore)",
+            "reasons=\(rejectionReasons)",
+            "backendReason=\(backendReason)"
+        ].joined(separator: " ")
+        logger.debug("\(validationMessage, privacy: .public)")
 
         return ShareRecipePreview(
             draft: draft,
@@ -356,11 +378,11 @@ final class ShareViewController: UIViewController {
         if let importError = error as? ShareExtensionImportError {
             switch importError {
             case .missingBackendURL, .invalidBackendURL, .invalidRequestURL:
-                return "Cooksy n'a pas réussi à contacter le service d'import."
+                return "Service d’import indisponible"
             case .invalidResponse:
-                return "Le contenu partagé n'a pas pu être relu correctement."
+                return "Résultat de recette invalide"
             case .timedOut:
-                return "L'analyse a pris trop de temps. Réessaie dans quelques instants."
+                return "Import trop lent"
             case .serverError(let message):
                 return sanitizedFailureMessage(from: message)
             }
@@ -372,10 +394,26 @@ final class ShareViewController: UIViewController {
     private func sanitizedFailureMessage(from rawMessage: String) -> String {
         let trimmedMessage = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedMessage.isEmpty == false else {
-            return "Cooksy n'a pas réussi à analyser ce partage."
+            return "Résultat de recette invalide"
         }
 
         let lowercaseMessage = trimmedMessage.lowercased()
+        if lowercaseMessage.contains("timeout") || lowercaseMessage.contains("timed out") {
+            return "Import trop lent"
+        }
+        if lowercaseMessage.contains("weak_tiktok_metadata") || lowercaseMessage.contains("metadata") {
+            return "Données TikTok insuffisantes"
+        }
+        if lowercaseMessage.contains("not_enough_ingredients") {
+            return "Pas assez d’ingrédients"
+        }
+        if lowercaseMessage.contains("not_enough_steps") {
+            return "Pas assez d’étapes"
+        }
+        if lowercaseMessage.contains("no_recipe_detected") {
+            return "Aucune recette détectée"
+        }
+
         let technicalFragments = [
             "application not found",
             "nsitemprovider",
@@ -388,7 +426,7 @@ final class ShareViewController: UIViewController {
         ]
 
         if technicalFragments.contains(where: { lowercaseMessage.contains($0) }) {
-            return "TikTok n'a pas fourni un contenu exploitable à Cooksy. Réessaie ou copie le lien de la vidéo dans l'app."
+            return "Données TikTok insuffisantes"
         }
 
         return trimmedMessage
@@ -1293,7 +1331,9 @@ private enum ShareExtensionImportService {
             endpoint: .importURL,
             requestBody: requestBody
         )
-        return envelope.recipe.asSeed()
+        let debug = envelope.debug?.asImportDebug()
+        logBackendDebug(debug)
+        return envelope.recipe.asSeed(debug: debug)
     }
 
     static func importText(_ text: String, imageData: Data? = nil) async throws -> RecipeEditorSeed {
@@ -1307,7 +1347,9 @@ private enum ShareExtensionImportService {
             endpoint: .importText,
             requestBody: requestBody
         )
-        return envelope.recipe.asSeed()
+        let debug = envelope.debug?.asImportDebug()
+        logBackendDebug(debug)
+        return envelope.recipe.asSeed(debug: debug)
     }
 
     static func importPhoto(_ imageData: Data) async throws -> RecipeEditorSeed {
@@ -1329,7 +1371,9 @@ private enum ShareExtensionImportService {
         uploadRequest.httpBody = body
 
         let envelope: ShareRecipeImportEnvelope = try await send(uploadRequest, as: ShareRecipeImportEnvelope.self)
-        var seed = envelope.recipe.asSeed()
+        let debug = envelope.debug?.asImportDebug()
+        logBackendDebug(debug)
+        var seed = envelope.recipe.asSeed(debug: debug)
         seed.imageData = seed.imageData ?? imageData
         return seed
     }
@@ -1370,8 +1414,13 @@ private enum ShareExtensionImportService {
         let response: URLResponse
 
         do {
-            logger.debug("Share extension sending request to \(request.url?.absoluteString ?? "(nil)", privacy: .public)")
+            let requestStartedAt = Date()
+            logger.debug(
+                "Share extension request start t=\(requestStartedAt.timeIntervalSince1970, privacy: .public) url=\(request.url?.absoluteString ?? "(nil)", privacy: .public)"
+            )
             (data, response) = try await session.data(for: request)
+            let durationMs = Int(Date().timeIntervalSince(requestStartedAt) * 1000)
+            logger.debug("Share extension response received in \(durationMs)ms")
         } catch let error as URLError {
             switch error.code {
             case .timedOut:
@@ -1484,6 +1533,21 @@ private enum ShareExtensionImportService {
 
         return url.absoluteString
     }
+
+    private static func logBackendDebug(_ debug: RecipeImportDebugInfo?) {
+        guard let debug else { return }
+        let message = [
+            "Share extension backend debug",
+            "strategy=\(debug.strategy)",
+            "ingredients=\(debug.ingredientsCount)",
+            "steps=\(debug.stepsCount)",
+            "duration=\(debug.durationMs)ms",
+            "valid=\(debug.isLikelyValid)",
+            "missing=\(debug.missing.joined(separator: ","))",
+            "failureReason=\(debug.failureReason ?? "none")"
+        ].joined(separator: " ")
+        logger.debug("\(message, privacy: .public)")
+    }
 }
 
 private enum ShareExtensionImportError: LocalizedError {
@@ -1526,6 +1590,7 @@ private struct ShareTextImportRequest: Encodable {
 
 private struct ShareRecipeImportEnvelope: Decodable {
     let recipe: ShareBackendRecipeSeed
+    let debug: ShareBackendImportDebug?
 }
 
 private struct ShareBackendRecipeSeed: Decodable {
@@ -1543,7 +1608,7 @@ private struct ShareBackendRecipeSeed: Decodable {
     let carbsText: String
     let fatText: String
 
-    func asSeed() -> RecipeEditorSeed {
+    func asSeed(debug: RecipeImportDebugInfo?) -> RecipeEditorSeed {
         RecipeEditorSeed(
             title: title,
             sourceURL: urlIfPresent(sourceUrl),
@@ -1557,7 +1622,30 @@ private struct ShareBackendRecipeSeed: Decodable {
             proteinText: proteinText,
             carbsText: carbsText,
             fatText: fatText,
-            remoteImageURL: urlIfPresent(remoteImageUrl)
+            remoteImageURL: urlIfPresent(remoteImageUrl),
+            importDebug: debug
+        )
+    }
+}
+
+private struct ShareBackendImportDebug: Decodable {
+    let ingredientsCount: Int
+    let stepsCount: Int
+    let strategy: String
+    let durationMs: Int
+    let isLikelyValid: Bool
+    let missing: [String]
+    let failureReason: String?
+
+    func asImportDebug() -> RecipeImportDebugInfo {
+        RecipeImportDebugInfo(
+            ingredientsCount: ingredientsCount,
+            stepsCount: stepsCount,
+            strategy: strategy,
+            durationMs: durationMs,
+            isLikelyValid: isLikelyValid,
+            missing: missing,
+            failureReason: failureReason
         )
     }
 }

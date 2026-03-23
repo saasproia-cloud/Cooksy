@@ -150,6 +150,7 @@ private struct RecipeImportFlowHost: ViewModifier {
                     RecipeImportFailureView(
                         store: recipeStore,
                         seed: failureAssessment.seed,
+                        message: failureAssessment.userFacingFailureMessage,
                         preferredBookID: preferredBookID,
                         onRetry: retryLastImport,
                         onCancel: {
