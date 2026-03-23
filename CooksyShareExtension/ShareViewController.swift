@@ -13,7 +13,7 @@ final class ShareViewController: UIViewController {
         embedRootView()
 
         Task { @MainActor in
-            await importSharedContent()
+            await handoffSharedContentToCooksyApp()
         }
     }
 
@@ -61,11 +61,10 @@ final class ShareViewController: UIViewController {
     }
 
     @MainActor
-    private func importSharedContent() async {
-        let importStartedAt = Date()
+    private func handoffSharedContentToCooksyApp() async {
         let loadingState = ShareLoadingState(
-            title: "Cooksy prépare votre recette",
-            message: "Nous analysons ce partage pour reconstruire les ingrédients, les étapes et les infos utiles."
+            title: "Ouverture de Cooksy",
+            message: "Nous transmettons ce partage à l’app pour lancer l’import directement dans Cooksy."
         )
 
         state.isPerformingAction = false
@@ -74,29 +73,17 @@ final class ShareViewController: UIViewController {
         do {
             let draft = try await extractSharedDraft()
             state.latestDraft = draft
-            logger.debug("Share extension import started for host \(draft.hostLabel, privacy: .public)")
+            logger.debug("Share extension captured draft for host \(draft.hostLabel, privacy: .public)")
 
-            let preview = try await makePreview(for: draft)
-            if preview.assessment.validation.isRejected {
-                let failureMessage = preview.assessment.userFacingFailureMessage
-                let durationMs = Int(Date().timeIntervalSince(importStartedAt) * 1000)
-                logger.error(
-                    "Share extension validation failure after \(durationMs)ms: \(failureMessage, privacy: .public)"
-                )
-                logger.error("Share extension UI error shown: \(failureMessage, privacy: .public)")
-                state.phase = .failure(
-                    ShareRecipeFailure(
-                        draft: draft,
-                        seed: preview.assessment.seed,
-                        title: "Impossible d’importer cette recette",
-                        message: failureMessage,
-                        allowsRetry: true
-                    )
-                )
-            } else {
-                let durationMs = Int(Date().timeIntervalSince(importStartedAt) * 1000)
-                logger.debug("Share extension preview ready after \(durationMs)ms")
-                state.phase = .preview(preview)
+            sharedLinkInbox.enqueue(draft: draft)
+            state.isPerformingAction = true
+
+            let didOpen = await openCooksyAppForSharedImport()
+            state.isPerformingAction = false
+
+            guard didOpen else {
+                sharedLinkInbox.clear()
+                throw ShareImportError.unableToOpenCooksy
             }
         } catch {
             logger.error("Share extension import failed: \(error.localizedDescription, privacy: .public)")
@@ -113,6 +100,11 @@ final class ShareViewController: UIViewController {
                 )
             )
         }
+    }
+
+    @MainActor
+    private func importSharedContent() async {
+        await handoffSharedContentToCooksyApp()
     }
 
     @MainActor
@@ -445,6 +437,26 @@ final class ShareViewController: UIViewController {
         }
     }
 
+    @MainActor
+    private func openCooksyAppForSharedImport() async -> Bool {
+        guard let extensionContext else { return false }
+        guard let appURL = Self.makeAppURL(for: .reviewInApp) else { return false }
+
+        logger.debug("Share extension opening Cooksy app with \(appURL.absoluteString, privacy: .public)")
+
+        let opened = await withCheckedContinuation { continuation in
+            extensionContext.open(appURL) { success in
+                continuation.resume(returning: success)
+            }
+        }
+
+        if opened {
+            extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+        }
+
+        return opened
+    }
+
     private static func makeAppURL(for action: SharedImportHandoffAction) -> URL? {
         var components = URLComponents()
         components.scheme = "cooksy"
@@ -623,11 +635,14 @@ final class ShareViewController: UIViewController {
 
 private enum ShareImportError: LocalizedError {
     case noURLFound
+    case unableToOpenCooksy
 
     var errorDescription: String? {
         switch self {
         case .noURLFound:
             return "Cooksy n'a pas trouvé de lien compatible dans ce partage."
+        case .unableToOpenCooksy:
+            return "Impossible d'ouvrir Cooksy depuis ce partage."
         }
     }
 }

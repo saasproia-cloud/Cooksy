@@ -1,4 +1,5 @@
 import SwiftUI
+import OSLog
 
 private enum AppTab: Hashable {
     case recipes
@@ -12,6 +13,7 @@ struct RootTabView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
 
     let sharedLinkInbox: SharedLinkInbox
+    private let logger = Logger(subsystem: "com.cooksy.ios", category: "RootSharedImport")
 
     @State private var selection: AppTab = .recipes
     @State private var showsQuickImportSheet = false
@@ -191,20 +193,32 @@ struct RootTabView: View {
         selection = .recipes
         isProcessingSharedImport = true
         currentSharedImportHostLabel = draft.hostLabel
+        logger.debug(
+            "App started processing shared import host=\(draft.hostLabel, privacy: .public) url=\(draft.preferredImportURL?.absoluteString ?? draft.urlString ?? "(nil)", privacy: .public)"
+        )
 
         do {
             if try await handlePreparedSharedImportIfNeeded(draft) == false {
                 let assessment = try await RecipeImportPipeline.importSharedDraftAssessment(draft)
                 if assessment.validation.isRejected {
+                    logger.error(
+                        "App shared import rejected host=\(draft.hostLabel, privacy: .public) reason=\(assessment.userFacingFailureMessage, privacy: .public)"
+                    )
                     lastDeferredSharedImportKey = draft.dedupeKey
                     sharedImportFailureAssessment = assessment
                 } else {
+                    logger.debug(
+                        "App shared import ready host=\(draft.hostLabel, privacy: .public) title=\(assessment.seed.normalizedTitle, privacy: .public)"
+                    )
                     sharedLinkInbox.clear()
                     lastDeferredSharedImportKey = nil
                     sharedImportAssessment = assessment
                 }
             }
         } catch {
+            logger.error(
+                "App shared import failed host=\(draft.hostLabel, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             lastDeferredSharedImportKey = draft.dedupeKey
             sharedImportErrorMessage = makeSharedImportErrorMessage(for: error, hostLabel: draft.hostLabel)
             showsSharedImportError = true
