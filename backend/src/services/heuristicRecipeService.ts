@@ -440,7 +440,8 @@ function matches(line: string, patterns: string[]): boolean {
 }
 
 function cleanedTitle(line: string): string {
-  return line.replace(/^(titre|title)\s*:\s*/i, "").trim();
+  const cleaned = line.replace(/^(titre|title)\s*:\s*/i, "").trim();
+  return isGenericSocialTitle(cleaned) ? "" : cleaned;
 }
 
 function cleanedListLine(line: string): string {
@@ -477,7 +478,9 @@ function looksLikeStep(line: string): boolean {
   const verbs = [
     "melanger", "mélanger", "ajouter", "faire", "cuire", "verser", "laisser",
     "chauffer", "former", "mettre", "fouetter", "mixer", "decouper", "découper",
-    "rotir", "rôtir", "servir", "prechauffer", "préchauffer", "remuer", "incorporer"
+    "rotir", "rôtir", "servir", "prechauffer", "préchauffer", "remuer", "incorporer",
+    "puis", "ensuite", "etaler", "étaler", "etalez", "étalez", "rouler", "plier",
+    "garnir", "repartir", "répartir", "napper", "saisir", "faire revenir", "laisser cuire"
   ];
   return verbs.some((verb) => cleaned.startsWith(verb));
 }
@@ -489,6 +492,23 @@ function isLikelyNoise(line: string): boolean {
     lower.startsWith("#") ||
     lower.includes("tiktok") ||
     lower.includes("instagram");
+}
+
+function isGenericSocialTitle(line: string): boolean {
+  const normalized = line
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized === "tiktok - make your day" ||
+    normalized === "make your day" ||
+    normalized === "tiktok" ||
+    normalized.endsWith(" sur tiktok") ||
+    normalized.endsWith(" on tiktok") ||
+    normalized.startsWith("watch more trending videos") ||
+    normalized.startsWith("regarde plus de videos");
 }
 
 function parseIngredientLine(line: string): { amount: string; unit: string; name: string; nutritionQuery: string } {

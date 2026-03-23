@@ -194,7 +194,7 @@ struct RootTabView: View {
         isProcessingSharedImport = true
         currentSharedImportHostLabel = draft.hostLabel
         logger.debug(
-            "App started processing shared import host=\(draft.hostLabel, privacy: .public) url=\(draft.preferredImportURL?.absoluteString ?? draft.urlString ?? "(nil)", privacy: .public)"
+            "App started processing shared import host=\(draft.hostLabel, privacy: .public) url=\(draft.preferredImportURL?.absoluteString ?? draft.urlString ?? "(nil)", privacy: .public) sharedTextLength=\(draft.sharedText?.count ?? 0, privacy: .public)"
         )
 
         do {

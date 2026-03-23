@@ -124,7 +124,7 @@ enum RecipeImportPipeline {
             var seed = try await importURL(
                 url,
                 sharedText: draft.sharedText,
-                preferPreviewBackend: true,
+                preferPreviewBackend: false,
                 allowWeakSocialFallback: true
             )
             if seed.imageData == nil {
@@ -137,7 +137,7 @@ enum RecipeImportPipeline {
             return await importText(
                 sharedText,
                 imageData: sharedImageData,
-                preferPreviewBackend: true
+                preferPreviewBackend: false
             )
         }
 

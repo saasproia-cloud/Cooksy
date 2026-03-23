@@ -304,10 +304,6 @@ final class ShareViewController: UIViewController {
                 }
 
                 if foundText == nil,
-                   (
-                    provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ||
-                    provider.hasItemConformingToTypeIdentifier(UTType.text.identifier)
-                   ),
                    let text = await bestEffortLoadString(from: provider) {
                     foundText = text
 
@@ -457,6 +453,11 @@ final class ShareViewController: UIViewController {
 
         logger.debug("Share extension opening Cooksy app with \(appURL.absoluteString, privacy: .public)")
 
+        if openCooksyAppViaResponderChain(appURL) {
+            finishExtension(afterDelay: true)
+            return true
+        }
+
         if let extensionContext {
             let opened = await withCheckedContinuation { continuation in
                 extensionContext.open(appURL) { success in
@@ -465,14 +466,9 @@ final class ShareViewController: UIViewController {
             }
 
             if opened {
-                extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+                finishExtension(afterDelay: true)
                 return true
             }
-        }
-
-        if openCooksyAppViaResponderChain(appURL) {
-            finishExtension()
-            return true
         }
 
         return false
@@ -486,8 +482,16 @@ final class ShareViewController: UIViewController {
         return components.url
     }
 
-    private func finishExtension() {
-        extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+    private func finishExtension(afterDelay: Bool = false) {
+        guard afterDelay else {
+            extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+            return
+        }
+
+        let extensionContext = self.extensionContext
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+        }
     }
 
     private func openCooksyAppViaResponderChain(_ url: URL) -> Bool {
@@ -543,9 +547,12 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func loadString(from provider: NSItemProvider) async throws -> String? {
+    private func loadString(
+        from provider: NSItemProvider,
+        typeIdentifier: String
+    ) async throws -> String? {
         try await withCheckedThrowingContinuation { continuation in
-            provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, error in
+            provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
@@ -573,47 +580,53 @@ final class ShareViewController: UIViewController {
     }
 
     private func bestEffortLoadString(from provider: NSItemProvider) async -> String? {
-        do {
-            if let text = try await loadString(from: provider) {
-                return text
-            }
+        let candidateTypeIdentifiers = orderedTextTypeIdentifiers(for: provider)
 
-            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
-                return try await withCheckedThrowingContinuation { continuation in
-                    provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { item, error in
-                        if let error {
-                            continuation.resume(throwing: error)
-                            return
-                        }
-
-                        if let text = item as? String {
-                            continuation.resume(returning: text)
-                            return
-                        }
-
-                        if let attributedString = item as? NSAttributedString {
-                            continuation.resume(returning: attributedString.string)
-                            return
-                        }
-
-                        if let data = item as? Data,
-                           let text = String(data: data, encoding: .utf8) {
-                            continuation.resume(returning: text)
-                            return
-                        }
-
-                        continuation.resume(returning: nil)
-                    }
+        for typeIdentifier in candidateTypeIdentifiers {
+            do {
+                if let text = try await loadString(from: provider, typeIdentifier: typeIdentifier),
+                   nonEmpty(text) != nil {
+                    return text
                 }
+            } catch {
+                logger.error(
+                    "Share extension could not load text from \(typeIdentifier, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
             }
-        } catch {
-            let typeList = provider.registeredTypeIdentifiers.joined(separator: ",")
-            logger.error(
-                "Share extension could not load text from provider \(typeList, privacy: .public): \(error.localizedDescription, privacy: .public)"
-            )
         }
 
         return nil
+    }
+
+    private func orderedTextTypeIdentifiers(for provider: NSItemProvider) -> [String] {
+        var identifiers: [String] = []
+
+        let preferredIdentifiers = [
+            UTType.plainText.identifier,
+            UTType.text.identifier,
+            "public.utf8-plain-text",
+            "public.utf16-external-plain-text"
+        ]
+
+        for identifier in preferredIdentifiers where provider.hasItemConformingToTypeIdentifier(identifier) {
+            identifiers.append(identifier)
+        }
+
+        for identifier in provider.registeredTypeIdentifiers {
+            guard identifiers.contains(identifier) == false else { continue }
+
+            if let type = UTType(identifier), type.conforms(to: .text) {
+                identifiers.append(identifier)
+                continue
+            }
+
+            if identifier.localizedCaseInsensitiveContains("text") ||
+                identifier.localizedCaseInsensitiveContains("plain-text") {
+                identifiers.append(identifier)
+            }
+        }
+
+        return identifiers
     }
 
     private func loadImageData(from provider: NSItemProvider) async throws -> Data? {

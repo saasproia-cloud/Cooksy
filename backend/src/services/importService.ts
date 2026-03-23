@@ -25,6 +25,14 @@ type ImportExecutionOptions = {
 };
 
 type ImportStrategy = "social" | "web" | "fallback" | "audio" | "text" | "photo";
+type ImportedPageSummary = {
+  url: string;
+  title?: string;
+  description?: string;
+  textContent?: string;
+  structuredDataBlocks: string[];
+  imageUrl?: string;
+};
 
 const PREVIEW_TOTAL_LIMIT_MS = 9_000;
 const PREVIEW_RESOLVE_TIMEOUT_MS = 2_500;
@@ -58,7 +66,6 @@ export async function importFromUrl(input: {
     })
   ]);
   const canonicalSourceURL = pageSummary?.canonicalUrl ?? pageSummary?.url ?? resolvedSourceURL;
-  const structuredRecipe = structuredRecipeFromBlocks(pageSummary?.structuredDataBlocks ?? []);
   const mediaURL = socialContent?.audioUrl ?? socialContent?.videoUrl;
   const captionWasSparse = hasSparseSocialText(
     input.sharedText,
@@ -70,100 +77,99 @@ export async function importFromUrl(input: {
   let transcript: string | null = null;
   let importStrategy: ImportStrategy = sourcePlatform === "web" ? "web" : "social";
   let importStrategySourceURL: string | undefined;
-
-  const baseRecipeContext = {
-    mode: "url" as const,
-    sourceUrl: canonicalSourceURL,
-    remoteImageUrl: socialContent?.imageUrls[0] ?? pageSummary?.imageUrl,
-    sharedText: input.sharedText,
-    pageTitle: pageSummary?.title,
-    pageDescription: pageSummary?.description,
-    pageTextContent: pageSummary?.textContent,
-    pageStructuredData: pageSummary?.structuredDataBlocks,
-    socialTitle: socialContent?.title,
-    socialCaption: socialContent?.caption,
-    socialDescription: socialContent?.description,
-    socialPageText: socialContent?.pageText,
-    socialAuthor: socialContent?.authorName,
-    socialSubtitles: socialContent?.subtitlesText,
-    transcript: transcript ?? undefined
-  };
-
-  let recipe = preferStructuredRecipe(
-    fallbackRecipeFromContext(baseRecipeContext),
-    structuredRecipe
-  );
-  const shouldTrustInitialSocialRecipe = shouldTrustFastSocialRecipe(recipe, sourcePlatform);
-
-  const linkedFallbackPages = !shouldTrustInitialSocialRecipe &&
-    shouldTryLinkedWebFallback(recipe, socialContent?.externalLinks ?? [])
-    ? await fetchFallbackPagesFromLinks(socialContent?.externalLinks ?? [])
-    : [];
-
+  let fallbackPages: ImportedPageSummary[] = [];
   let usedWebFallback = false;
 
-  if (linkedFallbackPages.length) {
-    const linkedFallbackRecipe = await recipeFromFallbackPages(
-      linkedFallbackPages,
-      input.sharedText,
-      canonicalSourceURL,
-      false
-    );
+  const buildContext = () => buildUrlNormalizationContext({
+    canonicalSourceURL,
+    sharedText: input.sharedText,
+    pageSummary,
+    socialContent,
+    transcript,
+    fallbackPages
+  });
 
-    if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
-      recipe = linkedFallbackRecipe.recipe;
-      usedWebFallback = true;
-      importStrategy = "web";
-      importStrategySourceURL = linkedFallbackRecipe.sourceUrl;
-    }
-  }
+  let recipe = recipeFromContext(buildContext());
 
-  if (importStrategy !== "web" && !shouldTrustFastSocialRecipe(recipe, sourcePlatform)) {
-    recipe = preferStructuredRecipe(
-      await safeNormalize(baseRecipeContext, false),
-      structuredRecipe
-    );
-  }
-
-  if (!transcript && shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)) {
+  if (!shouldTrustFastSocialRecipe(recipe, sourcePlatform) &&
+    shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)
+  ) {
+    console.info(`[importService] Trying audio fallback for ${canonicalSourceURL}`);
     transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(false)).catch(() => null);
 
     if (transcript) {
-      const transcribedRecipe = preferStructuredRecipe(
-        await safeNormalize({
-          ...baseRecipeContext,
-          transcript
-        }, false),
-        structuredRecipe
-      );
-
-      if (scoreRecipe(transcribedRecipe) >= scoreRecipe(recipe)) {
-        recipe = transcribedRecipe;
+      const audioRecipe = recipeFromContext(buildContext());
+      if (scoreRecipe(audioRecipe) >= scoreRecipe(recipe)) {
+        recipe = audioRecipe;
         importStrategy = "audio";
         importStrategySourceURL = undefined;
       }
     }
   }
 
-  if (shouldFallbackToSearch(recipe)) {
-    const query = recipe.searchQuery || recipe.title || socialContent?.caption || pageSummary?.title || input.sharedText || "";
-    const fallbackPages = await fetchFallbackPages(query);
+  if (
+    socialContent?.externalLinks.length &&
+    shouldTryLinkedWebFallback(recipe, socialContent.externalLinks)
+  ) {
+    const linkedPages = await fetchFallbackPagesFromLinks(socialContent.externalLinks);
+    if (linkedPages.length) {
+      fallbackPages = mergeFallbackPages(fallbackPages, linkedPages);
+      const linkedFallbackRecipe = recipeFromContext(buildContext());
 
-    if (fallbackPages.length) {
-      const fallbackRecipe = await recipeFromFallbackPages(
-        fallbackPages,
-        input.sharedText,
-        canonicalSourceURL,
-        false
-      );
-
-      if (fallbackRecipe && scoreRecipe(fallbackRecipe.recipe) >= scoreRecipe(recipe)) {
-        recipe = fallbackRecipe.recipe;
+      if (scoreRecipe(linkedFallbackRecipe) >= scoreRecipe(recipe)) {
+        recipe = linkedFallbackRecipe;
+        usedWebFallback = true;
         importStrategy = "web";
-        importStrategySourceURL = fallbackRecipe.sourceUrl;
+        importStrategySourceURL = linkedPages[0]?.url;
+      }
+    }
+  }
+
+  if (shouldFallbackToSearch(recipe)) {
+    const query = bestSearchQuery({
+      recipe,
+      pageSummary,
+      socialContent,
+      sharedText: input.sharedText
+    });
+    const searchPages = await fetchFallbackPages(query);
+
+    if (searchPages.length) {
+      fallbackPages = mergeFallbackPages(fallbackPages, searchPages);
+      const searchFallbackRecipe = recipeFromContext(buildContext());
+
+      if (scoreRecipe(searchFallbackRecipe) >= scoreRecipe(recipe)) {
+        recipe = searchFallbackRecipe;
+        importStrategy = "fallback";
+        importStrategySourceURL = searchPages[0]?.url;
       }
       usedWebFallback = true;
     }
+  }
+
+  if (
+    !shouldTrustFastSocialRecipe(recipe, sourcePlatform) &&
+    shouldAttemptFinalNormalization({
+      recipe,
+      sourcePlatform,
+      context: buildContext(),
+      transcript,
+      fallbackPages
+    })
+  ) {
+    const normalizedContext = buildContext();
+    const normalizedRecipe = preferStructuredRecipe(
+      await safeNormalize(normalizedContext, false),
+      structuredRecipeFromBlocks(normalizedContext.pageStructuredData ?? [])
+    );
+
+    if (scoreRecipe(normalizedRecipe) >= scoreRecipe(recipe)) {
+      recipe = normalizedRecipe;
+    }
+  } else if (!shouldTrustFastSocialRecipe(recipe, sourcePlatform)) {
+    console.info(
+      `[importService] Skipping final normalization for thin context on ${canonicalSourceURL}`
+    );
   }
 
   const recipeWithImportContext = applyImportContextNotes(
@@ -560,15 +566,83 @@ async function fetchFallbackPagesFromLinks(
   return pages.filter((page): page is NonNullable<typeof page> => Boolean(page));
 }
 
+function buildUrlNormalizationContext(input: {
+  canonicalSourceURL: string;
+  sharedText?: string;
+  pageSummary: ImportedPageSummary | null;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  transcript?: string | null;
+  fallbackPages?: ImportedPageSummary[];
+}) {
+  const fallbackPages = input.fallbackPages ?? [];
+  const combinedPages = [
+    ...fallbackPages,
+    ...(input.pageSummary ? [input.pageSummary] : [])
+  ];
+
+  return {
+    mode: "url" as const,
+    sourceUrl: input.canonicalSourceURL,
+    remoteImageUrl: input.socialContent?.imageUrls[0] ??
+      fallbackPages.map((page) => page.imageUrl).find(Boolean) ??
+      input.pageSummary?.imageUrl,
+    sharedText: input.sharedText,
+    pageTitle: preferredPageValue(fallbackPages, "title") ?? input.pageSummary?.title,
+    pageDescription: preferredPageValue(fallbackPages, "description") ?? input.pageSummary?.description,
+    pageTextContent: combinedPages
+      .map((page) => page.textContent?.trim())
+      .filter((value): value is string => Boolean(value))
+      .join("\n\n"),
+    pageStructuredData: combinedPages.flatMap((page) => page.structuredDataBlocks ?? []),
+    socialTitle: input.socialContent?.title,
+    socialCaption: input.socialContent?.caption,
+    socialDescription: input.socialContent?.description,
+    socialPageText: input.socialContent?.pageText,
+    socialAuthor: input.socialContent?.authorName,
+    socialSubtitles: input.socialContent?.subtitlesText,
+    transcript: input.transcript ?? undefined
+  };
+}
+
+function recipeFromContext(
+  context: ReturnType<typeof buildUrlNormalizationContext>
+): RecipeImportResult {
+  return preferStructuredRecipe(
+    fallbackRecipeFromContext(context),
+    structuredRecipeFromBlocks(context.pageStructuredData ?? [])
+  );
+}
+
+function preferredPageValue(
+  pages: ImportedPageSummary[],
+  key: "title" | "description"
+): string | undefined {
+  return pages
+    .map((page) => page[key]?.trim())
+    .find((value): value is string => Boolean(value));
+}
+
+function mergeFallbackPages(
+  currentPages: ImportedPageSummary[],
+  newPages: ImportedPageSummary[]
+): ImportedPageSummary[] {
+  const mergedPages = [...currentPages];
+  const seen = new Set(currentPages.map((page) => page.url));
+
+  for (const page of newPages) {
+    if (seen.has(page.url)) {
+      continue;
+    }
+
+    seen.add(page.url);
+    mergedPages.push(page);
+  }
+
+  return mergedPages;
+}
+
 async function recipeFromFallbackPages(
-  pages: Array<{
-    url: string;
-    title?: string;
-    description?: string;
-    textContent?: string;
-    structuredDataBlocks: string[];
-    imageUrl?: string;
-  }>,
+  pages: ImportedPageSummary[],
   sharedText: string | undefined,
   sourceUrl: string,
   previewMode = false
@@ -604,6 +678,141 @@ async function recipeFromFallbackPages(
     recipe: normalizedFallbackRecipe,
     sourceUrl: pages[0]?.url
   };
+}
+
+function bestSearchQuery(input: {
+  recipe: RecipeImportResult;
+  pageSummary: ImportedPageSummary | null;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  sharedText?: string;
+}): string {
+  const candidates = [
+    input.recipe.searchQuery,
+    nonGenericSearchCandidate(input.socialContent?.caption),
+    nonGenericSearchCandidate(input.sharedText),
+    nonGenericSearchCandidate(input.socialContent?.description),
+    nonGenericSearchCandidate(input.pageSummary?.description),
+    nonGenericSearchCandidate(input.pageSummary?.title),
+    nonGenericSearchCandidate(input.recipe.title)
+  ];
+
+  return candidates.find((value): value is string => Boolean(value)) ?? "";
+}
+
+function nonGenericSearchCandidate(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const normalized = trimmed
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (
+    normalized === "tiktok - make your day" ||
+    normalized === "make your day" ||
+    normalized === "tiktok"
+  ) {
+    return undefined;
+  }
+
+  const lines = trimmed
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const narrativeLine = lines.find((line) =>
+    !line.startsWith("#") &&
+    !/^(?:[-•*]|\d+[.)-])/.test(line) &&
+    line.length >= 6 &&
+    !line.toLowerCase().includes("http")
+  );
+
+  if (narrativeLine) {
+    return narrativeLine.slice(0, 120).trim();
+  }
+
+  const ingredientWords = lines
+    .slice(0, 6)
+    .map((line) => line
+      .replace(/^(?:[-•*]|\d+[.)-])\s*/g, "")
+      .replace(/\b\d+(?:[.,/]\d+)?\s*(?:g|kg|ml|cl|l|cas|cac|cuill[eè]re?s?|tablespoons?|teaspoons?|cups?)\b/gi, "")
+      .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+    )
+    .filter(Boolean);
+
+  if (ingredientWords.length) {
+    return ingredientWords.join(" ").slice(0, 120).trim();
+  }
+
+  return trimmed.slice(0, 120).trim();
+}
+
+function shouldAttemptFinalNormalization(input: {
+  recipe: RecipeImportResult;
+  sourcePlatform: ReturnType<typeof platformFromUrl>;
+  context: ReturnType<typeof buildUrlNormalizationContext>;
+  transcript: string | null;
+  fallbackPages: ImportedPageSummary[];
+}): boolean {
+  if (shouldTrustFastSocialRecipe(input.recipe, input.sourcePlatform)) {
+    return false;
+  }
+
+  if (input.transcript) {
+    return true;
+  }
+
+  if (input.fallbackPages.length) {
+    return true;
+  }
+
+  const combinedText = [
+    input.context.sharedText,
+    input.context.socialCaption,
+    input.context.socialDescription,
+    input.context.socialSubtitles,
+    input.context.socialPageText,
+    input.context.pageDescription,
+    input.context.pageTextContent
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join("\n")
+    .trim();
+
+  if (combinedText.length < 160) {
+    return false;
+  }
+
+  if (looksMostlyIngredientText(combinedText) && input.recipe.stepDrafts.length == 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function looksMostlyIngredientText(text: string): boolean {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 3) {
+    return false;
+  }
+
+  const ingredientLikeLines = lines.filter((line) =>
+    /^[-•*]?\s*\d+(?:[.,/]\d+)?\s*(?:g|kg|ml|cl|l|cas|cac|cuill[eè]re?s?|tablespoons?|teaspoons?|cups?)?/i.test(line) ||
+    /^[-•*]\s*/.test(line) ||
+    line.split(/\s+/).length <= 6
+  );
+
+  return ingredientLikeLines.length / lines.length >= 0.7;
 }
 
 function buildImportDebug(
