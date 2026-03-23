@@ -7,10 +7,18 @@ final class ShareViewController: UIViewController {
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "ShareViewController")
     private let state = ShareExtensionState()
     private let sharedLinkInbox = SharedLinkInbox()
+    private var hasStartedHandoff = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
         embedRootView()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        guard !hasStartedHandoff else { return }
+        hasStartedHandoff = true
 
         Task { @MainActor in
             await handoffSharedContentToCooksyApp()
@@ -426,35 +434,48 @@ final class ShareViewController: UIViewController {
 
     @MainActor
     private func openCooksyApp(for action: SharedImportHandoffAction) {
-        guard let extensionContext else { return }
         guard let appURL = Self.makeAppURL(for: action) else {
-            extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+            finishExtension()
             return
         }
 
-        extensionContext.open(appURL) { _ in
-            extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+        if let extensionContext {
+            extensionContext.open(appURL) { _ in
+                extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+            }
+            return
+        }
+
+        if openCooksyAppViaResponderChain(appURL) {
+            finishExtension()
         }
     }
 
     @MainActor
     private func openCooksyAppForSharedImport() async -> Bool {
-        guard let extensionContext else { return false }
         guard let appURL = Self.makeAppURL(for: .reviewInApp) else { return false }
 
         logger.debug("Share extension opening Cooksy app with \(appURL.absoluteString, privacy: .public)")
 
-        let opened = await withCheckedContinuation { continuation in
-            extensionContext.open(appURL) { success in
-                continuation.resume(returning: success)
+        if let extensionContext {
+            let opened = await withCheckedContinuation { continuation in
+                extensionContext.open(appURL) { success in
+                    continuation.resume(returning: success)
+                }
+            }
+
+            if opened {
+                extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+                return true
             }
         }
 
-        if opened {
-            extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+        if openCooksyAppViaResponderChain(appURL) {
+            finishExtension()
+            return true
         }
 
-        return opened
+        return false
     }
 
     private static func makeAppURL(for action: SharedImportHandoffAction) -> URL? {
@@ -467,6 +488,23 @@ final class ShareViewController: UIViewController {
 
     private func finishExtension() {
         extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+    }
+
+    private func openCooksyAppViaResponderChain(_ url: URL) -> Bool {
+        let selector = NSSelectorFromString("openURL:")
+        var responder: UIResponder? = self
+
+        while let currentResponder = responder {
+            if currentResponder.responds(to: selector) {
+                logger.debug("Share extension opening Cooksy app via responder chain.")
+                currentResponder.perform(selector, with: url)
+                return true
+            }
+            responder = currentResponder.next
+        }
+
+        logger.error("Share extension could not open Cooksy via responder chain.")
+        return false
     }
 
     private func loadURL(from provider: NSItemProvider) async throws -> URL? {
