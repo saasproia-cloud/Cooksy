@@ -15,7 +15,7 @@ import {
   type NormalizerInput,
   type RecipeImportResult
 } from "../types/recipe.js";
-import { compactTextBlocks, truncate } from "../utils/text.js";
+import { compactTextBlocks, truncate, uniqueStrings } from "../utils/text.js";
 
 const recipeJsonSchema = {
   type: "object",
@@ -236,6 +236,16 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
   const structuredDataText = input.pageStructuredData?.length
     ? compactTextBlocks(input.pageStructuredData.slice(0, 2), 2400)
     : "";
+  const socialTextBlocks = uniqueStrings([
+    input.sharedText,
+    input.socialCaption,
+    input.socialDescription,
+    input.socialPageText,
+    input.socialSubtitles
+  ]);
+  const primarySocialText = socialTextBlocks[0];
+  const secondarySocialText = socialTextBlocks[1];
+  const tertiarySocialText = socialTextBlocks[2];
 
   return [
     `Mode d'import : ${input.mode}`,
@@ -245,17 +255,16 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     input.pageDescription ? `Description page : ${truncate(input.pageDescription, 420)}` : "",
     input.socialTitle ? `Titre social : ${truncate(input.socialTitle, 180)}` : "",
     input.socialAuthor ? `Auteur social : ${truncate(input.socialAuthor, 80)}` : "",
-    input.socialCaption ? `Caption social : ${truncate(input.socialCaption, 1200)}` : "",
-    input.socialDescription ? `Description sociale : ${truncate(input.socialDescription, 800)}` : "",
-    input.socialPageText ? `Texte social récupéré : ${truncate(input.socialPageText, 1600)}` : "",
-    input.sharedText ? `Texte partagé : ${truncate(input.sharedText, 1600)}` : "",
-    input.socialSubtitles ? `Sous-titres récupérés : ${truncate(input.socialSubtitles, 1800)}` : "",
+    primarySocialText ? `Texte social principal : ${truncate(primarySocialText, 1800)}` : "",
+    secondarySocialText ? `Contexte social secondaire : ${truncate(secondarySocialText, 900)}` : "",
+    tertiarySocialText ? `Contexte social additionnel : ${truncate(tertiarySocialText, 700)}` : "",
     input.transcript ? `Transcription audio : ${truncate(input.transcript, 2600)}` : "",
     input.pageTextContent ? `Texte page : ${truncate(input.pageTextContent, 1200)}` : "",
     structuredDataText ? `Données structurées : ${structuredDataText}` : "",
     [
       "Consignes métier :",
       "- Donne un titre court et naturel, par exemple 'Smash burger simple'.",
+      "- Si un titre social contient aussi des ingrédients, garde uniquement le nom du plat.",
       "- Garde uniquement des ingrédients utiles à cuisiner, un ingrédient par ligne.",
       "- nutritionQuery doit être un nom d'aliment court en anglais exploitable par USDA.",
       "- Donne des étapes actionnables, numérotables et pas trop longues.",

@@ -25,13 +25,15 @@ await app.register(multipart, {
 const urlImportSchema = z.object({
   url: z.string().url(),
   sharedText: z.string().optional(),
-  previewMode: z.boolean().optional()
+  previewMode: z.boolean().optional(),
+  sharedMode: z.boolean().optional()
 });
 
 const textImportSchema = z.object({
   text: z.string().min(1),
   imageBase64: z.string().optional(),
-  previewMode: z.boolean().optional()
+  previewMode: z.boolean().optional(),
+  sharedMode: z.boolean().optional()
 });
 
 const shoppingEnrichSchema = z.object({
@@ -53,7 +55,8 @@ app.get("/health", async () => {
 app.post("/api/import/url", async (request) => {
   const body = urlImportSchema.parse(request.body);
   return importFromUrl(body, {
-    previewMode: body.previewMode
+    previewMode: body.previewMode,
+    sharedMode: body.sharedMode
   });
 });
 
@@ -63,7 +66,8 @@ app.post("/api/import/text", async (request) => {
     text: body.text,
     imageDataUrl: body.imageBase64 ? toDataUrl(body.imageBase64) : undefined
   }, {
-    previewMode: body.previewMode
+    previewMode: body.previewMode,
+    sharedMode: body.sharedMode
   });
 });
 

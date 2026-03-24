@@ -63,12 +63,14 @@ enum CooksyBackendService {
     static func importURL(
         _ url: URL,
         sharedText: String? = nil,
-        previewMode: Bool = false
+        previewMode: Bool = false,
+        sharedMode: Bool = false
     ) async throws -> RecipeEditorSeed {
         let requestBody = URLImportRequest(
             url: encodedAbsoluteString(for: url),
             sharedText: nonEmpty(sharedText),
-            previewMode: previewMode
+            previewMode: previewMode,
+            sharedMode: sharedMode
         )
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
@@ -83,12 +85,14 @@ enum CooksyBackendService {
     static func importText(
         _ text: String,
         imageData: Data? = nil,
-        previewMode: Bool = false
+        previewMode: Bool = false,
+        sharedMode: Bool = false
     ) async throws -> RecipeEditorSeed {
         let requestBody = TextImportRequest(
             text: text,
             imageBase64: imageData?.base64EncodedString(),
-            previewMode: previewMode
+            previewMode: previewMode,
+            sharedMode: sharedMode
         )
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
@@ -325,12 +329,14 @@ private struct URLImportRequest: Encodable {
     let url: String
     let sharedText: String?
     let previewMode: Bool?
+    let sharedMode: Bool?
 }
 
 private struct TextImportRequest: Encodable {
     let text: String
     let imageBase64: String?
     let previewMode: Bool?
+    let sharedMode: Bool?
 }
 
 private struct ShoppingImageRequestEnvelope: Encodable {

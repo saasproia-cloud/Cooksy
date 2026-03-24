@@ -9,22 +9,32 @@ export type SearchResultPage = {
   snippet?: string;
 };
 
-export async function searchRecipePages(query: string): Promise<SearchResultPage[]> {
+export async function searchRecipePages(
+  query: string,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<SearchResultPage[]> {
   if (!query.trim()) {
     return [];
   }
 
   if (providerStatus.serpApi) {
-    const serpResults = await searchRecipePagesViaSerpApi(query);
+    const serpResults = await searchRecipePagesViaSerpApi(query, options);
     if (serpResults.length) {
       return serpResults;
     }
   }
 
-  return searchRecipePagesViaDuckDuckGo(query);
+  return searchRecipePagesViaDuckDuckGo(query, options);
 }
 
-async function searchRecipePagesViaSerpApi(query: string): Promise<SearchResultPage[]> {
+async function searchRecipePagesViaSerpApi(
+  query: string,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<SearchResultPage[]> {
   if (!providerStatus.serpApi || !query.trim()) {
     return [];
   }
@@ -39,7 +49,7 @@ async function searchRecipePagesViaSerpApi(query: string): Promise<SearchResultP
   });
 
   const response = await fetch(`https://serpapi.com/search.json?${params.toString()}`, {
-    signal: AbortSignal.timeout(20_000)
+    signal: AbortSignal.timeout(options?.timeoutMs ?? 20_000)
   });
 
   if (!response.ok) {
@@ -64,7 +74,12 @@ async function searchRecipePagesViaSerpApi(query: string): Promise<SearchResultP
   );
 }
 
-async function searchRecipePagesViaDuckDuckGo(query: string): Promise<SearchResultPage[]> {
+async function searchRecipePagesViaDuckDuckGo(
+  query: string,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<SearchResultPage[]> {
   const params = new URLSearchParams({
     q: `${query} recette`
   });
@@ -73,7 +88,7 @@ async function searchRecipePagesViaDuckDuckGo(query: string): Promise<SearchResu
       "user-agent": "CooksyBot/1.0 (+https://cooksy.app)",
       "accept-language": "fr-FR,fr;q=0.9,en;q=0.8"
     },
-    signal: AbortSignal.timeout(12_000)
+    signal: AbortSignal.timeout(options?.timeoutMs ?? 12_000)
   });
 
   if (!response.ok) {
@@ -158,7 +173,12 @@ function dedupeSearchResults(results: SearchResultPage[]): SearchResultPage[] {
   });
 }
 
-export async function fetchFallbackPages(query: string): Promise<Array<{
+export async function fetchFallbackPages(
+  query: string,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<Array<{
   url: string;
   title?: string;
   description?: string;
@@ -166,11 +186,13 @@ export async function fetchFallbackPages(query: string): Promise<Array<{
   structuredDataBlocks: string[];
   imageUrl?: string;
 }>> {
-  const results = await searchRecipePages(query);
+  const results = await searchRecipePages(query, options);
   const pages = await Promise.all(
     results.slice(0, 3).map(async (result) => {
       try {
-        return await fetchPageSummary(result.url);
+        return await fetchPageSummary(result.url, {
+          timeoutMs: options?.timeoutMs
+        });
       } catch {
         return null;
       }

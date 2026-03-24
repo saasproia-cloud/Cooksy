@@ -37,7 +37,7 @@ export async function resolveSocialContent(
   }
 
   const shouldDirectFetch = options?.allowDirectFetch !== false;
-  const shouldSkipApify = options?.skipApify === true;
+  const shouldSkipApify = options?.skipApify === true || (platform === "tiktok" && isTikTokShortURL(url));
   const shouldPreferDirectFetch = shouldSkipApify || options?.preferDirectFetch === true || platform === "tiktok";
   let directSnapshot: SocialContentSnapshot | null = null;
 
@@ -94,6 +94,15 @@ export async function resolveSocialContent(
     logProviderFailure("direct", platform, url, error);
     return null;
   });
+}
+
+function isTikTokShortURL(url: string): boolean {
+  try {
+    const host = new URL(url).host.toLowerCase();
+    return host === "vm.tiktok.com" || host === "vt.tiktok.com" || host.endsWith(".vm.tiktok.com");
+  } catch {
+    return false;
+  }
 }
 
 function mergeSocialSnapshots(
@@ -324,7 +333,7 @@ async function parseTikTokDirectSnapshot(
     ? await fetchSubtitleText(subtitleUrls, subtitleTimeoutMs).catch(() => undefined)
     : undefined;
   const instructionLines = subtitlesText ? extractInstructionLinesFromVtt(subtitlesText) : [];
-  const pageText = buildTikTokStructuredPageText({
+  const structuredPageText = buildTikTokStructuredPageText({
     ingredientLines,
     instructionLines
   });
@@ -375,7 +384,7 @@ async function parseTikTokDirectSnapshot(
       safeUrl(stringValue(recordValue(item?.music)?.playUrl)),
       extractUrlByKeyHints(item, ["music", "audio", "sound", "track"])
     ]),
-    pageText: pageText || undefined,
+    pageText: structuredPageText || contentLines.join("\n") || undefined,
     externalLinks: extractExternalLinks("tiktok", item ?? {}, fallbackUrl)
   };
 }
@@ -541,7 +550,9 @@ function cleanTikTokIngredientLine(line: string): string {
     line
       .replace(/^[-•*]\s*/u, "")
       .replace(/\p{Extended_Pictographic}/gu, " ")
-  );
+  )
+    .replace(/^--+$/u, "")
+    .trim();
 }
 
 function extractTikTokSubtitleUrls(item?: Record<string, unknown>): string[] {
@@ -785,6 +796,7 @@ function extractExternalLinks(
 
   return Array.from(new Set([...hintedUrls, ...embeddedTextUrls]))
     .filter((candidate) => candidate !== sourceUrl)
+    .filter((candidate) => /^https?:\/\//i.test(candidate))
     .filter((candidate) => platformFromUrl(candidate) === "web")
     .filter((candidate) => hostFromUrl(candidate) !== sourceHost)
     .filter((candidate) => !isLikelyMediaAsset(candidate))

@@ -70,7 +70,8 @@ enum RecipeImportPipeline {
     static func importText(
         _ text: String,
         imageData: Data? = nil,
-        preferPreviewBackend: Bool = false
+        preferPreviewBackend: Bool = false,
+        sharedMode: Bool = false
     ) async -> RecipeEditorSeed {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -82,7 +83,8 @@ enum RecipeImportPipeline {
            let backendSeed = try? await CooksyBackendService.importText(
             trimmedText,
             imageData: imageData,
-            previewMode: preferPreviewBackend
+            previewMode: preferPreviewBackend,
+            sharedMode: sharedMode
            ),
            shouldUseImportedSeed(backendSeed, sourceKind: .text),
            shouldAcceptImportedSeed(backendSeed, validationSourceKind: .text) {
@@ -125,7 +127,8 @@ enum RecipeImportPipeline {
                 url,
                 sharedText: draft.sharedText,
                 preferPreviewBackend: false,
-                allowWeakSocialFallback: true
+                allowWeakSocialFallback: true,
+                sharedMode: true
             )
             if seed.imageData == nil {
                 seed.imageData = sharedImageData
@@ -137,7 +140,8 @@ enum RecipeImportPipeline {
             return await importText(
                 sharedText,
                 imageData: sharedImageData,
-                preferPreviewBackend: false
+                preferPreviewBackend: false,
+                sharedMode: true
             )
         }
 
@@ -152,7 +156,8 @@ enum RecipeImportPipeline {
         _ url: URL?,
         sharedText: String? = nil,
         preferPreviewBackend: Bool = false,
-        allowWeakSocialFallback: Bool = false
+        allowWeakSocialFallback: Bool = false,
+        sharedMode: Bool = false
     ) async throws -> RecipeEditorSeed {
         let resolvedURL = resolvedImportURL(primaryURL: url, sharedText: sharedText)
 
@@ -190,7 +195,8 @@ enum RecipeImportPipeline {
                 let backendSeed = try await CooksyBackendService.importURL(
                     url,
                     sharedText: sharedText,
-                    previewMode: preferPreviewBackend && isSocialImport
+                    previewMode: preferPreviewBackend && isSocialImport,
+                    sharedMode: sharedMode
                 )
                 bestSeed = chooseBetterSeed(backendSeed, over: bestSeed)
                 if shouldUseImportedSeed(backendSeed, sourceKind: .url),

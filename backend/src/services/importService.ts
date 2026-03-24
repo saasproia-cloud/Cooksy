@@ -22,8 +22,10 @@ import { platformFromUrl } from "../utils/text.js";
 
 type ImportExecutionOptions = {
   previewMode?: boolean;
+  sharedMode?: boolean;
 };
 
+type ImportRuntimeProfile = "preview" | "shared" | "full";
 type ImportStrategy = "social" | "web" | "fallback" | "audio" | "text" | "photo";
 type ImportedPageSummary = {
   url: string;
@@ -39,16 +41,74 @@ const PREVIEW_RESOLVE_TIMEOUT_MS = 2_500;
 const PREVIEW_SOCIAL_TIMEOUT_MS = 4_500;
 const PREVIEW_WEB_TIMEOUT_MS = 2_000;
 const PREVIEW_RESERVE_MS = 700;
+const SHARED_TOTAL_LIMIT_MS = 30_000;
+const SHARED_RESOLVE_TIMEOUT_MS = 2_500;
+const SHARED_SOCIAL_TIMEOUT_MS = 5_000;
+const SHARED_SOCIAL_NORMALIZE_TIMEOUT_MS = 12_000;
+const SHARED_APIFY_TIMEOUT_MS = 9_000;
+const SHARED_AUDIO_FETCH_TIMEOUT_MS = 8_000;
+const SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS = 12_000;
+const SHARED_AUDIO_MAX_DURATION_SECONDS = 75;
+const SHARED_WEB_TIMEOUT_MS = 5_000;
+const SHARED_RESERVE_MS = 1_200;
 
 export async function importFromUrl(input: {
   url: string;
   sharedText?: string;
 }, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
-  const previewMode = options?.previewMode ?? false;
+  const profile = runtimeProfile(options);
+  const previewMode = profile === "preview";
+  const sharedMode = profile === "shared";
   const startedAt = Date.now();
+  const executionDeadline = deadlineForProfile(profile, startedAt);
+  const sharedTextRecipe = recipeFromContext(
+    buildUrlNormalizationContext({
+      canonicalSourceURL: input.url,
+      sharedText: input.sharedText,
+      pageSummary: null,
+      socialContent: null
+    })
+  );
+
+  if (shouldTrustSharedTextRecipe(sharedTextRecipe, input.sharedText)) {
+    const finalizedRecipe = await finalizeImportedRecipe({
+      ...sharedTextRecipe,
+      sourceUrl: sharedTextRecipe.sourceUrl || input.url
+    }, {
+      skipNutrition: false
+    });
+    const durationMs = Date.now() - startedAt;
+    const debug = buildImportDebug(finalizedRecipe.recipe, {
+      sourceKind: "url",
+      strategy: "text",
+      durationMs,
+      usedApify: false,
+      usedTranscription: false,
+      usedWebFallback: false,
+      usedUsda: finalizedRecipe.usedUsda,
+      nutritionCoverage: finalizedRecipe.nutritionCoverage,
+      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
+      preferWeakMetadataReason: false
+    });
+
+    logImportDebug(finalizedRecipe.recipe, debug);
+    console.info(
+      `[importService] URL import completed in ${durationMs}ms` +
+      ` (preview=${previewMode} strategy=text transcript=false webFallback=false usda=${finalizedRecipe.usedUsda}) for ${input.url}`
+    );
+
+    return {
+      recipe: finalizedRecipe.recipe,
+      debug
+    };
+  }
+
   const resolvedSourceURL = await resolveImportSourceURL(
     input.url,
-    previewMode ? PREVIEW_RESOLVE_TIMEOUT_MS : undefined
+    input.sharedText,
+    previewMode
+      ? PREVIEW_RESOLVE_TIMEOUT_MS
+      : boundedExecutionTimeout(executionDeadline, SHARED_RESOLVE_TIMEOUT_MS)
   );
 
   if (previewMode) {
@@ -65,11 +125,27 @@ export async function importFromUrl(input: {
         skipApify: true
       }
     : {};
+  const socialTimeoutMs = sourcePlatform === "web"
+    ? undefined
+    : boundedExecutionTimeout(
+      executionDeadline,
+      sharedMode ? SHARED_SOCIAL_TIMEOUT_MS : undefined
+    );
   const [pageSummary, socialContent] = await Promise.all([
-    fetchPageSummary(resolvedSourceURL).catch(() => null),
-    resolveSocialContent(resolvedSourceURL, {
-      ...initialSocialContentOptions
-    })
+    sourcePlatform === "web"
+      ? fetchPageSummary(
+        resolvedSourceURL,
+        sharedMode
+          ? { timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS) }
+          : undefined
+      ).catch(() => null)
+      : Promise.resolve(null),
+    sourcePlatform === "web"
+      ? Promise.resolve(null)
+      : resolveSocialContent(resolvedSourceURL, {
+        ...initialSocialContentOptions,
+        timeoutMs: socialTimeoutMs
+      })
   ]);
   const canonicalSourceURL = pageSummary?.canonicalUrl ?? pageSummary?.url ?? resolvedSourceURL;
   let resolvedSocialContent = socialContent;
@@ -105,11 +181,13 @@ export async function importFromUrl(input: {
     recipe,
     sourcePlatform,
     context: buildContext()
-  })) {
+  }) && hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)) {
     console.info(`[importService] Trying social text normalization for ${canonicalSourceURL}`);
     const socialContext = buildContext();
     const socialNormalizedRecipe = preferStructuredRecipe(
-      await safeNormalize(socialContext, false),
+      await safeNormalize(socialContext, {
+        timeoutMs: normalizationTimeoutForProfile(profile, executionDeadline)
+      }),
       structuredRecipeFromBlocks(socialContext.pageStructuredData ?? [])
     );
 
@@ -123,12 +201,20 @@ export async function importFromUrl(input: {
     shouldFetchFullSocialSnapshot({
       recipe,
       sourcePlatform,
+      sourceURL: resolvedSourceURL,
       socialContent: resolvedSocialContent,
-      mediaURL
-    })
+      mediaURL,
+      sharedText: input.sharedText
+    }) &&
+    hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
     const enrichedSocialContent = await resolveSocialContent(resolvedSourceURL, {
-      preferDirectFetch: sourcePlatform === "tiktok"
+      preferDirectFetch: sourcePlatform === "tiktok",
+      timeoutMs: boundedExecutionTimeout(
+        executionDeadline,
+        sharedMode ? SHARED_APIFY_TIMEOUT_MS : 18_000,
+        sharedMode ? SHARED_RESERVE_MS : 0
+      )
     }).catch(() => null);
 
     if (enrichedSocialContent) {
@@ -145,17 +231,23 @@ export async function importFromUrl(input: {
   }
 
   if (!shouldTrustFastSocialRecipe(recipe, sourcePlatform) &&
-    shouldUseTranscriptionFallback(recipe, resolvedSocialContent, input.sharedText, mediaURL)
+    shouldUseTranscriptionFallback(recipe, resolvedSocialContent, input.sharedText, mediaURL) &&
+    hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
     console.info(`[importService] Trying audio fallback for ${canonicalSourceURL}`);
-    transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(false)).catch(() => null);
+    const audioOptions = transcriptionOptions(profile, executionDeadline);
+    if (audioOptions != null) {
+      transcript = await transcribeMediaFromUrl(mediaURL, audioOptions).catch(() => null);
+    }
 
     if (transcript) {
       const audioContext = buildContext();
       let audioRecipe = recipeFromContext(audioContext);
       if (shouldAttemptTranscriptNormalization(audioRecipe, audioContext)) {
         audioRecipe = preferStructuredRecipe(
-          await safeNormalize(audioContext, false),
+          await safeNormalize(audioContext, {
+            timeoutMs: normalizationTimeoutForProfile(profile, executionDeadline, 10_000)
+          }),
           structuredRecipeFromBlocks(audioContext.pageStructuredData ?? [])
         );
         normalizedAfterTranscript = true;
@@ -170,16 +262,27 @@ export async function importFromUrl(input: {
 
   if (
     resolvedSocialContent?.externalLinks.length &&
-    shouldTryLinkedWebFallback(recipe, resolvedSocialContent.externalLinks)
+    shouldTryLinkedWebFallback(recipe, resolvedSocialContent.externalLinks) &&
+    hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
-    const linkedPages = await fetchFallbackPagesFromLinks(resolvedSocialContent.externalLinks);
+    const linkedPages = await fetchFallbackPagesFromLinks(
+      resolvedSocialContent.externalLinks,
+      sharedMode
+        ? {
+          timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS)
+        }
+        : undefined
+    );
     if (linkedPages.length) {
       fallbackPages = mergeFallbackPages(fallbackPages, linkedPages);
       const linkedFallbackRecipe = await recipeFromFallbackPages(
         linkedPages,
         input.sharedText,
         canonicalSourceURL,
-        false
+        {
+          previewMode: false,
+          normalizationTimeoutMs: normalizationTimeoutForProfile(profile, executionDeadline, 8_000)
+        }
       );
 
       if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -192,14 +295,19 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (shouldFallbackToSearch(recipe)) {
+  if (shouldFallbackToSearch(recipe) && hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)) {
     const query = bestSearchQuery({
       recipe,
       pageSummary,
       socialContent: resolvedSocialContent,
       sharedText: input.sharedText
     });
-    const searchPages = await fetchFallbackPages(query);
+    const searchPages = await fetchFallbackPages(
+      query,
+      sharedMode
+        ? { timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS) }
+        : undefined
+    );
 
     if (searchPages.length) {
       fallbackPages = mergeFallbackPages(fallbackPages, searchPages);
@@ -207,7 +315,10 @@ export async function importFromUrl(input: {
         searchPages,
         input.sharedText,
         canonicalSourceURL,
-        false
+        {
+          previewMode: false,
+          normalizationTimeoutMs: normalizationTimeoutForProfile(profile, executionDeadline, 8_000)
+        }
       );
 
       if (searchFallbackRecipe && scoreRecipe(searchFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -235,11 +346,14 @@ export async function importFromUrl(input: {
       context: buildContext(),
       transcript,
       fallbackPages
-    })
+    }) &&
+    hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
     const normalizedContext = buildContext();
     const normalizedRecipe = preferStructuredRecipe(
-      await safeNormalize(normalizedContext, false),
+      await safeNormalize(normalizedContext, {
+        timeoutMs: normalizationTimeoutForProfile(profile, executionDeadline, 10_000)
+      }),
       structuredRecipeFromBlocks(normalizedContext.pageStructuredData ?? [])
     );
 
@@ -325,10 +439,16 @@ function shouldUseTranscriptionFallback(
 function shouldFetchFullSocialSnapshot(input: {
   recipe: RecipeImportResult;
   sourcePlatform: ReturnType<typeof platformFromUrl>;
+  sourceURL: string;
   socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
   mediaURL?: string;
+  sharedText?: string;
 }): boolean {
   if (input.sourcePlatform !== "tiktok") {
+    return false;
+  }
+
+  if (isTikTokShortURL(input.sourceURL)) {
     return false;
   }
 
@@ -340,11 +460,23 @@ function shouldFetchFullSocialSnapshot(input: {
     return false;
   }
 
-  if (input.mediaURL || input.socialContent.externalLinks.length > 0) {
+  if (hasSparseSocialText(
+    input.sharedText,
+    input.socialContent.caption,
+    input.socialContent.description,
+    input.socialContent.subtitlesText,
+    input.socialContent.pageText
+  )) {
+    return true;
+  }
+
+  if (input.socialContent.externalLinks.length > 0 && input.recipe.stepDrafts.length >= 2) {
     return false;
   }
 
-  return input.recipe.stepDrafts.length < 2 || input.recipe.needsWebFallback;
+  return input.recipe.stepDrafts.length < 2 ||
+    input.recipe.ingredientDrafts.length < 3 ||
+    input.recipe.needsWebFallback;
 }
 
 function shouldAttemptSocialNormalization(input: {
@@ -596,7 +728,9 @@ async function importPreviewFromUrl(
         linkedPages,
         input.sharedText,
         socialContent?.canonicalUrl || state.resolvedSourceURL,
-        true
+        {
+          previewMode: true
+        }
       );
 
       if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
@@ -793,7 +927,10 @@ async function recipeFromFallbackPages(
   pages: ImportedPageSummary[],
   sharedText: string | undefined,
   sourceUrl: string,
-  previewMode = false
+  options?: {
+    previewMode?: boolean;
+    normalizationTimeoutMs?: number;
+  }
 ): Promise<{ recipe: RecipeImportResult; sourceUrl?: string } | null> {
   if (!pages.length) {
     return null;
@@ -817,8 +954,17 @@ async function recipeFromFallbackPages(
     fallbackStructuredRecipe
   );
 
-  if (!previewMode) {
-    const fallbackRecipe = await safeNormalize(baseContext, previewMode);
+  if (!options?.previewMode) {
+    if (options && options.normalizationTimeoutMs == null) {
+      return {
+        recipe: normalizedFallbackRecipe,
+        sourceUrl: pages[0]?.url
+      };
+    }
+
+    const fallbackRecipe = await safeNormalize(baseContext, {
+      timeoutMs: options?.normalizationTimeoutMs
+    });
     normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
   }
 
@@ -848,7 +994,7 @@ function bestSearchQuery(input: {
 }
 
 function nonGenericSearchCandidate(value?: string): string | undefined {
-  const trimmed = value?.trim();
+  const trimmed = compactRecipeSearchCandidate(value);
   if (!trimmed) {
     return undefined;
   }
@@ -899,6 +1045,32 @@ function nonGenericSearchCandidate(value?: string): string | undefined {
   }
 
   return trimmed.slice(0, 120).trim();
+}
+
+function compactRecipeSearchCandidate(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  let candidate = trimmed
+    .replace(/#[\p{L}\p{N}_]+/gu, " ")
+    .replace(/\s*---+\s*(?:instructions?|étapes?|etapes|préparation|preparation)\b.*$/iu, "")
+    .replace(/\b(?:ingredients?|ingrédients?|instructions?|étapes?|etapes|dough|mixture|coating|serve with)\b.*$/iu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  const quantityMatch = candidate.match(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|mg|ml|cl|dl|l|oz|lb|lbs|tbsp|tsp|tablespoons?|teaspoons?|cups?|cup)\b/i);
+  if (quantityMatch && typeof quantityMatch.index === "number" && quantityMatch.index >= 8) {
+    candidate = candidate.slice(0, quantityMatch.index).trim();
+  }
+
+  candidate = candidate
+    .split(/\n+/)[0]
+    ?.split(/[.!?]/)[0]
+    ?.trim() ?? candidate;
+
+  return candidate || undefined;
 }
 
 function shouldAttemptFinalNormalization(input: {
@@ -1044,22 +1216,103 @@ function boundedPreviewTimeout(
   return Math.max(250, Math.min(desiredMs, remainingMs));
 }
 
-async function resolveImportSourceURL(url: string, timeoutMs?: number): Promise<string> {
+async function resolveImportSourceURL(
+  url: string,
+  sharedText?: string,
+  timeoutMs?: number
+): Promise<string> {
   if (platformFromUrl(url) === "web") {
-    return url;
+    const sharedTikTokVideoURL = extractTikTokVideoURLFromText(sharedText);
+    return sharedTikTokVideoURL ?? url;
+  }
+
+  const sharedTikTokVideoURL = extractTikTokVideoURLFromText(sharedText);
+  if (sharedTikTokVideoURL) {
+    if (sharedTikTokVideoURL !== url) {
+      console.info(`[importService] Using TikTok video URL from shared text ${url} -> ${sharedTikTokVideoURL}`);
+    }
+    return sharedTikTokVideoURL;
   }
 
   try {
     const resolvedURL = await resolveRemoteURL(url, { timeoutMs });
-    if (resolvedURL !== url) {
+    const normalizedResolvedURL = normalizeResolvedImportURL(url, resolvedURL);
+    if (normalizedResolvedURL !== resolvedURL) {
+      console.warn(
+        `[importService] Ignoring invalid social redirect target ${resolvedURL} and keeping ${normalizedResolvedURL}`
+      );
+    } else if (resolvedURL !== url) {
       console.info(`[importService] Resolved social import URL ${url} -> ${resolvedURL}`);
     }
-    return resolvedURL;
+    return normalizedResolvedURL;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`[importService] Failed to resolve social import URL ${url}: ${message}`);
     return url;
   }
+}
+
+function normalizeResolvedImportURL(originalURL: string, resolvedURL: string): string {
+  if (!isBrokenTikTokRedirectURL(resolvedURL)) {
+    return resolvedURL;
+  }
+
+  return originalURL;
+}
+
+function isBrokenTikTokRedirectURL(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.host.toLowerCase();
+    const pathname = parsed.pathname.toLowerCase();
+    const redirectTarget = parsed.searchParams.get("redirect_url") ?? "";
+
+    if (!host.endsWith("tiktok.com")) {
+      return false;
+    }
+
+    if (/\/@[^/]+\/video\/\d+/i.test(`${host}${pathname}`)) {
+      return false;
+    }
+
+    if (redirectTarget.startsWith("sslocal://")) {
+      return true;
+    }
+
+    return pathname === "/" || pathname === "/explore";
+  } catch {
+    return false;
+  }
+}
+
+function isTikTokShortURL(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.host.toLowerCase();
+    return host === "vm.tiktok.com" || host === "vt.tiktok.com" || host.endsWith(".vm.tiktok.com");
+  } catch {
+    return false;
+  }
+}
+
+function extractTikTokVideoURLFromText(text?: string): string | undefined {
+  if (!text?.trim()) {
+    return undefined;
+  }
+
+  const match = text.match(/https?:\/\/(?:www\.)?tiktok\.com\/@[^/\s]+\/video\/\d+[^\s]*/i);
+  return match?.[0];
+}
+
+function shouldTrustSharedTextRecipe(recipe: RecipeImportResult, sharedText?: string): boolean {
+  if (!sharedText?.trim()) {
+    return false;
+  }
+
+  return isLikelyValidRecipe(recipe) &&
+    recipe.title.trim().length > 2 &&
+    recipe.ingredientDrafts.length >= 3 &&
+    recipe.stepDrafts.length >= 2;
 }
 
 export async function importFromText(input: {
@@ -1072,7 +1325,9 @@ export async function importFromText(input: {
     mode: "text",
     sharedText: input.text,
     imageDataUrl: input.imageDataUrl
-  }, previewMode);
+  }, {
+    timeoutMs: previewMode ? 8_000 : 60_000
+  });
   const finalizedRecipe = await finalizeImportedRecipe(recipe, {
     skipNutrition: previewMode
   });
@@ -1105,7 +1360,9 @@ export async function importFromPhoto(input: {
   const recipe = await safeNormalize({
     mode: "photo",
     imageDataUrl: input.imageDataUrl
-  }, previewMode);
+  }, {
+    timeoutMs: previewMode ? 8_000 : 60_000
+  });
   const finalizedRecipe = await finalizeImportedRecipe(recipe, {
     skipNutrition: previewMode
   });
@@ -1132,11 +1389,13 @@ export async function importFromPhoto(input: {
 
 async function safeNormalize(
   input: Parameters<typeof normalizeRecipeFromContext>[0],
-  previewMode = false
+  options?: {
+    timeoutMs?: number;
+  }
 ): Promise<RecipeImportResult> {
   try {
     return await normalizeRecipeFromContext(input, {
-      timeoutMs: previewMode ? 8_000 : 60_000
+      timeoutMs: options?.timeoutMs ?? 60_000
     });
   } catch (error) {
     if (isOpenAIUnavailable(error) || isTimeoutLikeError(error)) {
@@ -1170,9 +1429,36 @@ async function finalizeImportedRecipe(
   };
 }
 
-function transcriptionOptions(previewMode: boolean) {
-  if (!previewMode) {
+function transcriptionOptions(
+  profile: ImportRuntimeProfile,
+  deadline?: number
+) {
+  if (profile === "full") {
     return undefined;
+  }
+
+  if (profile === "shared") {
+    const mediaFetchTimeoutMs = boundedExecutionTimeout(
+      deadline,
+      SHARED_AUDIO_FETCH_TIMEOUT_MS,
+      SHARED_RESERVE_MS
+    );
+    const transcriptionTimeoutMs = boundedExecutionTimeout(
+      deadline,
+      SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS,
+      SHARED_RESERVE_MS
+    );
+
+    if (!mediaFetchTimeoutMs || !transcriptionTimeoutMs) {
+      return null;
+    }
+
+    return {
+      mediaFetchTimeoutMs,
+      transcriptionTimeoutMs,
+      maxDurationSeconds: SHARED_AUDIO_MAX_DURATION_SECONDS,
+      maxFileBytes: 14 * 1024 * 1024
+    };
   }
 
   return {
@@ -1231,4 +1517,80 @@ function preferStructuredRecipe(
     needsWebFallback: structuredRecipe.needsWebFallback && recipe.needsWebFallback,
     searchQuery: recipe.searchQuery || structuredRecipe.searchQuery
   });
+}
+
+function runtimeProfile(options?: ImportExecutionOptions): ImportRuntimeProfile {
+  if (options?.previewMode) {
+    return "preview";
+  }
+
+  if (options?.sharedMode) {
+    return "shared";
+  }
+
+  return "full";
+}
+
+function deadlineForProfile(
+  profile: ImportRuntimeProfile,
+  startedAt: number
+): number | undefined {
+  if (profile === "preview") {
+    return startedAt + PREVIEW_TOTAL_LIMIT_MS;
+  }
+
+  if (profile === "shared") {
+    return startedAt + SHARED_TOTAL_LIMIT_MS;
+  }
+
+  return undefined;
+}
+
+function hasExecutionBudget(deadline?: number, reserveMs = 0): boolean {
+  if (!deadline) {
+    return true;
+  }
+
+  return deadline - Date.now() - reserveMs > 0;
+}
+
+function boundedExecutionTimeout(
+  deadline: number | undefined,
+  desiredMs: number | undefined,
+  reserveMs = 0
+): number | undefined {
+  if (!desiredMs) {
+    return undefined;
+  }
+
+  if (!deadline) {
+    return desiredMs;
+  }
+
+  const remainingMs = deadline - Date.now() - reserveMs;
+  if (remainingMs <= 0) {
+    return undefined;
+  }
+
+  return Math.max(500, Math.min(desiredMs, remainingMs));
+}
+
+function normalizationTimeoutForProfile(
+  profile: ImportRuntimeProfile,
+  deadline?: number,
+  desiredMs?: number
+): number | undefined {
+  if (profile === "preview") {
+    return Math.min(desiredMs ?? 8_000, 8_000);
+  }
+
+  if (profile === "shared") {
+    return boundedExecutionTimeout(
+      deadline,
+      Math.min(desiredMs ?? SHARED_SOCIAL_NORMALIZE_TIMEOUT_MS, SHARED_SOCIAL_NORMALIZE_TIMEOUT_MS),
+      SHARED_RESERVE_MS
+    );
+  }
+
+  return desiredMs ?? 60_000;
 }

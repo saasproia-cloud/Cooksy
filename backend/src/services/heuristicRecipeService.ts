@@ -87,6 +87,13 @@ function parseRecipeText(input: string): RecipeImportResult {
       continue;
     }
 
+    if (isIngredientSubsectionHeader(line)) {
+      if (currentSection != "steps") {
+        currentSection = "ingredients";
+      }
+      continue;
+    }
+
     if (currentSection === "ingredients" && looksLikeStep(line) && !looksLikeIngredient(line)) {
       currentSection = "steps";
       stepLines.push(cleanedStepLine(line));
@@ -100,7 +107,7 @@ function parseRecipeText(input: string): RecipeImportResult {
 
     switch (currentSection) {
       case "ingredients":
-        ingredientLines.push(cleanedListLine(line));
+        ingredientLines.push(...expandIngredientCandidates(line));
         break;
       case "steps":
         stepLines.push(cleanedStepLine(line));
@@ -119,17 +126,26 @@ function parseRecipeText(input: string): RecipeImportResult {
       .filter((line) => cleanedTitle(line) !== title)
       .filter((line) => !isLikelyNoise(line));
 
-    ingredientLines = candidateLines.filter(looksLikeIngredient);
+    ingredientLines = candidateLines
+      .flatMap(expandIngredientCandidates)
+      .filter(looksLikeIngredient);
     stepLines = candidateLines
       .filter((line) => !looksLikeIngredient(line) && looksLikeStep(line))
       .map(cleanedStepLine);
+  } else if (!ingredientLines.length) {
+    ingredientLines = noteLines
+      .flatMap(expandIngredientCandidates)
+      .filter(looksLikeIngredient);
   }
 
   return sanitizeRecipeImport({
     title: title || "Recette importee",
     sourceUrl: "",
     remoteImageUrl: "",
-    ingredientDrafts: ingredientLines.map(parseIngredientLine).filter((item) => item.name.length > 0),
+    ingredientDrafts: ingredientLines
+      .filter((line) => !isDuplicateTitleIngredient(line, title))
+      .map(parseIngredientLine)
+      .filter((item) => item.name.length > 0),
     stepDrafts: stepLines.map((detail) => ({ detail })).filter((step) => step.detail.length > 0),
     notesText: noteLines.join("\n"),
     prepTimeText: extractTime(input, /(?:prep|preparation|préparation)[^\d]*(\d{1,3})\s*min/i),
@@ -364,8 +380,9 @@ function normalizedLines(input: string): string[] {
 }
 
 function heuristicLines(input: string): string[] {
-  const directLines = normalizedLines(input);
-  const expandedInput = input
+  const preprocessedInput = preprocessRecipeNarrativeInput(input);
+  const directLines = normalizedLines(preprocessedInput);
+  const expandedInput = preprocessedInput
     .replaceAll("\r\n", "\n")
     .replace(/[•·▪◦●]/g, "\n- ")
     .replace(/\s*[|;]+\s*/g, "\n")
@@ -373,7 +390,7 @@ function heuristicLines(input: string): string[] {
       /\b(ingredients?|ingrédients?|instructions?|étapes?|etapes|préparation|preparation|method|méthode|methode)\b\s*:/giu,
       "\n$1\n"
     )
-    .replace(/(?:^|\s)(\d+[\).\-\:])\s*/g, "\n$1 ")
+    .replace(/(^|\n)\s*(\d+[).:-])\s*/g, "$1$2 ")
     .replace(
       /([.!?])\s+(?=(?:ajouter|mélanger|melanger|cuire|faire|verser|laisser|chauffer|mettre|servir|quand|maintenant|on va|add|mix|cook|stir|serve|ingredients?|instructions?|étapes?|etapes|préparation|preparation|\d+[.)-]))/giu,
       "$1\n"
@@ -437,6 +454,35 @@ function isStepsHeader(line: string): boolean {
   return matches(line, ["instructions", "étapes", "etapes", "préparation", "preparation", "méthode", "methode", "directions", "marche a suivre", "marche à suivre"]);
 }
 
+function isIngredientSubsectionHeader(line: string): boolean {
+  const normalized = line
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[:\s\-–—]+/g, " ")
+    .trim();
+
+  if (!normalized || normalized.length > 40) {
+    return false;
+  }
+
+  return [
+    "dough",
+    "extras",
+    "extra",
+    "mixture",
+    "cod mixture",
+    "flour mixture",
+    "crispy coating",
+    "coating",
+    "marinade",
+    "sauce",
+    "serve with",
+    "garniture",
+    "assemblage"
+  ].includes(normalized);
+}
+
 function isNotesHeader(line: string): boolean {
   return matches(line, ["notes", "astuces", "conseils"]);
 }
@@ -447,7 +493,12 @@ function matches(line: string, patterns: string[]): boolean {
 }
 
 function cleanedTitle(line: string): string {
-  const cleaned = line.replace(/^(titre|title)\s*:\s*/i, "").trim();
+  const cleaned = line
+    .replace(/^(titre|title)\s*:\s*/i, "")
+    .replace(/#[\p{L}\p{N}_]+/gu, " ")
+    .replace(/\b(?:ingredients?|ingrédients?|instructions?|étapes?|etapes|dough|mixture|coating|marinade|serve with)\b.*$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
   return isGenericSocialTitle(cleaned) ? "" : cleaned;
 }
 
@@ -456,12 +507,15 @@ function cleanedListLine(line: string): string {
 }
 
 function cleanedStepLine(line: string): string {
-  return line.replace(/^\s*(\d+[\).\-\s]+|[-•*]\s*)/u, "").trim();
+  return line.replace(/^\s*(?:\d+[).:-]\s+|[-•*]\s*)/u, "").trim();
 }
 
 function looksLikeIngredient(line: string): boolean {
   const cleaned = cleanedListLine(line);
   if (!cleaned) {
+    return false;
+  }
+  if (isIngredientSubsectionHeader(cleaned)) {
     return false;
   }
   if (looksLikeStep(cleaned)) {
@@ -481,7 +535,10 @@ function looksLikeStep(line: string): boolean {
   if (!cleaned) {
     return false;
   }
-  if (/^\s*(\d+[\).\-\s]+|[-•*]\s*)/.test(line)) {
+  if (/\b\d{2}:\d{2}(?::\d{2})?(?:[.,]\d{3})?\b/.test(cleaned) || cleaned.includes("-->")) {
+    return false;
+  }
+  if (/^\s*(?:\d+[).:-]\s+|[-•*]\s*)/.test(line)) {
     return true;
   }
 
@@ -560,6 +617,130 @@ function parseIngredientLine(line: string): { amount: string; unit: string; name
     name,
     nutritionQuery: name
   };
+}
+
+function preprocessRecipeNarrativeInput(input: string): string {
+  return input
+    .replace(/\s*---+\s*(instructions?|étapes?|etapes|préparation|preparation|method|méthode|methode)\b\s*/giu, "\nInstructions:\n")
+    .replace(/\b(?:SERVE WITH|EXTRAS|EXTRA|DOUGH|COD MIXTURE|FLOUR MIXTURE|CRISPY COATING|COATING|MARINADE|SAUCE)\b/gu, (match) => `\n${match}\n`)
+    .replace(/([a-z)\]])\s+(?=(?:\d+(?:[.,]\d+)?|\d+\/\d+)\s*(?:g|kg|mg|ml|cl|dl|l|oz|lb|lbs|tbsp|tsp|tablespoons?|teaspoons?|cups?|cup|egg|eggs|packet|packets?|steak|steaks|tranche|tranches|pain|pains|bun|buns|piece|pieces|oignon|oignons|onion|onions|clove|cloves|gousse|gousses)\b)/giu, "$1\n")
+    .replace(/\)\s+(?=(?:sesame seeds?|breadcrumbs?|tartar sauce|cheddar cheese|salt|pepper|sel|poivre|beurre|butter)\b)/giu, ")\n");
+}
+
+function expandIngredientCandidates(line: string): string[] {
+  const cleaned = cleanedListLine(line);
+  if (!cleaned || isIngredientSubsectionHeader(cleaned)) {
+    return [];
+  }
+
+  const serveWithMatch = cleaned.match(/^serve with[:\s-]*(.+)$/i);
+  if (serveWithMatch?.[1]) {
+    return serveWithMatch[1]
+      .split(/(?:,|\band\b|&)/i)
+      .map((entry) => normalizeIngredientCandidate(entry))
+      .filter(Boolean);
+  }
+
+  const segments = splitInlineIngredientClusters(cleaned);
+  return segments
+    .flatMap(splitLooseIngredientTail)
+    .map((entry) => normalizeIngredientCandidate(entry))
+    .filter(Boolean);
+}
+
+function splitInlineIngredientClusters(line: string): string[] {
+  const positions = ingredientClusterPositions(line);
+  if (positions.length <= 1) {
+    return [line];
+  }
+
+  const result: string[] = [];
+  for (let index = 0; index < positions.length; index += 1) {
+    const start = positions[index]!;
+    const end = positions[index + 1] ?? line.length;
+    result.push(line.slice(start, end).trim());
+  }
+
+  return mergeBrokenIngredientFragments(result);
+}
+
+function ingredientClusterPositions(line: string): number[] {
+  const positions: number[] = [];
+  const pattern = /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)\s*(?:g|kg|mg|ml|cl|dl|l|oz|lb|lbs|tbsp|tsp|tablespoons?|teaspoons?|cups?|cup|egg|eggs|packet|packets?|steak|steaks|tranche|tranches|pain|pains|bun|buns|piece|pieces|oignon|oignons|onion|onions|clove|cloves|gousse|gousses)\b/giu;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(line)) !== null) {
+    const leadingSpaceOffset = match[0].startsWith(" ") ? 1 : 0;
+    positions.push(match.index + leadingSpaceOffset);
+  }
+
+  return Array.from(new Set(positions));
+}
+
+function splitLooseIngredientTail(line: string): string[] {
+  const match = line.match(/^(.+?\([^)]*\))\s+([a-zà-ÿ][a-zà-ÿ\s-]{2,})$/iu);
+  if (!match) {
+    return [line];
+  }
+
+  const tail = match[2].trim();
+  if (looksLikeStep(tail) || /\b(?:instructions?|étapes?|etapes)\b/i.test(tail)) {
+    return [line];
+  }
+
+  return [match[1].trim(), tail];
+}
+
+function normalizeIngredientCandidate(line: string): string {
+  return line
+    .replace(/^[-•*]\s*/u, "")
+    .replace(/\p{Extended_Pictographic}/gu, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function mergeBrokenIngredientFragments(segments: string[]): string[] {
+  const merged: string[] = [];
+
+  for (const segment of segments) {
+    const previous = merged[merged.length - 1];
+    if (
+      previous &&
+      previous.includes("(") &&
+      !previous.includes(")") &&
+      /^\d+\s+(?:packet|packets?|tablespoon|tablespoons?|teaspoon|teaspoons?|tbsp|tsp)\)?$/i.test(segment)
+    ) {
+      merged[merged.length - 1] = `${previous} ${segment}`.trim();
+      continue;
+    }
+
+    if (
+      previous &&
+      /\b(?:or|ou)$/i.test(previous) &&
+      /^\d+\s+(?:packet|packets?|sachet|sachets?|tablespoon|tablespoons?|teaspoon|teaspoons?|tbsp|tsp)\)?$/i.test(segment)
+    ) {
+      merged[merged.length - 1] = `${previous} ${segment}`.trim();
+      continue;
+    }
+
+    merged.push(segment);
+  }
+
+  return merged;
+}
+
+function isDuplicateTitleIngredient(line: string, title: string): boolean {
+  const cleanedLine = cleanedTitle(line);
+  const cleanedTitleValue = cleanedTitle(title);
+  if (!cleanedLine || !cleanedTitleValue) {
+    return false;
+  }
+
+  if (/^\d/.test(line.trim())) {
+    return false;
+  }
+
+  return cleanedLine.localeCompare(cleanedTitleValue, undefined, { sensitivity: "accent" }) == 0;
 }
 
 function splitCompactQuantityAndUnit(token: string): { amount: string; unit: string } | null {
@@ -696,6 +877,8 @@ const knownIngredientUnits = new Set([
   "pincees",
   "piece",
   "pieces",
+  "packet",
+  "packets",
   "tranche",
   "tranches",
   "branche",

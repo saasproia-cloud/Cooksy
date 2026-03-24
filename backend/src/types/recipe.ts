@@ -253,6 +253,11 @@ function sanitizeTitle(value: string): string {
     .replace(/\s*[:\-–]\s*$/u, "")
     .trim();
 
+  const inlineIngredientMatch = cleaned.match(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|mg|ml|cl|dl|l|oz|lb|lbs|tbsp|tsp|tablespoons?|teaspoons?|cups?|cup|egg|eggs|packet|packets?|steak|steaks|tranche|tranches|pain|pains|bun|buns)\b/i);
+  if (inlineIngredientMatch && typeof inlineIngredientMatch.index === "number" && inlineIngredientMatch.index >= 8) {
+    cleaned = cleaned.slice(0, inlineIngredientMatch.index).trim();
+  }
+
   if (cleaned.length > 80) {
     cleaned = clean(cleaned.split(/[.!?]/)[0] ?? cleaned);
   }
@@ -540,5 +545,6 @@ const cookingVerbPatterns = [
 const titleCutoffPatterns = [
   /\b(?:ingredients?|ingrédients?)\b/i,
   /\b(?:pour réaliser|pour faire|tu auras besoin|il te faut)\b/i,
+  /\b(?:instructions?|étapes?|etapes|dough|mixture|coating|marinade|serve with)\b/i,
   /\s[-–:]\s*(?=\d+(?:[.,/]\d+)?\s*(?:g|kg|ml|cl|l|cas|cac|cuill[eè]re?s?|steaks?|tranches?|pains?|buns?|oignons?|cheddar|cornichons?|beurre)\b)/i
 ];

@@ -41,11 +41,11 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
 
     var hostLabel: String {
         if let host = preferredImportURL?.host, !host.isEmpty {
-            return host
+            return Self.presentableHostLabel(for: host)
         }
 
         if let host = url?.host, !host.isEmpty {
-            return host
+            return Self.presentableHostLabel(for: host)
         }
 
         if let sourceApp, !sourceApp.isEmpty {
@@ -107,6 +107,24 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
         }
 
         return webURLs.first
+    }
+
+    private static func presentableHostLabel(for host: String) -> String {
+        let normalizedHost = host.lowercased()
+
+        if normalizedHost.contains("tiktok") {
+            return "TikTok"
+        }
+
+        if normalizedHost.contains("instagram") {
+            return "Instagram"
+        }
+
+        if normalizedHost.contains("pinterest") || normalizedHost.contains("pin.it") {
+            return "Pinterest"
+        }
+
+        return host
     }
 }
 
