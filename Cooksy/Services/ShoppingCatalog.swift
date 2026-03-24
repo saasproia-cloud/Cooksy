@@ -79,14 +79,16 @@ enum ShoppingCatalog {
     }
 
     static func emoji(for article: String, category: ShoppingCategory) -> String {
+        specificEmoji(for: article) ?? fallbackEmoji(for: category)
+    }
+
+    static func specificEmoji(for article: String) -> String? {
         let normalized = normalizedSearchText(for: article)
 
-        for entry in emojiMappings {
-            if matchesAnyKeyword(in: normalized, keywords: entry.keywords) {
-                return entry.emoji
-            }
-        }
+        return matchedEmoji(forNormalizedArticle: normalized)
+    }
 
+    private static func fallbackEmoji(for category: ShoppingCategory) -> String {
         switch category {
         case .freshProduce:
             return "🥬"
@@ -105,6 +107,18 @@ enum ShoppingCatalog {
         case .household:
             return "🧽"
         }
+    }
+
+    private static func matchedEmoji(forNormalizedArticle normalized: String) -> String? {
+        guard !normalized.isEmpty else { return nil }
+
+        for entry in emojiMappings {
+            if matchesAnyKeyword(in: normalized, keywords: entry.keywords) {
+                return entry.emoji
+            }
+        }
+
+        return nil
     }
 
     private static func normalizedLines(from rawText: String) -> [String] {
@@ -185,21 +199,26 @@ enum ShoppingCatalog {
         "tomate", "tomates", "salade", "laitue", "concombre", "carotte", "courgette", "zucchini",
         "aubergine", "poivron", "oignon", "echalote", "ail", "pomme de terre", "pomme",
         "banane", "orange", "citron", "lime", "avocat", "champignon", "epinard", "basilic",
-        "persil", "coriandre", "fraise", "framboise", "myrtille", "brocoli", "chou", "raisin"
+        "persil", "coriandre", "ciboulette", "menthe", "aneth", "romarin", "origan",
+        "fraise", "framboise", "myrtille", "brocoli", "chou", "raisin", "cornichon", "pickle",
+        "jalapeno", "piment", "patate", "frite", "fries"
     ]
 
     private static let dairyKeywords = [
         "lait", "beurre", "creme", "yaourt", "yogurt", "fromage", "mozzarella", "parmesan",
-        "cheddar", "feta", "oeuf", "oeufs", "egg", "ricotta", "mascarpone"
+        "cheddar", "feta", "oeuf", "oeufs", "egg", "ricotta", "mascarpone", "emmental",
+        "gruyere", "comte", "gouda", "raclette", "mozzarella", "kiri", "boursin", "mayo", "mayonnaise"
     ]
 
     private static let bakeryKeywords = [
-        "pain", "baguette", "brioche", "croissant", "bun", "tortilla", "wrap", "pita", "toast"
+        "pain", "baguette", "brioche", "croissant", "bun", "tortilla", "wrap", "pita", "toast",
+        "pain burger", "pain brioche", "burger bun", "burger buns", "naan"
     ]
 
     private static let meatKeywords = [
         "poulet", "dinde", "boeuf", "steak", "viande", "jambon", "lardon", "saumon",
-        "thon", "poisson", "crevette", "shrimp", "truite", "porc", "bacon"
+        "thon", "poisson", "crevette", "shrimp", "truite", "porc", "bacon", "cabillaud",
+        "colin", "merlu", "hach", "ground beef", "beef mince", "beef patty"
     ]
 
     private static let frozenKeywords = [
@@ -207,7 +226,8 @@ enum ShoppingCatalog {
     ]
 
     private static let beverageKeywords = [
-        "eau", "jus", "soda", "cola", "cafe", "the", "biere", "vin", "lait d amande", "smoothie"
+        "eau", "jus", "soda", "cola", "cafe", "the", "biere", "vin", "lait d amande", "smoothie",
+        "sirop", "syrup"
     ]
 
     private static let householdKeywords = [
@@ -216,6 +236,8 @@ enum ShoppingCatalog {
     ]
 
     private static let emojiMappings: [(keywords: [String], emoji: String)] = [
+        (["animal fries", "fries", "frites"], "🍟"),
+        (["pomme de terre", "pommes de terre", "patate", "patates", "potato", "potatoes"], "🥔"),
         (["tomate"], "🍅"),
         (["salade", "laitue"], "🥬"),
         (["concombre"], "🥒"),
@@ -225,8 +247,11 @@ enum ShoppingCatalog {
         (["poivron"], "🫑"),
         (["oignon"], "🧅"),
         (["ail"], "🧄"),
+        (["ciboulette", "persil", "coriandre", "cilantro", "basilic", "menthe", "aneth", "thym", "romarin", "origan"], "🌿"),
+        (["cornichon", "pickle"], "🥒"),
         (["champignon"], "🍄"),
         (["avocat"], "🥑"),
+        (["jalapeno", "piment", "chili", "chilli", "piment d espelette"], "🌶️"),
         (["citron", "lime"], "🍋"),
         (["pomme"], "🍎"),
         (["banane"], "🍌"),
@@ -236,23 +261,29 @@ enum ShoppingCatalog {
         (["brocoli"], "🥦"),
         (["oeuf", "egg"], "🥚"),
         (["lait"], "🥛"),
+        (["creme", "crème", "creme fraiche", "sour cream"], "🥛"),
         (["beurre"], "🧈"),
-        (["fromage", "mozzarella", "parmesan", "cheddar", "feta", "ricotta"], "🧀"),
+        (["fromage", "mozzarella", "parmesan", "cheddar", "feta", "ricotta", "emmental", "gruyere", "comte", "gouda", "raclette", "camembert", "reblochon", "boursin", "kiri"], "🧀"),
         (["yaourt", "yogurt"], "🥣"),
-        (["pain", "baguette", "brioche", "croissant", "bun", "pita"], "🥖"),
+        (["pain burger", "pain brioche", "burger bun", "burger buns", "bun", "buns"], "🍞"),
+        (["pain", "baguette", "brioche", "croissant", "pita", "naan", "toast"], "🥖"),
         (["tortilla", "wrap"], "🌯"),
+        (["frites", "fries"], "🍟"),
         (["riz"], "🍚"),
         (["pates", "pasta", "spaghetti"], "🍝"),
         (["farine"], "🌾"),
         (["sucre"], "🍚"),
+        (["miel", "honey"], "🍯"),
+        (["sirop d erable", "maple syrup"], "🍁"),
+        (["sirop"], "🍯"),
         (["sel"], "🧂"),
-        (["poivre", "epice", "paprika", "curry"], "🧂"),
-        (["huile"], "🫒"),
+        (["poivre", "epice", "épice", "paprika", "curry", "curcuma", "cumin", "cajun", "garam masala", "cayenne", "epices cajun"], "🧂"),
+        (["huile d olive", "olive oil", "huile"], "🫒"),
         (["vinaigre"], "🍶"),
         (["chocolat"], "🍫"),
         (["poulet", "dinde"], "🍗"),
-        (["boeuf", "steak", "viande", "porc", "bacon"], "🥩"),
-        (["saumon", "thon", "poisson", "truite"], "🐟"),
+        (["boeuf hache", "viande hache", "bœuf hache", "ground beef", "beef mince", "steak hache", "steak hach", "boeuf", "steak", "viande", "porc", "bacon", "lardon"], "🥩"),
+        (["saumon", "thon", "poisson", "truite", "cabillaud", "cod", "colin", "merlu"], "🐟"),
         (["crevette", "shrimp"], "🦐"),
         (["glace", "ice cream"], "🍨"),
         (["eau"], "💧"),
@@ -261,6 +292,8 @@ enum ShoppingCatalog {
         (["cafe"], "☕"),
         (["the"], "🫖"),
         (["vin", "biere"], "🍷"),
+        (["ketchup", "moutarde", "mustard", "mayonnaise", "mayo", "aioli", "sauce burger", "sauce algérienne", "sauce algerienne", "sauce blanche", "worcester", "worcestershire", "sauce soja", "soy sauce", "teriyaki", "barbecue", "bbq"], "🫙"),
+        (["sauce piquante", "hot sauce", "sriracha", "harissa", "tabasco"], "🌶️"),
         (["sopalin", "essuie tout", "papier toilette", "mouchoirs"], "🧻"),
         (["savon", "liquide vaisselle", "nettoyant"], "🧼"),
         (["lessive"], "🧴"),

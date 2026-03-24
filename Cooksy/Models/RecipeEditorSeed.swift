@@ -116,7 +116,7 @@ struct RecipeEditorSeed: Codable, Hashable {
     }
 
     var normalizedTitle: String {
-        trimmed(title) ?? ""
+        Self.normalizeImportedTitle(trimmed(title) ?? "")
     }
 
     var importNotice: String? {
@@ -194,6 +194,59 @@ struct RecipeEditorSeed: Codable, Hashable {
     }
 
     private static let importNoticePrefix = "Import info:"
+
+    private static func normalizeImportedTitle(_ rawValue: String) -> String {
+        var cleaned = rawValue
+            .replacingOccurrences(of: "https?://\\S+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "#[\\p{L}\\p{N}_]+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\p{Extended_Pictographic}", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        cleaned = trimRepeatedLeadPhrase(in: cleaned)
+        cleaned = cleaned.replacingOccurrences(
+            of: "\\b(?:les|le|la|des|un|une)\\s*$",
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if cleaned.count > 56,
+           let range = cleaned.range(
+                of: "\\b(?:avec|mais|sans|version|qui|qu[’']|pour)\\b",
+                options: [.regularExpression, .caseInsensitive]
+           ),
+           cleaned.distance(from: cleaned.startIndex, to: range.lowerBound) >= 16 {
+            cleaned = String(cleaned[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if cleaned == cleaned.uppercased(), cleaned.rangeOfCharacter(from: .letters) != nil {
+            cleaned = cleaned.localizedLowercase.capitalized
+        }
+
+        return cleaned.isEmpty ? rawValue : cleaned
+    }
+
+    private static func trimRepeatedLeadPhrase(in value: String) -> String {
+        let lowercase = value.localizedLowercase
+        let words = lowercase.matches(of: /[\p{L}\p{N}]+/).map { String($0.output) }
+
+        for phraseLength in [3, 2] {
+            guard words.count >= phraseLength * 2 else { continue }
+            let phrase = words.prefix(phraseLength).joined(separator: " ")
+            guard phrase.count >= 8 else { continue }
+            guard let secondRange = lowercase.range(of: phrase, options: [], range: lowercase.index(lowercase.startIndex, offsetBy: min(lowercase.count, phrase.count + 1))..<lowercase.endIndex) else {
+                continue
+            }
+
+            let trimmed = String(value[..<secondRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.count >= 6 {
+                return trimmed
+            }
+        }
+
+        return value
+    }
 
     private var notesWithoutImportNotice: String {
         notesLines

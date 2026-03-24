@@ -334,9 +334,7 @@ struct RecipeDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 ForEach(viewModel.displayedIngredients) { ingredient in
                     HStack(alignment: .top, spacing: 16) {
-                        Text(ingredient.emoji)
-                            .font(.system(size: 32))
-                            .frame(width: 40)
+                        ingredientIcon(for: ingredient)
 
                         formattedIngredientText(ingredient)
                             .font(.system(size: 18, weight: .medium, design: .rounded))
@@ -607,6 +605,28 @@ struct RecipeDetailView: View {
         }
 
         return Text(quantityText + " ").bold() + Text(ingredient.name)
+    }
+
+    @ViewBuilder
+    private func ingredientIcon(for ingredient: RecipeDetailViewModel.DisplayIngredient) -> some View {
+        if let emoji = ingredient.emoji {
+            Text(emoji)
+                .font(.system(size: 32))
+                .frame(width: 40)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CooksyTheme.surface)
+                    .frame(width: 40, height: 40)
+
+                Image("HeaderLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+            }
+            .frame(width: 40)
+        }
     }
 
     private var sectionDivider: some View {

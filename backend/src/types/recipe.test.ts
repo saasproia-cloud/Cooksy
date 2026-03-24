@@ -77,3 +77,40 @@ test("sanitizeRecipeImport trims polluted titles and drops transcript timestamps
   assert.equal(sanitized.stepDrafts.some((step) => step.detail.includes("-->")), false);
   assert.equal(sanitized.stepDrafts.some((step) => /00:00:00/.test(step.detail)), false);
 });
+
+test("sanitizeRecipeImport shortens verbose social titles and drops commentary-only steps", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "ANIMAL FRIES CAJUN Les Animal Fries d’un fast food qu’on a pas ici, mais avec plus de muscles et moins de gras",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "400", unit: "g", name: "pommes de terre", nutritionQuery: "potato" },
+      { amount: "420", unit: "g", name: "viande hachée 5 %", nutritionQuery: "lean ground beef" },
+      { amount: "2", unit: "tranches", name: "cheddar fondu", nutritionQuery: "cheddar cheese" }
+    ],
+    stepDrafts: [
+      { detail: "Si t'en as pas, pas de souci, je t'explique comment faire ton mix maison dans les commentaires." },
+      { detail: "Faites cuire les pommes de terre au air fryer puis secouez-les toutes les 5 minutes." },
+      { detail: "Ajoutez le cheddar sur la viande chaude et laissez fondre avec un trait d'eau." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.equal(sanitized.title, "Animal Fries Cajun");
+  assert.equal(sanitized.stepDrafts.length, 2);
+  assert.equal(
+    sanitized.stepDrafts.some((step) => step.detail.includes("commentaires")),
+    false
+  );
+});

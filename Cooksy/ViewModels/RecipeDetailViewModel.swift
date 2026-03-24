@@ -15,7 +15,7 @@ final class RecipeDetailViewModel: ObservableObject {
 
     struct DisplayIngredient: Identifiable, Hashable {
         let id: RecipeIngredient.ID
-        let emoji: String
+        let emoji: String?
         let quantityText: String?
         let name: String
 
@@ -88,10 +88,9 @@ final class RecipeDetailViewModel: ObservableObject {
 
         let baseServings = RecipeQuantityScaler.baseServings(from: recipe)
         return recipe.ingredients.map { ingredient in
-            let category = ShoppingCatalog.suggestedCategory(for: ingredient.name)
             return DisplayIngredient(
                 id: ingredient.id,
-                emoji: ShoppingCatalog.emoji(for: ingredient.name, category: category),
+                emoji: ShoppingCatalog.specificEmoji(for: ingredient.name),
                 quantityText: RecipeQuantityScaler.scaledQuantityText(
                     for: ingredient,
                     baseServings: baseServings,

@@ -238,6 +238,8 @@ function sanitizeTitle(value: string): string {
     .replace(/\s+[|•·]\s+.+$/, "")
     .trim();
 
+  cleaned = trimRepeatedLeadPhrase(cleaned);
+
   for (const pattern of titleCutoffPatterns) {
     const match = cleaned.match(pattern);
     if (match && typeof match.index === "number" && match.index >= 8) {
@@ -250,12 +252,18 @@ function sanitizeTitle(value: string): string {
     cleaned
       .split(/\n+/)[0] ?? cleaned
   )
+    .replace(/\b(?:les|le|la|des|un|une)\s*$/iu, "")
     .replace(/\s*[:\-–]\s*$/u, "")
     .trim();
 
   const inlineIngredientMatch = cleaned.match(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|mg|ml|cl|dl|l|oz|lb|lbs|tbsp|tsp|tablespoons?|teaspoons?|cups?|cup|egg|eggs|packet|packets?|steak|steaks|tranche|tranches|pain|pains|bun|buns)\b/i);
   if (inlineIngredientMatch && typeof inlineIngredientMatch.index === "number" && inlineIngredientMatch.index >= 8) {
     cleaned = cleaned.slice(0, inlineIngredientMatch.index).trim();
+  }
+
+  const explanatoryClauseMatch = cleaned.match(/\b(?:avec|mais|sans|version|qui|qu['’]|pour)\b/i);
+  if (cleaned.length > 56 && explanatoryClauseMatch && typeof explanatoryClauseMatch.index === "number" && explanatoryClauseMatch.index >= 16) {
+    cleaned = cleaned.slice(0, explanatoryClauseMatch.index).trim();
   }
 
   if (cleaned.length > 80) {
@@ -462,6 +470,11 @@ function isPlausibleCookingStep(detail: string): boolean {
   ) {
     return false;
   }
+  if (
+    /\b(?:dans les commentaires|je t explique|je vous explique|pas de souci|si t en as pas|mix maison|lien en bio|code promo|abonne toi|abonnez vous)\b/.test(normalized)
+  ) {
+    return false;
+  }
   if (/^(?:pour|for)\s+\d+\s+(?:portion|portions|serving|servings)\b/.test(normalized)) {
     return false;
   }
@@ -515,6 +528,34 @@ function formatNumber(value: number): string {
     maximumFractionDigits: 1,
     minimumFractionDigits: 0
   }).format(value);
+}
+
+function trimRepeatedLeadPhrase(value: string): string {
+  const words = value.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const lowercased = value.toLocaleLowerCase();
+
+  for (const phraseLength of [3, 2]) {
+    if (words.length < phraseLength * 2) {
+      continue;
+    }
+
+    const phrase = words.slice(0, phraseLength).join(" ").toLocaleLowerCase();
+    if (phrase.length < 8) {
+      continue;
+    }
+
+    const secondIndex = lowercased.indexOf(phrase, phrase.length + 1);
+    if (secondIndex < 8) {
+      continue;
+    }
+
+    const trimmed = value.slice(0, secondIndex).trim();
+    if (trimmed.length >= 6) {
+      return trimmed;
+    }
+  }
+
+  return value;
 }
 
 const articleNoisePatterns = [

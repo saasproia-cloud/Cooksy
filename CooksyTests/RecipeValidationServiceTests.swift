@@ -135,6 +135,22 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertTrue(assessment.validation.rejectionReasons.contains(.articleLikeContentDetected))
     }
 
+    func testShoppingCatalogUsesSpecificFoodEmojiForCommonImportedIngredients() {
+        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "viande hachée 5 %"), "🥩")
+        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "cheddar fondu"), "🧀")
+        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "sirop d'érable"), "🍁")
+        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "ciboulette fraîche"), "🌿")
+        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "sauce piquante"), "🌶️")
+    }
+
+    func testRecipeEditorSeedShortensVerboseImportedTitleForDisplayAndSave() {
+        let seed = RecipeEditorSeed(
+            title: "ANIMAL FRIES CAJUN Les Animal Fries d’un fast food qu’on a pas ici, mais avec plus de muscles et moins de gras"
+        )
+
+        XCTAssertEqual(seed.normalizedTitle, "Animal Fries Cajun")
+    }
+
     private func makeSnapshotJSON(
         title: String,
         h1Title: String,

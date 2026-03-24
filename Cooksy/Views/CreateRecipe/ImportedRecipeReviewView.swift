@@ -139,8 +139,9 @@ struct ImportedRecipeReviewView: View {
                     )
 
                 Text(viewModel.seed.normalizedTitle)
-                    .font(.system(size: 31, weight: .regular, design: .serif))
+                    .font(.system(size: titleFontSize, weight: .regular, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
+                    .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let sourceLabel = viewModel.sourceLabel {
@@ -189,9 +190,7 @@ struct ImportedRecipeReviewView: View {
             VStack(spacing: 18) {
                 ForEach(viewModel.seed.normalizedIngredients) { ingredient in
                     HStack(alignment: .top, spacing: 16) {
-                        Text(ingredientEmoji(for: ingredient.name))
-                            .font(.system(size: 30))
-                            .frame(width: 38)
+                        ingredientIcon(for: ingredient.name)
 
                         formattedIngredientText(for: ingredient)
                             .font(.system(size: 18, weight: .medium, design: .rounded))
@@ -385,26 +384,40 @@ struct ImportedRecipeReviewView: View {
         return Text(prefix + " ").bold() + Text(ingredient.name)
     }
 
-    private func ingredientEmoji(for ingredientName: String) -> String {
-        let lowercased = ingredientName.lowercased()
+    @ViewBuilder
+    private func ingredientIcon(for ingredientName: String) -> some View {
+        if let emoji = ShoppingCatalog.specificEmoji(for: ingredientName) {
+            Text(emoji)
+                .font(.system(size: 30))
+                .frame(width: 38)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CooksyTheme.surface)
+                    .frame(width: 38, height: 38)
 
-        if lowercased.contains("chocolat") { return "🍫" }
-        if lowercased.contains("farine") { return "🥣" }
-        if lowercased.contains("beurre") { return "🧈" }
-        if lowercased.contains("sucre") { return "🍚" }
-        if lowercased.contains("amande") { return "🥜" }
-        if lowercased.contains("oeuf") || lowercased.contains("œuf") || lowercased.contains("jaune") {
-            return "🥚"
+                Image("HeaderLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+            }
+            .frame(width: 38)
         }
-        if lowercased.contains("crème") || lowercased.contains("creme") { return "🥛" }
-        if lowercased.contains("citron") { return "🍋" }
-        if lowercased.contains("tomate") { return "🍅" }
-        if lowercased.contains("poulet") { return "🍗" }
-        if lowercased.contains("boeuf") || lowercased.contains("bœuf") { return "🥩" }
-        if lowercased.contains("fromage") { return "🧀" }
-        if lowercased.contains("oignon") { return "🧅" }
-        if lowercased.contains("ail") { return "🧄" }
-        return "🍽️"
+    }
+
+    private var titleFontSize: CGFloat {
+        let count = viewModel.seed.normalizedTitle.count
+        switch count {
+        case ..<28:
+            return 31
+        case ..<46:
+            return 27
+        case ..<72:
+            return 24
+        default:
+            return 22
+        }
     }
 }
 
@@ -463,6 +476,12 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         guard let host = seed.sourceURL?.host(percentEncoded: false), !host.isEmpty else {
             return nil
         }
+
+        let loweredHost = host.lowercased()
+        if loweredHost.contains("tiktok") { return "TikTok" }
+        if loweredHost.contains("instagram") { return "Instagram" }
+        if loweredHost.contains("youtube") { return "YouTube" }
+        if loweredHost.contains("pinterest") { return "Pinterest" }
 
         return host
     }
