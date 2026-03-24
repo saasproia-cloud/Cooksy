@@ -17,15 +17,15 @@ export function fallbackRecipeFromContext(input: NormalizerInput): RecipeImportR
   }
 
   const combinedText = [
-    input.socialTitle,
-    input.pageTitle,
+    input.sharedText,
     input.socialCaption,
     input.socialDescription,
     input.socialPageText,
-    input.pageDescription,
-    input.sharedText,
     input.socialSubtitles,
     input.transcript,
+    input.socialTitle,
+    input.pageTitle,
+    input.pageDescription,
     input.pageTextContent
   ]
     .filter((value): value is string => Boolean(value?.trim()))
@@ -84,6 +84,12 @@ function parseRecipeText(input: string): RecipeImportResult {
 
     if (isNotesHeader(line)) {
       currentSection = "notes";
+      continue;
+    }
+
+    if (currentSection === "ingredients" && looksLikeStep(line) && !looksLikeIngredient(line)) {
+      currentSection = "steps";
+      stepLines.push(cleanedStepLine(line));
       continue;
     }
 
@@ -369,7 +375,7 @@ function heuristicLines(input: string): string[] {
     )
     .replace(/(?:^|\s)(\d+[\).\-\:])\s*/g, "\n$1 ")
     .replace(
-      /([.!?])\s+(?=(?:ajouter|mélanger|melanger|cuire|faire|verser|laisser|chauffer|mettre|servir|add|mix|cook|stir|serve|ingredients?|instructions?|étapes?|etapes|préparation|preparation|\d+[.)-]))/giu,
+      /([.!?])\s+(?=(?:ajouter|mélanger|melanger|cuire|faire|verser|laisser|chauffer|mettre|servir|quand|maintenant|on va|add|mix|cook|stir|serve|ingredients?|instructions?|étapes?|etapes|préparation|preparation|\d+[.)-]))/giu,
       "$1\n"
     )
     .replace(
@@ -423,7 +429,8 @@ function isSectionHeader(line: string): boolean {
 }
 
 function isIngredientsHeader(line: string): boolean {
-  return matches(line, ["ingredients", "ingrédients", "ingredient", "liste des ingrédients"]);
+  return matches(line, ["ingredients", "ingrédients", "ingredient", "liste des ingrédients"]) ||
+    /^(?:ingredients?|ingrédients?)(?:\s+.+)?[:：]\s*$/i.test(line);
 }
 
 function isStepsHeader(line: string): boolean {
@@ -457,6 +464,9 @@ function looksLikeIngredient(line: string): boolean {
   if (!cleaned) {
     return false;
   }
+  if (looksLikeStep(cleaned)) {
+    return false;
+  }
   if (/^\d+([,./]\d+)?/.test(cleaned)) {
     return true;
   }
@@ -480,7 +490,8 @@ function looksLikeStep(line: string): boolean {
     "chauffer", "former", "mettre", "fouetter", "mixer", "decouper", "découper",
     "rotir", "rôtir", "servir", "prechauffer", "préchauffer", "remuer", "incorporer",
     "puis", "ensuite", "etaler", "étaler", "etalez", "étalez", "rouler", "plier",
-    "garnir", "repartir", "répartir", "napper", "saisir", "faire revenir", "laisser cuire"
+    "garnir", "repartir", "répartir", "napper", "saisir", "faire revenir", "laisser cuire",
+    "on va", "quand", "maintenant"
   ];
   return verbs.some((verb) => cleaned.startsWith(verb));
 }

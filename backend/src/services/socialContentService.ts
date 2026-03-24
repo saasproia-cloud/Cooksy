@@ -49,7 +49,13 @@ export async function resolveSocialContent(
       return null;
     });
 
-    if (directSnapshot && (shouldSkipApify || isUsefulSocialSnapshot(directSnapshot))) {
+    if (
+      directSnapshot &&
+      (
+        shouldSkipApify ||
+        (platform !== "tiktok" && isUsefulSocialSnapshot(directSnapshot))
+      )
+    ) {
       return directSnapshot;
     }
   }
@@ -66,6 +72,10 @@ export async function resolveSocialContent(
     logProviderFailure("apify", platform, url, error);
     return null;
   });
+  if (apifySnapshot && directSnapshot) {
+    return mergeSocialSnapshots(platform, directSnapshot, apifySnapshot);
+  }
+
   if (apifySnapshot) {
     return apifySnapshot;
   }
@@ -84,6 +94,31 @@ export async function resolveSocialContent(
     logProviderFailure("direct", platform, url, error);
     return null;
   });
+}
+
+function mergeSocialSnapshots(
+  platform: "tiktok" | "instagram" | "pinterest",
+  directSnapshot: SocialContentSnapshot,
+  apifySnapshot: SocialContentSnapshot
+): SocialContentSnapshot {
+  return {
+    platform,
+    source: "apify",
+    canonicalUrl: apifySnapshot.canonicalUrl || directSnapshot.canonicalUrl,
+    title: pickRicherText(apifySnapshot.title, directSnapshot.title),
+    caption: pickRicherText(apifySnapshot.caption, directSnapshot.caption),
+    description: pickRicherText(apifySnapshot.description, directSnapshot.description),
+    authorName: pickRicherText(apifySnapshot.authorName, directSnapshot.authorName),
+    subtitlesText: pickRicherText(directSnapshot.subtitlesText, apifySnapshot.subtitlesText),
+    imageUrls: Array.from(new Set([...directSnapshot.imageUrls, ...apifySnapshot.imageUrls])),
+    videoUrl: apifySnapshot.videoUrl || directSnapshot.videoUrl,
+    audioUrl: apifySnapshot.audioUrl || directSnapshot.audioUrl,
+    pageText: pickRicherText(directSnapshot.pageText, apifySnapshot.pageText),
+    externalLinks: Array.from(new Set([
+      ...directSnapshot.externalLinks,
+      ...apifySnapshot.externalLinks
+    ])).slice(0, 6)
+  };
 }
 
 async function resolveViaApify(
@@ -302,8 +337,12 @@ async function parseTikTokDirectSnapshot(
       fallbackUrl
     ) ?? fallbackUrl,
     title: normalizeTikTokTitle(
-      stringValue(readTikTokStickerTitle(item)) ??
-      undefined
+      deriveTikTokRecipeTitle(
+        item,
+        contentLines,
+        stringValue(item?.desc),
+        stringValue(shareMeta?.desc)
+      )
     ),
     caption: normalizeWhitespace(
       stringValue(item?.desc) ??
@@ -320,7 +359,7 @@ async function parseTikTokDirectSnapshot(
       stringValue(recordValue(item?.author)?.nickname) ??
       ""
     ) || undefined,
-    subtitlesText,
+    subtitlesText: instructionLines.join("\n") || undefined,
     imageUrls: extractUrls([
       recordValue(item?.video)?.cover,
       recordValue(item?.video)?.originCover,
@@ -339,6 +378,13 @@ async function parseTikTokDirectSnapshot(
     pageText: pageText || undefined,
     externalLinks: extractExternalLinks("tiktok", item ?? {}, fallbackUrl)
   };
+}
+
+function pickRicherText(...values: Array<string | undefined>): string | undefined {
+  return values
+    .map((value) => normalizeWhitespace(value ?? ""))
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length)[0];
 }
 
 function extractJsonScriptById(html: string, scriptId: string): unknown {
@@ -406,6 +452,48 @@ function normalizeTikTokTitle(value?: string): string | undefined {
     .trim();
 
   return cleaned || undefined;
+}
+
+function deriveTikTokRecipeTitle(
+  item: Record<string, unknown> | undefined,
+  contentLines: string[],
+  ...descriptions: Array<string | undefined>
+): string | undefined {
+  const stickerTitle = normalizeTikTokTitle(readTikTokStickerTitle(item));
+  if (stickerTitle) {
+    return stickerTitle;
+  }
+
+  const lineCandidate = contentLines.find((line) => {
+    const cleaned = normalizeTikTokTitle(line);
+    if (!cleaned) {
+      return false;
+    }
+
+    return cleaned.length <= 80 &&
+      !/^[-•*]/u.test(cleaned) &&
+      !/^(?:pour réaliser|pour faire|tu auras besoin|ingrédients?)/i.test(cleaned);
+  });
+
+  if (lineCandidate) {
+    return lineCandidate;
+  }
+
+  for (const description of descriptions) {
+    const firstLine = normalizeWhitespace((description ?? "").split(/\n+/)[0] ?? "");
+    const cleaned = normalizeTikTokTitle(
+      firstLine
+        .replace(/#[\p{L}\p{N}_]+/gu, " ")
+        .replace(/\b(?:ingrédients?|ingredients?)\b.*$/i, "")
+        .trim()
+    );
+
+    if (cleaned && cleaned.length <= 80) {
+      return cleaned;
+    }
+  }
+
+  return undefined;
 }
 
 function extractTikTokContentLines(item?: Record<string, unknown>): string[] {

@@ -59,19 +59,26 @@ export async function importFromUrl(input: {
   }
 
   const sourcePlatform = platformFromUrl(resolvedSourceURL);
+  const initialSocialContentOptions = sourcePlatform === "tiktok"
+    ? {
+        preferDirectFetch: true,
+        skipApify: true
+      }
+    : {};
   const [pageSummary, socialContent] = await Promise.all([
     fetchPageSummary(resolvedSourceURL).catch(() => null),
     resolveSocialContent(resolvedSourceURL, {
-      preferDirectFetch: sourcePlatform === "tiktok"
+      ...initialSocialContentOptions
     })
   ]);
   const canonicalSourceURL = pageSummary?.canonicalUrl ?? pageSummary?.url ?? resolvedSourceURL;
-  const mediaURL = socialContent?.audioUrl ?? socialContent?.videoUrl;
-  const captionWasSparse = hasSparseSocialText(
+  let resolvedSocialContent = socialContent;
+  let mediaURL = resolvedSocialContent?.audioUrl ?? resolvedSocialContent?.videoUrl;
+  let captionWasSparse = hasSparseSocialText(
     input.sharedText,
-    socialContent?.caption,
-    socialContent?.description,
-    socialContent?.subtitlesText,
+    resolvedSocialContent?.caption,
+    resolvedSocialContent?.description,
+    resolvedSocialContent?.subtitlesText,
     pageSummary?.description
   );
   let transcript: string | null = null;
@@ -79,26 +86,80 @@ export async function importFromUrl(input: {
   let importStrategySourceURL: string | undefined;
   let fallbackPages: ImportedPageSummary[] = [];
   let usedWebFallback = false;
+  let normalizedFromSocialText = false;
+  let normalizedAfterTranscript = false;
+  let normalizedFromWebFallback = false;
 
   const buildContext = () => buildUrlNormalizationContext({
     canonicalSourceURL,
     sharedText: input.sharedText,
     pageSummary,
-    socialContent,
+    socialContent: resolvedSocialContent,
     transcript,
     fallbackPages
   });
 
   let recipe = recipeFromContext(buildContext());
 
+  if (shouldAttemptSocialNormalization({
+    recipe,
+    sourcePlatform,
+    context: buildContext()
+  })) {
+    console.info(`[importService] Trying social text normalization for ${canonicalSourceURL}`);
+    const socialContext = buildContext();
+    const socialNormalizedRecipe = preferStructuredRecipe(
+      await safeNormalize(socialContext, false),
+      structuredRecipeFromBlocks(socialContext.pageStructuredData ?? [])
+    );
+
+    normalizedFromSocialText = true;
+    if (scoreRecipe(socialNormalizedRecipe) >= scoreRecipe(recipe)) {
+      recipe = socialNormalizedRecipe;
+    }
+  }
+
+  if (
+    shouldFetchFullSocialSnapshot({
+      recipe,
+      sourcePlatform,
+      socialContent: resolvedSocialContent,
+      mediaURL
+    })
+  ) {
+    const enrichedSocialContent = await resolveSocialContent(resolvedSourceURL, {
+      preferDirectFetch: sourcePlatform === "tiktok"
+    }).catch(() => null);
+
+    if (enrichedSocialContent) {
+      resolvedSocialContent = enrichedSocialContent;
+      mediaURL = resolvedSocialContent.audioUrl ?? resolvedSocialContent.videoUrl;
+      captionWasSparse = hasSparseSocialText(
+        input.sharedText,
+        resolvedSocialContent.caption,
+        resolvedSocialContent.description,
+        resolvedSocialContent.subtitlesText,
+        pageSummary?.description
+      );
+    }
+  }
+
   if (!shouldTrustFastSocialRecipe(recipe, sourcePlatform) &&
-    shouldUseTranscriptionFallback(recipe, socialContent, input.sharedText, mediaURL)
+    shouldUseTranscriptionFallback(recipe, resolvedSocialContent, input.sharedText, mediaURL)
   ) {
     console.info(`[importService] Trying audio fallback for ${canonicalSourceURL}`);
     transcript = await transcribeMediaFromUrl(mediaURL, transcriptionOptions(false)).catch(() => null);
 
     if (transcript) {
-      const audioRecipe = recipeFromContext(buildContext());
+      const audioContext = buildContext();
+      let audioRecipe = recipeFromContext(audioContext);
+      if (shouldAttemptTranscriptNormalization(audioRecipe, audioContext)) {
+        audioRecipe = preferStructuredRecipe(
+          await safeNormalize(audioContext, false),
+          structuredRecipeFromBlocks(audioContext.pageStructuredData ?? [])
+        );
+        normalizedAfterTranscript = true;
+      }
       if (scoreRecipe(audioRecipe) >= scoreRecipe(recipe)) {
         recipe = audioRecipe;
         importStrategy = "audio";
@@ -108,19 +169,25 @@ export async function importFromUrl(input: {
   }
 
   if (
-    socialContent?.externalLinks.length &&
-    shouldTryLinkedWebFallback(recipe, socialContent.externalLinks)
+    resolvedSocialContent?.externalLinks.length &&
+    shouldTryLinkedWebFallback(recipe, resolvedSocialContent.externalLinks)
   ) {
-    const linkedPages = await fetchFallbackPagesFromLinks(socialContent.externalLinks);
+    const linkedPages = await fetchFallbackPagesFromLinks(resolvedSocialContent.externalLinks);
     if (linkedPages.length) {
       fallbackPages = mergeFallbackPages(fallbackPages, linkedPages);
-      const linkedFallbackRecipe = recipeFromContext(buildContext());
+      const linkedFallbackRecipe = await recipeFromFallbackPages(
+        linkedPages,
+        input.sharedText,
+        canonicalSourceURL,
+        false
+      );
 
-      if (scoreRecipe(linkedFallbackRecipe) >= scoreRecipe(recipe)) {
-        recipe = linkedFallbackRecipe;
+      if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
+        recipe = linkedFallbackRecipe.recipe;
         usedWebFallback = true;
         importStrategy = "web";
-        importStrategySourceURL = linkedPages[0]?.url;
+        importStrategySourceURL = linkedFallbackRecipe.sourceUrl ?? linkedPages[0]?.url;
+        normalizedFromWebFallback = true;
       }
     }
   }
@@ -129,26 +196,39 @@ export async function importFromUrl(input: {
     const query = bestSearchQuery({
       recipe,
       pageSummary,
-      socialContent,
+      socialContent: resolvedSocialContent,
       sharedText: input.sharedText
     });
     const searchPages = await fetchFallbackPages(query);
 
     if (searchPages.length) {
       fallbackPages = mergeFallbackPages(fallbackPages, searchPages);
-      const searchFallbackRecipe = recipeFromContext(buildContext());
+      const searchFallbackRecipe = await recipeFromFallbackPages(
+        searchPages,
+        input.sharedText,
+        canonicalSourceURL,
+        false
+      );
 
-      if (scoreRecipe(searchFallbackRecipe) >= scoreRecipe(recipe)) {
-        recipe = searchFallbackRecipe;
+      if (searchFallbackRecipe && scoreRecipe(searchFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
+        recipe = searchFallbackRecipe.recipe;
         importStrategy = "fallback";
-        importStrategySourceURL = searchPages[0]?.url;
+        importStrategySourceURL = searchFallbackRecipe.sourceUrl ?? searchPages[0]?.url;
+        normalizedFromWebFallback = true;
       }
       usedWebFallback = true;
     }
   }
 
+  const normalizedWithLatestContext = fallbackPages.length > 0
+    ? normalizedFromWebFallback
+    : Boolean(transcript)
+      ? normalizedAfterTranscript
+      : normalizedFromSocialText;
+
   if (
     !shouldTrustFastSocialRecipe(recipe, sourcePlatform) &&
+    !normalizedWithLatestContext &&
     shouldAttemptFinalNormalization({
       recipe,
       sourcePlatform,
@@ -190,11 +270,11 @@ export async function importFromUrl(input: {
   });
   const durationMs = Date.now() - startedAt;
   const debug = buildImportDebug(finalizedRecipe.recipe, {
-    platform: socialContent?.platform,
+    platform: resolvedSocialContent?.platform,
     sourceKind: "url",
     strategy: importStrategy,
     durationMs,
-    usedApify: socialContent?.source === "apify",
+    usedApify: resolvedSocialContent?.source === "apify",
     usedTranscription: Boolean(transcript),
     usedWebFallback,
     usedUsda: finalizedRecipe.usedUsda,
@@ -240,6 +320,74 @@ function shouldUseTranscriptionFallback(
     socialContent?.description,
     socialContent?.subtitlesText
   ) || recipe.needsWebFallback;
+}
+
+function shouldFetchFullSocialSnapshot(input: {
+  recipe: RecipeImportResult;
+  sourcePlatform: ReturnType<typeof platformFromUrl>;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  mediaURL?: string;
+}): boolean {
+  if (input.sourcePlatform !== "tiktok") {
+    return false;
+  }
+
+  if (!input.socialContent) {
+    return true;
+  }
+
+  if (input.socialContent.source === "apify") {
+    return false;
+  }
+
+  if (input.mediaURL || input.socialContent.externalLinks.length > 0) {
+    return false;
+  }
+
+  return input.recipe.stepDrafts.length < 2 || input.recipe.needsWebFallback;
+}
+
+function shouldAttemptSocialNormalization(input: {
+  recipe: RecipeImportResult;
+  sourcePlatform: ReturnType<typeof platformFromUrl>;
+  context: ReturnType<typeof buildUrlNormalizationContext>;
+}): boolean {
+  if (input.sourcePlatform === "web" || shouldTrustFastSocialRecipe(input.recipe, input.sourcePlatform)) {
+    return false;
+  }
+
+  const combinedText = [
+    input.context.sharedText,
+    input.context.socialCaption,
+    input.context.socialDescription,
+    input.context.socialPageText,
+    input.context.socialSubtitles
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join("\n")
+    .trim();
+
+  if (combinedText.length < 100) {
+    return false;
+  }
+
+  return input.recipe.ingredientDrafts.length >= 2 ||
+    input.recipe.stepDrafts.length >= 1 ||
+    /\b(?:ingrédients?|ingredients?|burger|tacos?|poulet|pasta|pates?|gateau|gâteau|tarte|pizza)\b/i.test(combinedText);
+}
+
+function shouldAttemptTranscriptNormalization(
+  recipe: RecipeImportResult,
+  context: ReturnType<typeof buildUrlNormalizationContext>
+): boolean {
+  const transcript = context.transcript?.trim() ?? "";
+  if (transcript.length < 60) {
+    return false;
+  }
+
+  return recipe.stepDrafts.length < 2 ||
+    recipe.ingredientDrafts.length < 3 ||
+    !isLikelyValidRecipe(recipe);
 }
 
 function shouldTryLinkedWebFallback(

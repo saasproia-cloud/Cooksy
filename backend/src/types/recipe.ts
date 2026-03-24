@@ -230,10 +230,38 @@ export function importFailureReason(
 }
 
 function sanitizeTitle(value: string): string {
-  const cleaned = clean(value)
+  let cleaned = clean(value)
     .replace(/^(?:recipe|recette|titre|title)\s*:\s*/i, "")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/#[\p{L}\p{N}_]+/gu, " ")
+    .replace(/\p{Extended_Pictographic}/gu, " ")
     .replace(/\s+[|•·]\s+.+$/, "")
     .trim();
+
+  for (const pattern of titleCutoffPatterns) {
+    const match = cleaned.match(pattern);
+    if (match && typeof match.index === "number" && match.index >= 8) {
+      cleaned = cleaned.slice(0, match.index).trim();
+      break;
+    }
+  }
+
+  cleaned = clean(
+    cleaned
+      .split(/\n+/)[0] ?? cleaned
+  )
+    .replace(/\s*[:\-–]\s*$/u, "")
+    .trim();
+
+  if (cleaned.length > 80) {
+    cleaned = clean(cleaned.split(/[.!?]/)[0] ?? cleaned);
+  }
+
+  if (cleaned === cleaned.toUpperCase() && /[A-ZÀ-ÿ]/.test(cleaned)) {
+    cleaned = cleaned
+      .toLowerCase()
+      .replace(/\b\p{L}/gu, (character) => character.toUpperCase());
+  }
 
   return cleaned;
 }
@@ -288,6 +316,10 @@ function sanitizeStepDetail(value: string): string {
   return clean(value)
     .replace(/^\s*(?:étape|step)\s*\d+[:.)\-\s]*/iu, "")
     .replace(/^\s*(?:[-•*]|\d+[\).\-\s]+)\s*/u, "")
+    .replace(/\b\d{2}:\d{2}(?::\d{2})?(?:[.,]\d{3})?\b/g, " ")
+    .replace(/-->/g, " ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/#[\p{L}\p{N}_]+/gu, " ")
     .trim();
 }
 
@@ -411,20 +443,30 @@ function isPlausibleCookingStep(detail: string): boolean {
     return false;
   }
 
+  if (/\b\d{2}:\d{2}(?::\d{2})?(?:[.,]\d{3})?\b/.test(detail) || detail.includes("-->")) {
+    return false;
+  }
+
   if (detail.length < 8 || detail.length > 220) {
     return false;
   }
 
   const normalized = normalizeLookup(detail);
+  if (
+    /^(?:j espere|j espere|bon app|bon appetit|oui j ose le dire|n hesite pas|abonne toi|like|follow|partage|commente)\b/.test(normalized)
+  ) {
+    return false;
+  }
   if (/^(?:pour|for)\s+\d+\s+(?:portion|portions|serving|servings)\b/.test(normalized)) {
     return false;
   }
   const wordCount = normalized.split(" ").filter(Boolean).length;
+  const startsLikeProcedure = /^(?:puis|ensuite|d abord|commencer|faire|ajouter|mettre|melanger|verser|laisser|couper|cuire|servir|incorporer|assaisonner|saisir|griller|carameliser|carameliser|retourner|garnir|napper)\b/.test(normalized);
   if (wordCount > 38 && !containsCookingVerb(normalized)) {
     return false;
   }
 
-  return containsCookingVerb(normalized) || wordCount <= 18;
+  return containsCookingVerb(normalized) || startsLikeProcedure;
 }
 
 function isLikelyArticleTitle(title: string): boolean {
@@ -483,11 +525,20 @@ const articleNoisePatterns = [
   /\bbreaking news\b/,
   /\bshopping\b/,
   /\bwatch now\b/,
-  /\btiktok\b.*\btrend\b/
+  /\btiktok\b.*\btrend\b/,
+  /\b\d{2}:\d{2}(?::\d{2})?(?:[.,]\d{3})?\b/,
+  /-->/
 ];
 
 const cookingVerbPatterns = [
   /\b(?:preheat|heat|mix|stir|add|combine|cook|bake|roast|fry|boil|simmer|whisk|blend|serve|set|put|wipe|keep|rest|pour|flip)\b/,
   /\b(?:prechauffez|faites|melangez|melanger|ajoutez|ajouter|versez|verser|cuisez|cuire|laissez|laisser|deposez|deposer|fouettez|fouetter)\b/,
-  /\b(?:incorporez|incorporer|faites revenir|repartissez|repartir|servez|servir|enfournez|enfourner|chauffez|chauffer)\b/
+  /\b(?:incorporez|incorporer|faites revenir|repartissez|repartir|servez|servir|enfournez|enfourner|chauffez|chauffer)\b/,
+  /\b(?:coupez|couper|grillez|griller|saisissez|saisir|caramelisez|carameliser|retournez|retourner|garnissez|garnir|nappez|napper|ecrasez|ecraser)\b/
+];
+
+const titleCutoffPatterns = [
+  /\b(?:ingredients?|ingrédients?)\b/i,
+  /\b(?:pour réaliser|pour faire|tu auras besoin|il te faut)\b/i,
+  /\s[-–:]\s*(?=\d+(?:[.,/]\d+)?\s*(?:g|kg|ml|cl|l|cas|cac|cuill[eè]re?s?|steaks?|tranches?|pains?|buns?|oignons?|cheddar|cornichons?|beurre)\b)/i
 ];
