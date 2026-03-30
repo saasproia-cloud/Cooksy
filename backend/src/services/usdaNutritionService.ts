@@ -1,5 +1,5 @@
 import { env, providerStatus } from "../config/env.js";
-import type { RecipeImportResult, RecipeIngredientDraft } from "../types/recipe.js";
+import { normalizeRecipeImportFlags, type RecipeImportResult, type RecipeIngredientDraft } from "../types/recipe.js";
 import { uniqueStrings } from "../utils/text.js";
 
 const USDA_SEARCH_ENDPOINT = "https://api.nal.usda.gov/fdc/v1/foods/search";
@@ -31,6 +31,17 @@ type NutritionTotals = {
   fat: number;
 };
 
+type IngredientNutritionEstimate = NutritionTotals & {
+  source: "usda" | "fallback";
+};
+
+type ParsedNutritionValues = {
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+};
+
 export type NutritionEnrichmentResult = {
   recipe: RecipeImportResult;
   usedUsda: boolean;
@@ -51,8 +62,9 @@ export async function enrichRecipeNutrition(
   const apiKey = options?.apiKey ?? env.USDA_API_KEY;
   const enabled = options?.enabled ?? providerStatus.usda;
   const fetchImpl = options?.fetchImpl ?? fetch;
+  const canUseUsda = Boolean(enabled && apiKey);
 
-  if (!enabled || !apiKey || recipe.ingredientDrafts.length < 2) {
+  if (recipe.ingredientDrafts.length < 1) {
     return {
       recipe,
       usedUsda: false,
@@ -62,6 +74,7 @@ export async function enrichRecipeNutrition(
   }
 
   let matchedIngredients = 0;
+  let matchedUsdaIngredients = 0;
   const totals: NutritionTotals = {
     calories: 0,
     protein: 0,
@@ -71,7 +84,11 @@ export async function enrichRecipeNutrition(
 
   const consideredIngredients = recipe.ingredientDrafts.filter((ingredient) => !isMinorIngredient(ingredient));
   const nutritionResults = await Promise.all(
-    consideredIngredients.map(async (ingredient) => estimateIngredientNutrition(ingredient, { apiKey, fetchImpl }))
+    consideredIngredients.map(async (ingredient) => estimateIngredientNutrition(ingredient, {
+      apiKey,
+      fetchImpl,
+      canUseUsda
+    }))
   );
 
   for (const nutrition of nutritionResults) {
@@ -80,6 +97,9 @@ export async function enrichRecipeNutrition(
     }
 
     matchedIngredients += 1;
+    if (nutrition.source === "usda") {
+      matchedUsdaIngredients += 1;
+    }
     totals.calories += nutrition.calories;
     totals.protein += nutrition.protein;
     totals.carbs += nutrition.carbs;
@@ -89,34 +109,31 @@ export async function enrichRecipeNutrition(
   const nutritionCoverage = consideredIngredients.length > 0
     ? matchedIngredients / consideredIngredients.length
     : 0;
+  const existingNutrition = parseExistingNutrition(recipe);
+  const hasExistingNutrition = Object.values(existingNutrition).some((value) => value !== null);
 
-  if (matchedIngredients < 2 || totals.calories <= 0) {
+  if (matchedIngredients === 0 || totals.calories <= 0) {
     return {
-      recipe,
-      usedUsda: false,
+      recipe: hasExistingNutrition
+        ? {
+          ...recipe,
+          flags: hasExistingNutrition
+            ? normalizeRecipeImportFlags(recipe.flags)
+            : {
+              ...normalizeRecipeImportFlags(recipe.flags),
+              generatedNutrition: true
+            }
+        }
+        : recipe,
+      usedUsda: matchedUsdaIngredients > 0,
       nutritionCoverage,
       matchedIngredients
     };
   }
 
-  const hasExistingNutrition = [
-    recipe.caloriesText,
-    recipe.proteinText,
-    recipe.carbsText,
-    recipe.fatText
-  ].some((value) => value.trim().length > 0);
-
-  const shouldApplyUsda = nutritionCoverage >= 0.5 || !hasExistingNutrition;
-  if (!shouldApplyUsda) {
-    return {
-      recipe,
-      usedUsda: false,
-      nutritionCoverage,
-      matchedIngredients
-    };
-  }
-
-  const perServingDivisor = parseServings(recipe.servingsText) || 1;
+  const perServingDivisor = parseServings(recipe.servingsText) ||
+    inferRecipeServings(recipe) ||
+    1;
   const perServing = {
     calories: totals.calories / perServingDivisor,
     protein: totals.protein / perServingDivisor,
@@ -124,15 +141,34 @@ export async function enrichRecipeNutrition(
     fat: totals.fat / perServingDivisor
   };
 
+  const shouldApplyUsda = nutritionCoverage >= 0.35 ||
+    !hasExistingNutrition ||
+    nutritionLooksSuspicious(existingNutrition, perServing, {
+      matchedIngredients,
+      consideredIngredients: consideredIngredients.length
+    });
+  if (!shouldApplyUsda) {
+    return {
+      recipe,
+      usedUsda: matchedUsdaIngredients > 0,
+      nutritionCoverage,
+      matchedIngredients
+    };
+  }
+
   return {
     recipe: {
       ...recipe,
       caloriesText: formatCalories(perServing.calories),
       proteinText: formatMacro(perServing.protein),
       carbsText: formatMacro(perServing.carbs),
-      fatText: formatMacro(perServing.fat)
+      fatText: formatMacro(perServing.fat),
+      flags: {
+        ...normalizeRecipeImportFlags(recipe.flags),
+        generatedNutrition: true
+      }
     },
-    usedUsda: true,
+    usedUsda: matchedUsdaIngredients > 0,
     nutritionCoverage,
     matchedIngredients
   };
@@ -141,13 +177,18 @@ export async function enrichRecipeNutrition(
 async function estimateIngredientNutrition(
   ingredient: RecipeIngredientDraft,
   options: {
-    apiKey: string;
+    apiKey?: string;
     fetchImpl: typeof fetch;
+    canUseUsda: boolean;
   }
-): Promise<NutritionTotals | null> {
+): Promise<IngredientNutritionEstimate | null> {
   const grams = estimateIngredientGrams(ingredient);
   if (!grams || grams <= 0) {
     return null;
+  }
+
+  if (!options.canUseUsda) {
+    return fallbackIngredientNutrition(ingredient, grams);
   }
 
   const queries = buildIngredientQueries(ingredient);
@@ -169,6 +210,7 @@ async function estimateIngredientNutrition(
     const fat = nutrientValue(match.foodNutrients, "204");
 
     return {
+      source: "usda",
       calories: (calories * grams) / basisGrams,
       protein: (protein * grams) / basisGrams,
       carbs: (carbs * grams) / basisGrams,
@@ -176,16 +218,42 @@ async function estimateIngredientNutrition(
     };
   }
 
-  return null;
+  return fallbackIngredientNutrition(ingredient, grams);
+}
+
+function fallbackIngredientNutrition(
+  ingredient: RecipeIngredientDraft,
+  grams: number
+): IngredientNutritionEstimate | null {
+  const normalized = ingredientLookupText(ingredient);
+  const profile = fallbackNutritionProfiles.find((entry) =>
+    entry.keywords.some((keyword) => normalized.includes(keyword))
+  );
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    source: "fallback",
+    calories: (profile.calories * grams) / 100,
+    protein: (profile.protein * grams) / 100,
+    carbs: (profile.carbs * grams) / 100,
+    fat: (profile.fat * grams) / 100
+  };
 }
 
 async function searchFoods(
   query: string,
   options: {
-    apiKey: string;
+    apiKey?: string;
     fetchImpl: typeof fetch;
   }
 ): Promise<USDAFoodSearchItem[]> {
+  const apiKey = options.apiKey;
+  if (!apiKey) {
+    return [];
+  }
+
   const cacheKey = query.toLowerCase();
   const existing = searchCache.get(cacheKey);
   if (existing) {
@@ -194,7 +262,7 @@ async function searchFoods(
 
   const pending = (async () => {
     const url = new URL(USDA_SEARCH_ENDPOINT);
-    url.searchParams.set("api_key", options.apiKey);
+    url.searchParams.set("api_key", apiKey);
 
     const response = await options.fetchImpl(url, {
       method: "POST",
@@ -361,6 +429,8 @@ function singularizeQuery(value: string): string {
     .replace(/\bonions\b/g, "onion")
     .replace(/\btomatoes\b/g, "tomato")
     .replace(/\bpotatoes\b/g, "potato")
+    .replace(/\bpickles\b/g, "pickle")
+    .replace(/\bbuns\b/g, "bun")
     .replace(/\bcloves\b/g, "clove")
     .replace(/\bbreasts\b/g, "breast")
     .replace(/\bcarrots\b/g, "carrot")
@@ -378,9 +448,17 @@ function translateIngredientName(value: string): string {
 }
 
 function estimateIngredientGrams(ingredient: RecipeIngredientDraft): number | null {
-  const quantity = parseQuantity(ingredient.amount);
   const normalizedUnit = normalizeUnit(ingredient.unit);
+  const explicitQuantity = parseQuantity(ingredient.amount);
+  const implicitVolumeMl = explicitQuantity === null
+    ? inferImplicitVolumeMilliliters(ingredient, normalizedUnit)
+    : null;
+  const quantity = explicitQuantity ?? inferImplicitQuantity(ingredient, normalizedUnit);
   const density = ingredientDensity(ingredient);
+
+  if (quantity === null && implicitVolumeMl !== null) {
+    return implicitVolumeMl * density;
+  }
 
   if (quantity === null) {
     return null;
@@ -468,8 +546,26 @@ function parseQuantity(value: string): number | null {
     return 3;
   }
 
+  if (/^(four|quatre)$/.test(normalized)) {
+    return 4;
+  }
+
+  if (/^(five|cinq)$/.test(normalized)) {
+    return 5;
+  }
+
+  if (/^(half|demi|moitie|moitie d|moitie de)$/.test(normalized)) {
+    return 0.5;
+  }
+
   if (/^\d+(?:\.\d+)?$/.test(normalized)) {
     return Number(normalized);
+  }
+
+  const multiplierMatch = normalized.match(/^x\s*(\d+(?:\.\d+)?)$|^(\d+(?:\.\d+)?)\s*x$/);
+  if (multiplierMatch) {
+    const parsed = Number(multiplierMatch[1] ?? multiplierMatch[2]);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   if (/^\d+\/\d+$/.test(normalized)) {
@@ -494,7 +590,7 @@ function fractionToNumber(value: string): number {
 }
 
 function inferItemWeightGrams(ingredient: RecipeIngredientDraft): number {
-  const normalized = normalizeFoodText(`${ingredient.name} ${ingredient.nutritionQuery}`);
+  const normalized = ingredientLookupText(ingredient);
 
   for (const profile of itemWeightProfiles) {
     if (profile.keywords.some((keyword) => normalized.includes(keyword))) {
@@ -505,8 +601,42 @@ function inferItemWeightGrams(ingredient: RecipeIngredientDraft): number {
   return 100;
 }
 
+function inferImplicitQuantity(
+  ingredient: RecipeIngredientDraft,
+  normalizedUnit: string
+): number | null {
+  if (["piece", "slice", "clove", "egg", "can", "jar", "packet", "bunch"].includes(normalizedUnit)) {
+    return 1;
+  }
+
+  if (normalizedUnit) {
+    return null;
+  }
+
+  const normalized = ingredientLookupText(ingredient);
+  return implicitPieceKeywords.some((keyword) => normalized.includes(keyword)) ? 1 : null;
+}
+
+function inferImplicitVolumeMilliliters(
+  ingredient: RecipeIngredientDraft,
+  normalizedUnit: string
+): number | null {
+  if (normalizedUnit) {
+    return null;
+  }
+
+  const normalized = ingredientLookupText(ingredient);
+  for (const profile of implicitVolumeProfiles) {
+    if (profile.keywords.some((keyword) => normalized.includes(keyword))) {
+      return profile.ml;
+    }
+  }
+
+  return null;
+}
+
 function ingredientDensity(ingredient: RecipeIngredientDraft): number {
-  const normalized = normalizeFoodText(`${ingredient.name} ${ingredient.nutritionQuery}`);
+  const normalized = ingredientLookupText(ingredient);
 
   for (const profile of densityProfiles) {
     if (profile.keywords.some((keyword) => normalized.includes(keyword))) {
@@ -590,6 +720,12 @@ function normalizeUnit(value: string): string {
   return normalized;
 }
 
+function ingredientLookupText(ingredient: RecipeIngredientDraft): string {
+  return normalizeFoodText(
+    `${ingredient.name} ${ingredient.nutritionQuery} ${translateIngredientName(ingredient.name)} ${translateIngredientName(ingredient.nutritionQuery)}`
+  );
+}
+
 function parseServings(value: string): number | null {
   const match = value.match(/(\d+(?:[.,]\d+)?)/);
   if (!match) {
@@ -604,6 +740,38 @@ function parseServings(value: string): number | null {
   return parsed;
 }
 
+function inferRecipeServings(recipe: RecipeImportResult): number | null {
+  const normalizedTitle = normalizeFoodText(recipe.title);
+  const sandwichLikeTitle = /\b(burger|sandwich|wrap|taco|toast|hot dog)\b/.test(normalizedTitle);
+  if (!sandwichLikeTitle) {
+    return null;
+  }
+
+  const servingAnchorCount = recipe.ingredientDrafts.reduce<number | null>((bestCount, ingredient) => {
+    const normalizedIngredient = normalizeFoodText(
+      `${ingredient.name} ${ingredient.nutritionQuery} ${translateIngredientName(ingredient.name)} ${translateIngredientName(ingredient.nutritionQuery)}`
+    );
+    const isServingAnchor = /\b(hamburger bun|bun|bread|slice bread|wrap|tortilla|taco shell|hot dog bun)\b/.test(normalizedIngredient);
+    if (!isServingAnchor) {
+      return bestCount;
+    }
+
+    const quantity = parseQuantity(ingredient.amount) ?? inferImplicitQuantity(ingredient, normalizeUnit(ingredient.unit));
+    if (!quantity || quantity < 1 || quantity > 8) {
+      return bestCount;
+    }
+
+    const rounded = Math.round(quantity);
+    if (bestCount === null) {
+      return rounded;
+    }
+
+    return Math.max(bestCount, rounded);
+  }, null);
+
+  return servingAnchorCount;
+}
+
 function formatCalories(value: number): string {
   return `${Math.max(0, Math.round(value))} kcal`;
 }
@@ -614,6 +782,131 @@ function formatMacro(value: number): string {
     maximumFractionDigits: 1,
     minimumFractionDigits: 0
   }).format(rounded)} g`;
+}
+
+function parseExistingNutrition(recipe: RecipeImportResult): ParsedNutritionValues {
+  return {
+    calories: parseNutritionNumber(recipe.caloriesText),
+    protein: parseNutritionNumber(recipe.proteinText),
+    carbs: parseNutritionNumber(recipe.carbsText),
+    fat: parseNutritionNumber(recipe.fatText)
+  };
+}
+
+function parseNutritionNumber(value: string): number | null {
+  const match = value.replace(",", ".").match(/(\d+(?:\.\d+)?)/);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function nutritionLooksSuspicious(
+  existingNutrition: ParsedNutritionValues,
+  usdaPerServing: NutritionTotals,
+  context: {
+    matchedIngredients: number;
+    consideredIngredients: number;
+  }
+): boolean {
+  if (context.matchedIngredients < 2 || usdaPerServing.calories <= 0) {
+    return false;
+  }
+
+  const coverage = context.consideredIngredients > 0
+    ? context.matchedIngredients / context.consideredIngredients
+    : 0;
+  if (coverage >= 0.35) {
+    return true;
+  }
+
+  if (caloriesConflictWithMacros(existingNutrition) || impossibleMacroDensity(existingNutrition)) {
+    return true;
+  }
+
+  if (numericMismatch(existingNutrition.protein, usdaPerServing.protein, 12)) {
+    return true;
+  }
+
+  if (numericMismatch(existingNutrition.calories, usdaPerServing.calories, 180)) {
+    return true;
+  }
+
+  if (numericMismatch(existingNutrition.fat, usdaPerServing.fat, 8)) {
+    return true;
+  }
+
+  return numericMismatch(existingNutrition.carbs, usdaPerServing.carbs, 20);
+}
+
+function caloriesConflictWithMacros(values: ParsedNutritionValues): boolean {
+  if (values.calories === null || values.calories < 80) {
+    return false;
+  }
+
+  const macroCalories = impliedMacroCalories(values);
+  if (macroCalories === null || macroCalories < 60) {
+    return false;
+  }
+
+  const delta = Math.abs(values.calories - macroCalories);
+  const tolerance = Math.max(45, values.calories * 0.22, macroCalories * 0.22);
+  return delta > tolerance;
+}
+
+function impossibleMacroDensity(values: ParsedNutritionValues): boolean {
+  if (values.calories === null || values.calories <= 0) {
+    return false;
+  }
+
+  const calorieBudget = values.calories * 1.15 + 30;
+  if (values.protein !== null && values.protein >= 12 && values.protein * 4 > calorieBudget) {
+    return true;
+  }
+
+  if (values.carbs !== null && values.carbs >= 16 && values.carbs * 4 > calorieBudget) {
+    return true;
+  }
+
+  return values.fat !== null &&
+    values.fat >= 8 &&
+    values.fat * 9 > calorieBudget;
+}
+
+function impliedMacroCalories(
+  values: Pick<ParsedNutritionValues, "protein" | "carbs" | "fat">
+): number | null {
+  if (values.protein === null || values.carbs === null || values.fat === null) {
+    return null;
+  }
+
+  return Math.max(values.protein, 0) * 4 +
+    Math.max(values.carbs, 0) * 4 +
+    Math.max(values.fat, 0) * 9;
+}
+
+function numericMismatch(
+  existingValue: number | null,
+  usdaValue: number,
+  minimumMeaningfulValue: number
+): boolean {
+  if (usdaValue < minimumMeaningfulValue) {
+    return false;
+  }
+
+  if (existingValue === null) {
+    return true;
+  }
+
+  if (existingValue <= 0 && usdaValue > minimumMeaningfulValue) {
+    return true;
+  }
+
+  const lowerBound = usdaValue * 0.6;
+  const upperBound = usdaValue * 1.8;
+  return existingValue < lowerBound || existingValue > upperBound;
 }
 
 function isMinorIngredient(ingredient: RecipeIngredientDraft): boolean {
@@ -693,7 +986,23 @@ const translationPatterns: Array<[RegExp, string]> = [
   [/\bparmesan\b/g, "parmesan cheese"],
   [/\bmozzarella\b/g, "mozzarella cheese"],
   [/\bcheddar\b/g, "cheddar cheese"],
+  [/\bemmental\b/g, "emmental cheese"],
   [/\bgruyere\b/g, "gruyere cheese"],
+  [/\bfromage\b/g, "cheese"],
+  [/\bcornichons?\b/g, "pickle"],
+  [/\bmayonnaise\b/g, "mayonnaise"],
+  [/\bketchup\b/g, "ketchup"],
+  [/\bmoutarde\b/g, "mustard"],
+  [/\bsweet relish\b/g, "pickle relish"],
+  [/\brelish\b/g, "pickle relish"],
+  [/\bcoleslaw\b/g, "coleslaw"],
+  [/\bpain burger\b/g, "hamburger bun"],
+  [/\bbuns?\b/g, "hamburger bun"],
+  [/\bhot tenders?\b/g, "chicken tenders"],
+  [/\btenders?\b/g, "chicken tenders"],
+  [/\bsteaks? de poulet\b/g, "chicken patty"],
+  [/\bsteaks? hach(?:e|ee|es|és)?\b/g, "beef patty"],
+  [/\bpain\b/g, "bread"],
   [/\briz\b/g, "rice"],
   [/\bpates?\b/g, "pasta"],
   [/\bavoine\b/g, "oats"],
@@ -705,6 +1014,52 @@ const translationPatterns: Array<[RegExp, string]> = [
   [/\bbasilic\b/g, "basil"]
 ];
 
+const fallbackNutritionProfiles: Array<NutritionTotals & { keywords: string[] }> = [
+  { keywords: ["olive oil", "truffle oil", "vegetable oil", "oil"], calories: 884, protein: 0, carbs: 0, fat: 100 },
+  { keywords: ["butter"], calories: 717, protein: 0.9, carbs: 0.1, fat: 81 },
+  { keywords: ["flour"], calories: 364, protein: 10, carbs: 76, fat: 1 },
+  { keywords: ["sugar"], calories: 387, protein: 0, carbs: 100, fat: 0 },
+  { keywords: ["dark chocolate", "chocolate"], calories: 540, protein: 4.9, carbs: 61, fat: 31 },
+  { keywords: ["cocoa powder"], calories: 228, protein: 20, carbs: 58, fat: 14 },
+  { keywords: ["egg"], calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+  { keywords: ["ground beef", "beef patty"], calories: 250, protein: 26, carbs: 0, fat: 17 },
+  { keywords: ["chicken thigh"], calories: 209, protein: 26, carbs: 0, fat: 10.9 },
+  { keywords: ["chicken breast", "chicken patty"], calories: 165, protein: 31, carbs: 0, fat: 3.6 },
+  { keywords: ["chicken tenders"], calories: 220, protein: 14, carbs: 16, fat: 10 },
+  { keywords: ["white fish", "fish fillet", "cod"], calories: 96, protein: 20, carbs: 0, fat: 2 },
+  { keywords: ["hamburger bun", "pizza dough", "flatbread", "flour tortilla", "bread"], calories: 275, protein: 9, carbs: 52, fat: 4.5 },
+  { keywords: ["dry pasta", "pasta"], calories: 371, protein: 13, carbs: 75, fat: 1.5 },
+  { keywords: ["rice"], calories: 365, protein: 7, carbs: 80, fat: 0.7 },
+  { keywords: ["cheddar cheese"], calories: 404, protein: 25, carbs: 1.3, fat: 33 },
+  { keywords: ["mozzarella cheese"], calories: 280, protein: 28, carbs: 3, fat: 17 },
+  { keywords: ["parmesan cheese"], calories: 431, protein: 38, carbs: 4, fat: 29 },
+  { keywords: ["mascarpone cheese"], calories: 429, protein: 4, carbs: 4, fat: 44 },
+  { keywords: ["mayonnaise"], calories: 680, protein: 1, carbs: 1, fat: 75 },
+  { keywords: ["thousand island dressing", "burger sauce"], calories: 430, protein: 1, carbs: 18, fat: 39 },
+  { keywords: ["sour cream"], calories: 193, protein: 2.4, carbs: 4.6, fat: 19 },
+  { keywords: ["yogurt"], calories: 61, protein: 3.5, carbs: 4.7, fat: 3.3 },
+  { keywords: ["pickle relish", "coleslaw"], calories: 140, protein: 1.2, carbs: 13, fat: 9 },
+  { keywords: ["pickle"], calories: 18, protein: 0.5, carbs: 4, fat: 0.2 },
+  { keywords: ["lettuce"], calories: 15, protein: 1.4, carbs: 2.9, fat: 0.2 },
+  { keywords: ["cabbage"], calories: 25, protein: 1.3, carbs: 6, fat: 0.1 },
+  { keywords: ["tomato sauce"], calories: 29, protein: 1.4, carbs: 5.6, fat: 0.2 },
+  { keywords: ["tomato"], calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2 },
+  { keywords: ["cucumber"], calories: 15, protein: 0.7, carbs: 3.6, fat: 0.1 },
+  { keywords: ["onion"], calories: 40, protein: 1.1, carbs: 9.3, fat: 0.1 },
+  { keywords: ["garlic"], calories: 149, protein: 6.4, carbs: 33, fat: 0.5 },
+  { keywords: ["mushroom"], calories: 22, protein: 3.1, carbs: 3.3, fat: 0.3 },
+  { keywords: ["basil", "parsley", "cilantro"], calories: 30, protein: 3, carbs: 4, fat: 0.8 },
+  { keywords: ["lime", "lemon"], calories: 29, protein: 1.1, carbs: 9.3, fat: 0.3 },
+  { keywords: ["breadcrumbs"], calories: 395, protein: 13, carbs: 72, fat: 5 },
+  { keywords: ["curry powder"], calories: 325, protein: 14, carbs: 58, fat: 14 },
+  { keywords: ["paprika", "ground cumin", "black pepper", "salt", "baking powder"], calories: 0, protein: 0, carbs: 0, fat: 0 },
+  { keywords: ["heavy cream", "cream"], calories: 340, protein: 2, carbs: 3, fat: 36 },
+  { keywords: ["coconut milk"], calories: 197, protein: 2, carbs: 3, fat: 21 },
+  { keywords: ["coffee"], calories: 1, protein: 0.1, carbs: 0, fat: 0 },
+  { keywords: ["ladyfinger cookie"], calories: 390, protein: 10, carbs: 72, fat: 5 },
+  { keywords: ["chickpeas"], calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6 }
+];
+
 const densityProfiles = [
   { keywords: ["olive oil", "vegetable oil", "oil"], gramsPerMl: 0.91 },
   { keywords: ["butter"], gramsPerMl: 0.96 },
@@ -712,6 +1067,8 @@ const densityProfiles = [
   { keywords: ["sugar", "brown sugar"], gramsPerMl: 0.85 },
   { keywords: ["powdered sugar"], gramsPerMl: 0.56 },
   { keywords: ["honey"], gramsPerMl: 1.42 },
+  { keywords: ["mayonnaise"], gramsPerMl: 0.95 },
+  { keywords: ["ketchup", "mustard"], gramsPerMl: 1.15 },
   { keywords: ["oats"], gramsPerMl: 0.34 },
   { keywords: ["rice"], gramsPerMl: 0.85 },
   { keywords: ["milk", "cream", "yogurt"], gramsPerMl: 1.03 }
@@ -732,11 +1089,55 @@ const itemWeightProfiles = [
   { keywords: ["lime"], grams: 67 },
   { keywords: ["chicken breast"], grams: 174 },
   { keywords: ["chicken thigh"], grams: 120 },
+  { keywords: ["chicken tenders"], grams: 45 },
+  { keywords: ["chicken patty"], grams: 100 },
+  { keywords: ["beef patty"], grams: 110 },
   { keywords: ["avocado"], grams: 150 },
   { keywords: ["banana"], grams: 118 },
   { keywords: ["apple"], grams: 182 },
+  { keywords: ["pickle"], grams: 8 },
+  { keywords: ["pickle relish"], grams: 15 },
+  { keywords: ["coleslaw"], grams: 35 },
+  { keywords: ["emmental cheese", "cheddar cheese", "mozzarella cheese", "gruyere cheese"], grams: 20 },
+  { keywords: ["hamburger bun", "bun"], grams: 75 },
   { keywords: ["parsley", "cilantro", "basil"], grams: 15 },
   { keywords: ["slice bread", "bread"], grams: 30 }
+];
+
+const implicitPieceKeywords = [
+  "egg",
+  "garlic clove",
+  "garlic",
+  "shallot",
+  "onion",
+  "tomato",
+  "carrot",
+  "potato",
+  "zucchini",
+  "bell pepper",
+  "mushroom",
+  "lemon",
+  "lime",
+  "chicken breast",
+  "chicken thigh",
+  "chicken tenders",
+  "chicken patty",
+  "beef patty",
+  "avocado",
+  "banana",
+  "apple",
+  "pickle",
+  "hamburger bun",
+  "bun"
+];
+
+const implicitVolumeProfiles = [
+  { keywords: ["mayonnaise"], ml: 15 },
+  { keywords: ["ketchup"], ml: 15 },
+  { keywords: ["mustard"], ml: 10 },
+  { keywords: ["pickle relish", "relish"], ml: 15 },
+  { keywords: ["coleslaw"], ml: 30 },
+  { keywords: ["sauce"], ml: 15 }
 ];
 
 const minorIngredientKeywords = [

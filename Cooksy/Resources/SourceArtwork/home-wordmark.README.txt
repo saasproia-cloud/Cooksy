@@ -1,0 +1,13 @@
+Place your exact top-left home wordmark image at:
+Cooksy/Resources/Assets.xcassets/HomeWordmark.imageset/
+
+Filenames:
+- home-wordmark.png
+- home-wordmark@2x.png
+- home-wordmark@3x.png
+
+If you only have one exact PNG and do not want it changed:
+- duplicate the exact same file 3 times
+- keep those filenames exactly
+
+This image is displayed exactly as provided in the home header.

@@ -151,7 +151,7 @@ struct PasteTextImportView: View {
         .padding(.vertical, 18)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(hex: 0xF2F2F6))
+                .fill(CooksyTheme.surface)
         )
     }
 

@@ -39,12 +39,17 @@ enum RecipeImportPipeline {
     }
 
     static func importPhoto(from imageData: Data) async -> RecipeEditorSeed {
-        if let backendSeed = try? await CooksyBackendService.importPhoto(imageData),
-           shouldUseImportedSeed(backendSeed, sourceKind: .photo),
-           shouldAcceptImportedSeed(backendSeed, validationSourceKind: .photo) {
-            var seed = backendSeed
-            seed.imageData = seed.imageData ?? imageData
-            return seed
+        do {
+            let backendSeed = try await CooksyBackendService.importPhoto(imageData)
+            if shouldUseImportedSeed(backendSeed, sourceKind: .photo),
+               shouldAcceptImportedSeed(backendSeed, validationSourceKind: .photo) {
+                var seed = backendSeed
+                seed.imageData = seed.imageData ?? imageData
+                return seed
+            }
+        } catch CooksyBackendError.notFood {
+            return notFoodSeed()
+        } catch {
         }
 
         async let recognizedTextTask = RecipeOCRService.recognizeText(from: imageData)
@@ -79,18 +84,24 @@ enum RecipeImportPipeline {
             return demoSeed
         }
 
-        if !trimmedText.isEmpty,
-           let backendSeed = try? await CooksyBackendService.importText(
-            trimmedText,
-            imageData: imageData,
-            previewMode: preferPreviewBackend,
-            sharedMode: sharedMode
-           ),
-           shouldUseImportedSeed(backendSeed, sourceKind: .text),
-           shouldAcceptImportedSeed(backendSeed, validationSourceKind: .text) {
-            var seed = backendSeed
-            seed.imageData = seed.imageData ?? imageData
-            return seed
+        if !trimmedText.isEmpty {
+            do {
+                let backendSeed = try await CooksyBackendService.importText(
+                    trimmedText,
+                    imageData: imageData,
+                    previewMode: preferPreviewBackend,
+                    sharedMode: sharedMode
+                )
+                if shouldUseImportedSeed(backendSeed, sourceKind: .text),
+                   shouldAcceptImportedSeed(backendSeed, validationSourceKind: .text) {
+                    var seed = backendSeed
+                    seed.imageData = seed.imageData ?? imageData
+                    return seed
+                }
+            } catch CooksyBackendError.notFood {
+                return notFoodSeed()
+            } catch {
+            }
         }
 
         var seed = RecipeTextParser.parse(trimmedText, imageData: imageData)
@@ -564,6 +575,20 @@ enum RecipeImportPipeline {
             normalizedText.contains("instagram") ||
             normalizedText.contains("pinterest") ||
             normalizedText.contains("pin.it")
+    }
+
+    private static func notFoodSeed() -> RecipeEditorSeed {
+        RecipeEditorSeed(
+            importDebug: RecipeImportDebugInfo(
+                ingredientsCount: 0,
+                stepsCount: 0,
+                strategy: "strict",
+                durationMs: 0,
+                isLikelyValid: false,
+                missing: ["ingredients", "steps"],
+                failureReason: "not_food"
+            )
+        )
     }
 
     private static func mergeDetectedIngredients(_ detectedIngredients: [String], into seed: inout RecipeEditorSeed) {

@@ -13,6 +13,7 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
     var sharedImageFilename: String?
     var preparedSeed: RecipeEditorSeed?
     var handoffAction: SharedImportHandoffAction?
+    var handoffToken: String?
     var capturedAt: Date
 
     var url: URL? {
@@ -63,6 +64,19 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
         return urlString ?? "Import partagé"
     }
 
+    var isLikelyVideoImport: Bool {
+        let candidates = [
+            preferredImportURL?.host,
+            url?.host,
+            sourceApp
+        ]
+        .compactMap { $0?.lowercased() }
+
+        return candidates.contains { value in
+            value.contains("tiktok") || value.contains("instagram") || value.contains("reel")
+        }
+    }
+
     var combinedTextContext: String {
         [sharedText?.trimmingCharacters(in: .whitespacesAndNewlines), preferredImportURL?.absoluteString]
             .compactMap { value in
@@ -80,6 +94,7 @@ struct SharedImportDraft: Codable, Equatable, Hashable {
             sharedImageFilename ?? "",
             preparedSeed?.normalizedTitle ?? "",
             handoffAction?.rawValue ?? "",
+            handoffToken ?? "",
             ISO8601DateFormatter().string(from: capturedAt)
         ]
         .joined(separator: "|")

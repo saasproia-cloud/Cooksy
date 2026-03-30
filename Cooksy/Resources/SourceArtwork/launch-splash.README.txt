@@ -1,9 +1,17 @@
 Place your exact splash image at:
-Cooksy/Resources/Assets.xcassets/LaunchSplash.imageset/launch-splash.png
+Cooksy/Resources/Assets.xcassets/LaunchSplash.imageset/
 
-Requirements:
-- Keep the filename exactly: launch-splash.png
+Filenames:
+- launch-splash.png
+- launch-splash@2x.png
+- launch-splash@3x.png
+
+If you only have one exact PNG and do not want it changed:
+- duplicate the exact same file 3 times
+- keep those filenames exactly
+
+Recommended:
 - Use the exact image you want to display at app launch
-- Recommended size: 1024x1792 or larger portrait PNG
+- Portrait PNG, 1024x1792 or larger
 
 Once the file is added, the app will use it automatically.

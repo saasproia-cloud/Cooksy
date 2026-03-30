@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "launch-splash.png",
+      "filename" : "post-splash-hero.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "launch-splash@2x.png",
+      "filename" : "post-splash-hero@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "launch-splash@3x.png",
+      "filename" : "post-splash-hero@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

@@ -44,32 +44,36 @@ struct RecipeImportFailureView: View {
                 VStack(spacing: 20) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(Color.white.opacity(0.94))
-                            .frame(width: 110, height: 110)
+                            .fill(CooksyTheme.elevatedSurface)
+                            .frame(width: 96, height: 96)
 
                         Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 42, weight: .semibold))
+                            .font(.system(size: 34, weight: .semibold))
                             .foregroundStyle(CooksyTheme.ctaOrangeDark)
                     }
 
                     VStack(spacing: 12) {
                         Text("Impossible d’importer cette recette")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(.system(size: 30, weight: .regular, design: .serif))
                             .foregroundStyle(CooksyTheme.primaryText)
                             .multilineTextAlignment(.center)
 
                         Text(message)
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundStyle(CooksyTheme.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                 }
                 .padding(.horizontal, 26)
-                .padding(.vertical, 34)
+                .padding(.vertical, 28)
                 .background(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(Color.white.opacity(0.9))
-                        .shadow(color: Color.black.opacity(0.08), radius: 24, y: 12)
+                        .fill(CooksyTheme.elevatedSurface)
+                        .shadow(color: Color.black.opacity(0.08), radius: 18, y: 10)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
                 )
                 .padding(.horizontal, 24)
 
@@ -92,7 +96,7 @@ struct RecipeImportFailureView: View {
                         onCancel()
                     }
                     .buttonStyle(.plain)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .padding(.top, 4)
                 }
@@ -123,10 +127,10 @@ struct RecipeImportFailureView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(textColor)
                 .frame(maxWidth: .infinity)
-                .frame(height: 62)
+                .frame(height: 56)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(fill)

@@ -10,13 +10,13 @@ struct CooksyLogoMark: View {
     var body: some View {
         ZStack {
             Ellipse()
-                .fill(CooksyTheme.brandBlue.opacity(0.34))
+                .fill(CooksyTheme.secondaryAccent.opacity(0.28))
                 .frame(width: size * 1.78, height: size * 1.48)
                 .blur(radius: size * 0.24)
                 .offset(x: -size * 0.02, y: size * 0.1)
 
             Ellipse()
-                .fill(CooksyTheme.brandBlue.opacity(0.18))
+                .fill(CooksyTheme.primaryAccentSoft.opacity(0.4))
                 .frame(width: size * 1.24, height: size * 1.08)
                 .blur(radius: size * 0.13)
                 .offset(x: -size * 0.06, y: size * 0.07)
@@ -28,7 +28,7 @@ struct CooksyLogoMark: View {
                 .offset(x: size * 0.48, y: -size * 0.16)
 
             ChefHatShape()
-                .fill(CooksyTheme.brandBlueDark.opacity(0.14))
+                .fill(CooksyTheme.primaryAccentStrong.opacity(0.12))
                 .offset(x: size * 0.018, y: size * 0.055)
 
             ChefHatShape()
@@ -42,8 +42,8 @@ struct CooksyLogoMark: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(hex: 0xD7E4F7).opacity(0.94),
-                            Color(hex: 0xEDF4FF).opacity(0.38)
+                            CooksyTheme.blush.opacity(0.98),
+                            CooksyTheme.softCloud.opacity(0.52)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -170,4 +170,3 @@ private struct SparkleShape: Shape {
         return path
     }
 }
-

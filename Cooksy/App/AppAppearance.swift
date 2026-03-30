@@ -6,19 +6,19 @@ enum AppAppearance {
     static func configure() {
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithTransparentBackground()
-        tabBarAppearance.backgroundColor = UIColor(hex: 0xFFFDF9, alpha: 0.96)
-        tabBarAppearance.shadowColor = UIColor(hex: 0xE4D7C2)
+        tabBarAppearance.backgroundColor = UIColor(hex: 0xFFF8F0, alpha: 0.98)
+        tabBarAppearance.shadowColor = UIColor(hex: 0xE6D4BF)
 
         let normalAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor(hex: 0x9B9488)
+            .foregroundColor: UIColor(hex: 0x7A6554)
         ]
         let selectedAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor(hex: 0xFF7A12)
+            .foregroundColor: UIColor(hex: 0xEA662A)
         ]
 
-        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(hex: 0x9B9488)
+        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(hex: 0x7A6554)
         tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = normalAttributes
-        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = UIColor(hex: 0xFF7A12)
+        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = UIColor(hex: 0xEA662A)
         tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = selectedAttributes
 
         UITabBar.appearance().standardAppearance = tabBarAppearance
@@ -26,6 +26,12 @@ enum AppAppearance {
 
         let navigationAppearance = UINavigationBarAppearance()
         navigationAppearance.configureWithTransparentBackground()
+        navigationAppearance.titleTextAttributes = [
+            .foregroundColor: UIColor(hex: 0x2B1A12)
+        ]
+        navigationAppearance.largeTitleTextAttributes = [
+            .foregroundColor: UIColor(hex: 0x2B1A12)
+        ]
         UINavigationBar.appearance().standardAppearance = navigationAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navigationAppearance
         UINavigationBar.appearance().compactAppearance = navigationAppearance

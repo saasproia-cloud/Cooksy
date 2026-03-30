@@ -41,7 +41,7 @@ async function searchRecipePagesViaSerpApi(
 
   const params = new URLSearchParams({
     engine: "google",
-    q: `${query} recette`,
+    q: decorateSearchQuery(query),
     hl: "fr",
     gl: "fr",
     num: "5",
@@ -81,7 +81,7 @@ async function searchRecipePagesViaDuckDuckGo(
   }
 ): Promise<SearchResultPage[]> {
   const params = new URLSearchParams({
-    q: `${query} recette`
+    q: decorateSearchQuery(query)
   });
   const response = await fetch(`https://html.duckduckgo.com/html/?${params.toString()}`, {
     headers: {
@@ -188,7 +188,7 @@ export async function fetchFallbackPages(
 }>> {
   const results = await searchRecipePages(query, options);
   const pages = await Promise.all(
-    results.slice(0, 3).map(async (result) => {
+    results.slice(0, 4).map(async (result) => {
       try {
         return await fetchPageSummary(result.url, {
           timeoutMs: options?.timeoutMs
@@ -200,4 +200,10 @@ export async function fetchFallbackPages(
   );
 
   return pages.filter((page): page is NonNullable<typeof page> => Boolean(page));
+}
+
+function decorateSearchQuery(query: string): string {
+  return /\b(?:recette|recipe)\b/i.test(query)
+    ? query
+    : `${query} recette`;
 }

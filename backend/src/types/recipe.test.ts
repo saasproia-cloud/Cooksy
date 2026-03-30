@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { sanitizeRecipeImport, shouldFallbackToSearch } from "./recipe.js";
+import {
+  hasCookabilityGaps,
+  sanitizeRecipeImport,
+  shouldFallbackToSearch
+} from "./recipe.js";
 
 test("sanitizeRecipeImport removes article-like noise from ingredients and steps", () => {
   const sanitized = sanitizeRecipeImport({
@@ -113,4 +117,205 @@ test("sanitizeRecipeImport shortens verbose social titles and drops commentary-o
     sanitized.stepDrafts.some((step) => step.detail.includes("commentaires")),
     false
   );
+});
+
+test("sanitizeRecipeImport rejects social hook titles and forces web fallback", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Réponse à @celia Maintenant vous n'avez plus d'excuses",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "2", unit: "", name: "pains burger", nutritionQuery: "hamburger bun" },
+      { amount: "2", unit: "", name: "hot tenders", nutritionQuery: "chicken tenders" },
+      { amount: "2", unit: "cas", name: "coleslaw", nutritionQuery: "coleslaw" }
+    ],
+    stepDrafts: [
+      { detail: "Grillez les pains puis ajoutez les hot tenders." },
+      { detail: "Ajoutez le coleslaw et refermez les burgers." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.equal(sanitized.title, "");
+  assert.equal(sanitized.needsWebFallback, true);
+  assert.equal(shouldFallbackToSearch(sanitized), true);
+});
+
+test("sanitizeRecipeImport splits merged ingredient entries into distinct ingredients", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Burger maison",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "2", unit: "tranches", name: "emmental/cornichon", nutritionQuery: "emmental cheese/pickle" },
+      { amount: "", unit: "", name: "ketchup...mayonnaise", nutritionQuery: "ketchup...mayonnaise" },
+      { amount: "2", unit: "", name: "steaks", nutritionQuery: "beef patties" }
+    ],
+    stepDrafts: [
+      { detail: "Faites cuire les steaks puis montez les burgers." },
+      { detail: "Ajoutez l'emmental, les cornichons et les sauces avant de servir." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.deepEqual(
+    sanitized.ingredientDrafts.map((ingredient) => ingredient.name),
+    ["emmental", "cornichon", "ketchup", "mayonnaise", "steaks"]
+  );
+  assert.equal(sanitized.ingredientDrafts[0]?.amount, "2");
+  assert.equal(sanitized.ingredientDrafts[1]?.amount, "");
+});
+
+test("sanitizeRecipeImport splits merged ingredient entries joined by commas and conjunctions", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Burger maison",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "", unit: "", name: "ketchup, mayonnaise", nutritionQuery: "ketchup, mayonnaise" },
+      { amount: "", unit: "", name: "cheddar et cornichons", nutritionQuery: "cheddar cheese and pickle" },
+      { amount: "2", unit: "", name: "steaks", nutritionQuery: "beef patties" }
+    ],
+    stepDrafts: [
+      { detail: "Faites cuire les steaks puis montez les burgers." },
+      { detail: "Ajoutez le cheddar, les cornichons et les sauces avant de servir." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.deepEqual(
+    sanitized.ingredientDrafts.map((ingredient) => ingredient.name),
+    ["ketchup", "mayonnaise", "cheddar", "cornichons", "steaks"]
+  );
+});
+
+test("hasCookabilityGaps detects when major ingredients are not reflected in steps", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Burger maison",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "2", unit: "", name: "pains burger", nutritionQuery: "hamburger bun" },
+      { amount: "2", unit: "", name: "steaks", nutritionQuery: "beef patties" },
+      { amount: "2", unit: "tranches", name: "emmental", nutritionQuery: "emmental cheese" },
+      { amount: "4", unit: "", name: "cornichons", nutritionQuery: "pickle" }
+    ],
+    stepDrafts: [
+      { detail: "Faites cuire les steaks." },
+      { detail: "Servez bien chaud." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "high",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.equal(hasCookabilityGaps(sanitized), true);
+  assert.equal(shouldFallbackToSearch(sanitized), true);
+});
+
+test("sanitizeRecipeImport keeps simple complete recipes stable without forcing web fallback", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Omelette fromage",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "3", unit: "", name: "oeufs", nutritionQuery: "egg" },
+      { amount: "30", unit: "g", name: "gruyere", nutritionQuery: "gruyere cheese" },
+      { amount: "10", unit: "g", name: "beurre", nutritionQuery: "butter" }
+    ],
+    stepDrafts: [
+      { detail: "Ajoutez une pincee de sel aux oeufs puis melangez." },
+      { detail: "Faites fondre le beurre dans une poele puis versez les oeufs." },
+      { detail: "Ajoutez le fromage, repliez l'omelette et servez." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "1",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "high",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.equal(sanitized.needsWebFallback, false);
+  assert.equal(shouldFallbackToSearch(sanitized), false);
+});
+
+test("sanitizeRecipeImport keeps compact two-step recipes without forcing web fallback", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Burger poulet",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "2", unit: "", name: "pains burger", nutritionQuery: "hamburger bun" },
+      { amount: "2", unit: "", name: "steaks de poulet", nutritionQuery: "chicken patty" },
+      { amount: "2", unit: "tranches", name: "cheddar", nutritionQuery: "cheddar cheese" }
+    ],
+    stepDrafts: [
+      { detail: "Faites cuire le poulet." },
+      { detail: "Montez les burgers et servez." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.equal(sanitized.needsWebFallback, false);
+  assert.equal(shouldFallbackToSearch(sanitized), false);
 });

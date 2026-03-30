@@ -4,7 +4,12 @@ import multipart from "@fastify/multipart";
 import { ZodError, z } from "zod";
 
 import { env, BackendConfigurationError, providerStatus } from "./config/env.js";
-import { importFromPhoto, importFromText, importFromUrl } from "./services/importService.js";
+import {
+  importFromPhoto,
+  importFromText,
+  importFromUrl,
+  RecipeImportNotFoodError
+} from "./services/importService.js";
 import { enrichShoppingImages } from "./services/shoppingImageService.js";
 
 const app = Fastify({
@@ -110,6 +115,14 @@ app.setErrorHandler((error, request, reply) => {
     reply.status(503).send({
       error: "Backend Misconfigured",
       message: error.message
+    });
+    return;
+  }
+
+  if (error instanceof RecipeImportNotFoodError) {
+    reply.status(422).send({
+      error: error.error,
+      reason: error.reason
     });
     return;
   }

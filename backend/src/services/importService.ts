@@ -1,17 +1,27 @@
 import { fetchPageSummary, resolveRemoteURL } from "./generalPageService.js";
-import { normalizeRecipeFromContext, transcribeMediaFromUrl } from "./openAIService.js";
+import {
+  normalizeRecipeFromContext,
+  reviewRecipeCookability,
+  transcribeMediaFromUrl
+} from "./openAIService.js";
 import { fetchFallbackPages } from "./searchFallbackService.js";
 import { resolveSocialContent } from "./socialContentService.js";
 import {
   fallbackRecipeFromContext,
   isOpenAIUnavailable,
+  strictRecipeFromContext,
   structuredRecipeFromBlocks
 } from "./heuristicRecipeService.js";
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
+  hasMeaningfulFoodSignal,
+  hasCookabilityGaps,
+  hasSuspiciousRecipeTitle,
   importFailureReason,
   importMissingParts,
   isLikelyValidRecipe,
+  normalizeRecipeImportFlags,
+  recipeCookabilitySignals,
   sanitizeRecipeImport,
   scoreRecipe,
   shouldFallbackToSearch,
@@ -35,6 +45,16 @@ type ImportedPageSummary = {
   structuredDataBlocks: string[];
   imageUrl?: string;
 };
+
+export class RecipeImportNotFoodError extends Error {
+  readonly error = "not_food";
+  readonly reason = "no_food_detected";
+
+  constructor() {
+    super("not_food");
+    this.name = "RecipeImportNotFoodError";
+  }
+}
 
 const PREVIEW_TOTAL_LIMIT_MS = 9_000;
 const PREVIEW_RESOLVE_TIMEOUT_MS = 2_500;
@@ -71,10 +91,25 @@ export async function importFromUrl(input: {
   );
 
   if (shouldTrustSharedTextRecipe(sharedTextRecipe, input.sharedText)) {
-    const finalizedRecipe = await finalizeImportedRecipe({
+    const sharedTextContext = buildUrlNormalizationContext({
+      canonicalSourceURL: input.url,
+      sharedText: input.sharedText,
+      pageSummary: null,
+      socialContent: null
+    });
+    const sharedTextBaseRecipe = {
       ...sharedTextRecipe,
       sourceUrl: sharedTextRecipe.sourceUrl || input.url
-    }, {
+    };
+    const reviewedSharedTextRecipe = await maybeReviewRecipeCookability(
+      sharedTextBaseRecipe,
+      sharedTextContext,
+      profile,
+      executionDeadline,
+      "shared-text"
+    );
+    const strictSharedTextRecipe = requireStrictRecipe(reviewedSharedTextRecipe, sharedTextContext);
+    const finalizedRecipe = await finalizeImportedRecipe(strictSharedTextRecipe, {
       skipNutrition: false
     });
     const durationMs = Date.now() - startedAt;
@@ -192,7 +227,7 @@ export async function importFromUrl(input: {
     );
 
     normalizedFromSocialText = true;
-    if (scoreRecipe(socialNormalizedRecipe) >= scoreRecipe(recipe)) {
+    if (shouldPreferRecipeCandidate(recipe, socialNormalizedRecipe)) {
       recipe = socialNormalizedRecipe;
     }
   }
@@ -252,13 +287,15 @@ export async function importFromUrl(input: {
         );
         normalizedAfterTranscript = true;
       }
-      if (scoreRecipe(audioRecipe) >= scoreRecipe(recipe)) {
+      if (shouldPreferRecipeCandidate(recipe, audioRecipe)) {
         recipe = audioRecipe;
         importStrategy = "audio";
         importStrategySourceURL = undefined;
       }
     }
   }
+
+  recipe = attemptDishRescue(recipe, buildContext());
 
   if (
     resolvedSocialContent?.externalLinks.length &&
@@ -285,7 +322,7 @@ export async function importFromUrl(input: {
         }
       );
 
-      if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
+      if (linkedFallbackRecipe && shouldPreferRecipeCandidate(recipe, linkedFallbackRecipe.recipe)) {
         recipe = linkedFallbackRecipe.recipe;
         usedWebFallback = true;
         importStrategy = "web";
@@ -295,24 +332,47 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (shouldFallbackToSearch(recipe) && hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)) {
-    const query = bestSearchQuery({
+  if (
+    shouldAttemptSearchEnrichment({
+      recipe,
+      sourcePlatform,
+      captionWasSparse
+    }) &&
+    hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
+  ) {
+    const queries = searchQueryCandidates({
       recipe,
       pageSummary,
       socialContent: resolvedSocialContent,
-      sharedText: input.sharedText
-    });
-    const searchPages = await fetchFallbackPages(
-      query,
-      sharedMode
-        ? { timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS) }
-        : undefined
-    );
+      sharedText: input.sharedText,
+      transcript
+    }).slice(0, 4);
 
-    if (searchPages.length) {
+    if (queries.length) {
+      console.info(`[importService] Trying search fallback queries for ${canonicalSourceURL}: ${queries.join(" | ")}`);
+    }
+
+    for (const query of queries) {
+      const searchPages = await fetchFallbackPages(
+        query,
+        sharedMode
+          ? { timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS) }
+          : undefined
+      );
+
+      if (!searchPages.length) {
+        continue;
+      }
+
       fallbackPages = mergeFallbackPages(fallbackPages, searchPages);
+      if (fallbackPages.length >= 4) {
+        break;
+      }
+    }
+
+    if (fallbackPages.length) {
       const searchFallbackRecipe = await recipeFromFallbackPages(
-        searchPages,
+        fallbackPages,
         input.sharedText,
         canonicalSourceURL,
         {
@@ -321,10 +381,10 @@ export async function importFromUrl(input: {
         }
       );
 
-      if (searchFallbackRecipe && scoreRecipe(searchFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
+      if (searchFallbackRecipe && shouldPreferRecipeCandidate(recipe, searchFallbackRecipe.recipe)) {
         recipe = searchFallbackRecipe.recipe;
         importStrategy = "fallback";
-        importStrategySourceURL = searchFallbackRecipe.sourceUrl ?? searchPages[0]?.url;
+        importStrategySourceURL = searchFallbackRecipe.sourceUrl ?? fallbackPages[0]?.url;
         normalizedFromWebFallback = true;
       }
       usedWebFallback = true;
@@ -357,7 +417,7 @@ export async function importFromUrl(input: {
       structuredRecipeFromBlocks(normalizedContext.pageStructuredData ?? [])
     );
 
-    if (scoreRecipe(normalizedRecipe) >= scoreRecipe(recipe)) {
+    if (shouldPreferRecipeCandidate(recipe, normalizedRecipe)) {
       recipe = normalizedRecipe;
     }
   } else if (!shouldTrustFastSocialRecipe(recipe, sourcePlatform)) {
@@ -365,6 +425,8 @@ export async function importFromUrl(input: {
       `[importService] Skipping final normalization for thin context on ${canonicalSourceURL}`
     );
   }
+
+  recipe = attemptDishRescue(recipe, buildContext());
 
   const recipeWithImportContext = applyImportContextNotes(
     {
@@ -379,7 +441,15 @@ export async function importFromUrl(input: {
     }
   );
 
-  const finalizedRecipe = await finalizeImportedRecipe(recipeWithImportContext, {
+  const reviewedRecipe = await maybeReviewRecipeCookability(
+    recipeWithImportContext,
+    buildContext(),
+    profile,
+    executionDeadline,
+    importStrategy
+  );
+  const strictRecipe = requireStrictRecipe(reviewedRecipe, buildContext());
+  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
     skipNutrition: false
   });
   const durationMs = Date.now() - startedAt;
@@ -500,11 +570,18 @@ function shouldAttemptSocialNormalization(input: {
     .trim();
 
   if (combinedText.length < 100) {
-    return false;
+    return Boolean(input.context.remoteImageUrl) &&
+      (
+        input.recipe.needsWebFallback ||
+        input.recipe.ingredientDrafts.length < 3 ||
+        input.recipe.stepDrafts.length < 2 ||
+        hasSuspiciousRecipeTitle(input.recipe.title)
+      );
   }
 
   return input.recipe.ingredientDrafts.length >= 2 ||
     input.recipe.stepDrafts.length >= 1 ||
+    Boolean(input.context.remoteImageUrl) ||
     /\b(?:ingrédients?|ingredients?|burger|tacos?|poulet|pasta|pates?|gateau|gâteau|tarte|pizza)\b/i.test(combinedText);
 }
 
@@ -562,6 +639,75 @@ function hasSparseSocialText(...values: Array<string | undefined>): boolean {
     .trim();
 
   return combined.length < 90;
+}
+
+function attemptDishRescue(
+  recipe: RecipeImportResult,
+  context: Parameters<typeof fallbackRecipeFromContext>[0]
+): RecipeImportResult {
+  if (!shouldAttemptDishRescue(recipe)) {
+    return recipe;
+  }
+
+  const cueText = [recipe.searchQuery, recipe.title]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join("\n");
+  const rescueContext = {
+    ...context,
+    sharedText: [cueText, context.sharedText]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .join("\n"),
+    pageTitle: context.pageTitle || recipe.title || recipe.searchQuery,
+    socialTitle: context.socialTitle || recipe.title || recipe.searchQuery
+  };
+  const rescuedRecipe = fallbackRecipeFromContext(rescueContext);
+
+  return shouldPreferRecipeCandidate(recipe, rescuedRecipe)
+    ? rescuedRecipe
+    : recipe;
+}
+
+function shouldAttemptDishRescue(recipe: RecipeImportResult): boolean {
+  const titleCue = recipe.title.trim() || recipe.searchQuery.trim();
+  if (!titleCue) {
+    return false;
+  }
+
+  return recipe.ingredientDrafts.length < 5 ||
+    recipe.stepDrafts.length < 4 ||
+    recipe.confidence === "low" ||
+    recipe.needsWebFallback ||
+    importMissingParts(recipe).length > 0;
+}
+
+function shouldAttemptSearchEnrichment(input: {
+  recipe: RecipeImportResult;
+  sourcePlatform: ReturnType<typeof platformFromUrl>;
+  captionWasSparse: boolean;
+}): boolean {
+  if (!hasMeaningfulFoodSignal(input.recipe)) {
+    return false;
+  }
+
+  if (shouldFallbackToSearch(input.recipe)) {
+    return true;
+  }
+
+  if (input.sourcePlatform === "web" || !input.captionWasSparse) {
+    return false;
+  }
+
+  if (!hasMeaningfulFoodSignal(input.recipe)) {
+    return false;
+  }
+
+  const flags = normalizeRecipeImportFlags(input.recipe.flags);
+  return input.recipe.ingredientDrafts.length < 7 ||
+    input.recipe.stepDrafts.length < 5 ||
+    !flags.usedExplicitIngredients ||
+    flags.usedInferredIngredients ||
+    flags.generatedSteps;
 }
 
 function applyImportContextNotes(
@@ -659,6 +805,16 @@ async function importPreviewFromUrl(
         usedTranscription: false,
         usedWebFallback: false,
         preferWeakMetadataReason: false
+      },
+      {
+        mode: "url",
+        sourceUrl: pageSummary?.canonicalUrl ?? pageSummary?.url ?? state.resolvedSourceURL,
+        remoteImageUrl: pageSummary?.imageUrl,
+        sharedText: input.sharedText,
+        pageTitle: pageSummary?.title,
+        pageDescription: pageSummary?.description,
+        pageTextContent: pageSummary?.textContent,
+        pageStructuredData: pageSummary?.structuredDataBlocks
       }
     );
   }
@@ -706,7 +862,7 @@ async function importPreviewFromUrl(
           };
       const socialRecipe = fallbackRecipeFromContext(socialRecipeContext);
 
-      if (scoreRecipe(socialRecipe) >= scoreRecipe(recipe)) {
+      if (shouldPreferRecipeCandidate(recipe, socialRecipe)) {
         recipe = socialRecipe;
         importStrategy = "social";
       }
@@ -733,7 +889,7 @@ async function importPreviewFromUrl(
         }
       );
 
-      if (linkedFallbackRecipe && scoreRecipe(linkedFallbackRecipe.recipe) >= scoreRecipe(recipe)) {
+      if (linkedFallbackRecipe && shouldPreferRecipeCandidate(recipe, linkedFallbackRecipe.recipe)) {
         recipe = linkedFallbackRecipe.recipe;
         importStrategy = "web";
         usedWebFallback = true;
@@ -771,6 +927,18 @@ async function importPreviewFromUrl(
       usedTranscription: false,
       usedWebFallback,
       preferWeakMetadataReason: captionWasSparse && !socialContent?.externalLinks.length
+    },
+    {
+      mode: "url",
+      sourceUrl: socialContent?.canonicalUrl || state.resolvedSourceURL,
+      remoteImageUrl: socialContent?.imageUrls[0] || "",
+      sharedText: input.sharedText,
+      socialTitle: socialContent?.title,
+      socialCaption: socialContent?.caption,
+      socialDescription: socialContent?.description,
+      socialPageText: socialContent?.pageText,
+      socialAuthor: socialContent?.authorName,
+      socialSubtitles: socialContent?.subtitlesText
     }
   );
 }
@@ -786,9 +954,11 @@ async function finalizePreviewResult(
     usedTranscription: boolean;
     usedWebFallback: boolean;
     preferWeakMetadataReason: boolean;
-  }
+  },
+  recipeContext: Parameters<typeof strictRecipeFromContext>[0]
 ): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
-  const finalizedRecipe = await finalizeImportedRecipe(recipe, {
+  const strictRecipe = requireStrictRecipe(recipe, recipeContext);
+  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
     skipNutrition: true
   });
   const durationMs = Date.now() - context.startedAt;
@@ -871,10 +1041,7 @@ function buildUrlNormalizationContext(input: {
     sharedText: input.sharedText,
     pageTitle: preferredPageValue(fallbackPages, "title") ?? input.pageSummary?.title,
     pageDescription: preferredPageValue(fallbackPages, "description") ?? input.pageSummary?.description,
-    pageTextContent: combinedPages
-      .map((page) => page.textContent?.trim())
-      .filter((value): value is string => Boolean(value))
-      .join("\n\n"),
+    pageTextContent: combinedPageContextText(combinedPages),
     pageStructuredData: combinedPages.flatMap((page) => page.structuredDataBlocks ?? []),
     socialTitle: input.socialContent?.title,
     socialCaption: input.socialContent?.caption,
@@ -936,66 +1103,207 @@ async function recipeFromFallbackPages(
     return null;
   }
 
-  const baseContext = {
-    mode: "url",
-    sourceUrl,
-    remoteImageUrl: pages.map((page) => page.imageUrl).find(Boolean),
-    sharedText,
-    pageTitle: pages.map((page) => page.title).find(Boolean),
-    pageDescription: pages.map((page) => page.description).find(Boolean),
-    pageTextContent: pages.map((page) => page.textContent).filter(Boolean).join("\n\n"),
-    pageStructuredData: pages.flatMap((page) => page.structuredDataBlocks)
-  } as const;
+  const baseContext = buildFallbackPageContext(pages, sharedText, sourceUrl);
   const fallbackStructuredRecipe = structuredRecipeFromBlocks(
     pages.flatMap((page) => page.structuredDataBlocks)
   );
-  let normalizedFallbackRecipe = preferStructuredRecipe(
+  let bestRecipe = preferStructuredRecipe(
     fallbackRecipeFromContext(baseContext),
     fallbackStructuredRecipe
   );
+  let bestSourceUrl = pages[0]?.url;
+
+  for (const page of pages) {
+    const pageContext = buildFallbackPageContext([page], sharedText, page.url);
+    const pageStructuredRecipe = structuredRecipeFromBlocks(page.structuredDataBlocks);
+    const pageRecipe = preferStructuredRecipe(
+      fallbackRecipeFromContext(pageContext),
+      pageStructuredRecipe
+    );
+
+    if (shouldPreferRecipeCandidate(bestRecipe, pageRecipe)) {
+      bestRecipe = pageRecipe;
+      bestSourceUrl = page.url;
+    }
+  }
 
   if (!options?.previewMode) {
     if (options && options.normalizationTimeoutMs == null) {
       return {
-        recipe: normalizedFallbackRecipe,
-        sourceUrl: pages[0]?.url
+        recipe: bestRecipe,
+        sourceUrl: bestSourceUrl
       };
     }
 
     const fallbackRecipe = await safeNormalize(baseContext, {
       timeoutMs: options?.normalizationTimeoutMs
     });
-    normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
+    const normalizedFallbackRecipe = preferStructuredRecipe(fallbackRecipe, fallbackStructuredRecipe);
+    if (shouldPreferRecipeCandidate(bestRecipe, normalizedFallbackRecipe)) {
+      bestRecipe = normalizedFallbackRecipe;
+      bestSourceUrl = pages[0]?.url;
+    }
   }
 
   return {
-    recipe: normalizedFallbackRecipe,
-    sourceUrl: pages[0]?.url
+    recipe: bestRecipe,
+    sourceUrl: bestSourceUrl
   };
 }
 
-function bestSearchQuery(input: {
+async function maybeEnrichRecipeFromSearch(
+  recipe: RecipeImportResult,
+  input: {
+    sourcePlatform: ReturnType<typeof platformFromUrl>;
+    pageSummary: ImportedPageSummary | null;
+    socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+    sharedText?: string;
+    transcript?: string | null;
+  },
+  profile: ImportRuntimeProfile,
+  deadline?: number
+): Promise<RecipeImportResult> {
+  if (!shouldAttemptSearchEnrichment({
+    recipe,
+    sourcePlatform: input.sourcePlatform,
+    captionWasSparse: true
+  })) {
+    return recipe;
+  }
+
+  const timeoutMs = profile === "preview"
+    ? boundedPreviewTimeout(deadline ?? Date.now() + PREVIEW_TOTAL_LIMIT_MS, PREVIEW_WEB_TIMEOUT_MS)
+    : boundedExecutionTimeout(deadline, SHARED_WEB_TIMEOUT_MS, profile === "shared" ? SHARED_RESERVE_MS : 0);
+  if (!timeoutMs) {
+    return recipe;
+  }
+
+  const queries = searchQueryCandidates({
+    recipe,
+    pageSummary: input.pageSummary,
+    socialContent: input.socialContent,
+    sharedText: input.sharedText,
+    transcript: input.transcript ?? null
+  }).slice(0, 3);
+  if (!queries.length) {
+    return recipe;
+  }
+
+  const pages: ImportedPageSummary[] = [];
+  for (const query of queries) {
+    const results = await fetchFallbackPages(query, { timeoutMs });
+    for (const page of results) {
+      if (!pages.some((existing) => existing.url === page.url)) {
+        pages.push(page);
+      }
+      if (pages.length >= 4) {
+        break;
+      }
+    }
+    if (pages.length >= 4) {
+      break;
+    }
+  }
+
+  if (!pages.length) {
+    return recipe;
+  }
+
+  const sourceUrl = recipe.sourceUrl || input.pageSummary?.url || input.socialContent?.canonicalUrl || "";
+  const fallbackRecipe = await recipeFromFallbackPages(
+    pages,
+    input.sharedText,
+    sourceUrl,
+    {
+      previewMode: profile === "preview",
+      normalizationTimeoutMs: profile === "preview"
+        ? undefined
+        : normalizationTimeoutForProfile(profile, deadline, 8_000)
+    }
+  );
+
+  if (!fallbackRecipe) {
+    return recipe;
+  }
+
+  return shouldPreferRecipeCandidate(recipe, fallbackRecipe.recipe)
+    ? fallbackRecipe.recipe
+    : recipe;
+}
+
+export function bestSearchQuery(input: {
   recipe: RecipeImportResult;
   pageSummary: ImportedPageSummary | null;
   socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
   sharedText?: string;
+  transcript?: string | null;
 }): string {
+  return searchQueryCandidates(input)[0] ?? "";
+}
+
+function searchQueryCandidates(input: {
+  recipe: RecipeImportResult;
+  pageSummary: ImportedPageSummary | null;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  sharedText?: string;
+  transcript?: string | null;
+}): string[] {
   const candidates = [
-    input.recipe.searchQuery,
-    nonGenericSearchCandidate(input.socialContent?.caption),
-    nonGenericSearchCandidate(input.sharedText),
-    nonGenericSearchCandidate(input.socialContent?.description),
-    nonGenericSearchCandidate(input.pageSummary?.description),
-    nonGenericSearchCandidate(input.pageSummary?.title),
-    nonGenericSearchCandidate(input.recipe.title)
+    decorateRecipeSearchQuery(input.recipe.searchQuery),
+    decorateRecipeSearchQuery(keywordRichRecipeQuery(input)),
+    inferredDishSearchTitle(input),
+    ...searchTextCandidates(input)
+      .map(nonGenericSearchCandidate)
+      .map((value) => value ? decorateRecipeSearchQuery(extractDishPhraseFromText(value) ?? value) : undefined)
   ];
 
-  return candidates.find((value): value is string => Boolean(value)) ?? "";
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const normalized = candidate?.trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function searchTextCandidates(input: {
+  recipe: RecipeImportResult;
+  pageSummary: ImportedPageSummary | null;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  sharedText?: string;
+  transcript?: string | null;
+}): string[] {
+  return [
+    input.transcript ?? undefined,
+    input.socialContent?.subtitlesText,
+    input.socialContent?.pageText,
+    input.socialContent?.caption,
+    input.socialContent?.description,
+    input.sharedText,
+    input.pageSummary?.description,
+    input.pageSummary?.textContent,
+    input.pageSummary?.title,
+    input.socialContent?.title,
+    input.recipe.title,
+    input.recipe.ingredientDrafts.map((ingredient) => ingredient.name).join(" "),
+    input.recipe.stepDrafts.map((step) => step.detail).join(" ")
+  ]
+    .filter((value): value is string => Boolean(value?.trim()));
 }
 
 function nonGenericSearchCandidate(value?: string): string | undefined {
   const trimmed = compactRecipeSearchCandidate(value);
   if (!trimmed) {
+    return undefined;
+  }
+
+  if (hasSuspiciousRecipeTitle(trimmed)) {
     return undefined;
   }
 
@@ -1022,7 +1330,8 @@ function nonGenericSearchCandidate(value?: string): string | undefined {
     !line.startsWith("#") &&
     !/^(?:[-•*]|\d+[.)-])/.test(line) &&
     line.length >= 6 &&
-    !line.toLowerCase().includes("http")
+    !line.toLowerCase().includes("http") &&
+    !hasSuspiciousRecipeTitle(line)
   );
 
   if (narrativeLine) {
@@ -1055,6 +1364,7 @@ function compactRecipeSearchCandidate(value?: string): string | undefined {
 
   let candidate = trimmed
     .replace(/#[\p{L}\p{N}_]+/gu, " ")
+    .replace(/@[\p{L}\p{N}._-]+/gu, " ")
     .replace(/\s*---+\s*(?:instructions?|étapes?|etapes|préparation|preparation)\b.*$/iu, "")
     .replace(/\b(?:ingredients?|ingrédients?|instructions?|étapes?|etapes|dough|mixture|coating|serve with)\b.*$/iu, "")
     .replace(/\s{2,}/g, " ")
@@ -1073,6 +1383,274 @@ function compactRecipeSearchCandidate(value?: string): string | undefined {
   return candidate || undefined;
 }
 
+function inferredDishSearchTitle(input: {
+  recipe: RecipeImportResult;
+  pageSummary: ImportedPageSummary | null;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  sharedText?: string;
+  transcript?: string | null;
+}): string | undefined {
+  const directTitle = [
+    input.recipe.title,
+    input.socialContent?.title,
+    input.pageSummary?.title
+  ]
+    .map(dishTitleSearchCandidate)
+    .find((value): value is string => Boolean(value));
+
+  if (directTitle) {
+    return decorateRecipeSearchQuery(directTitle);
+  }
+
+  const textDishTitle = searchTextCandidates(input)
+    .map(extractDishPhraseFromText)
+    .find((value): value is string => Boolean(value));
+
+  if (textDishTitle) {
+    return decorateRecipeSearchQuery(textDishTitle);
+  }
+
+  const inferredRecipe = fallbackRecipeFromContext({
+    mode: "url",
+    sourceUrl: input.recipe.sourceUrl || input.pageSummary?.url || input.socialContent?.canonicalUrl || "",
+    sharedText: input.sharedText,
+    pageTitle: input.pageSummary?.title,
+    pageDescription: input.pageSummary?.description,
+    pageTextContent: combinedPageContextText(input.pageSummary ? [input.pageSummary] : []),
+    socialTitle: input.socialContent?.title,
+    socialCaption: input.socialContent?.caption,
+    socialDescription: input.socialContent?.description,
+    socialPageText: input.socialContent?.pageText,
+    socialAuthor: input.socialContent?.authorName,
+    socialSubtitles: input.socialContent?.subtitlesText,
+    transcript: input.transcript ?? undefined
+  });
+  const inferredTitle = dishTitleSearchCandidate(inferredRecipe.title) ??
+    keywordRichRecipeQuery({
+      ...input,
+      recipe: inferredRecipe
+    });
+
+  return decorateRecipeSearchQuery(inferredTitle);
+}
+
+function dishTitleSearchCandidate(value?: string): string | undefined {
+  const compact = compactRecipeSearchCandidate(value);
+  if (!compact) {
+    return undefined;
+  }
+
+  const candidate = compact
+    .split(/\n+/)[0]
+    ?.split(/[.!?]/)[0]
+    ?.trim() ?? compact;
+  const normalized = candidate.toLowerCase();
+
+  if (hasSuspiciousRecipeTitle(candidate)) {
+    return undefined;
+  }
+
+  if (
+    candidate.length < 4 ||
+    candidate.length > 90 ||
+    normalized.includes("http") ||
+    normalized.includes("tiktok") ||
+    normalized.includes("instagram") ||
+    normalized.includes("original sound")
+  ) {
+    return undefined;
+  }
+
+  return extractDishPhraseFromText(candidate) ?? candidate;
+}
+
+function decorateRecipeSearchQuery(value?: string): string | undefined {
+  const compact = compactRecipeSearchCandidate(value);
+  if (!compact) {
+    return undefined;
+  }
+
+  if (/\b(?:recette|recipe)\b/i.test(compact)) {
+    return compact.slice(0, 140).trim();
+  }
+
+  return `${compact.slice(0, 116).trim()} recette`;
+}
+
+function keywordRichRecipeQuery(input: {
+  recipe: RecipeImportResult;
+  pageSummary: ImportedPageSummary | null;
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
+  sharedText?: string;
+  transcript?: string | null;
+}): string | undefined {
+  const texts = searchTextCandidates(input);
+  const dishPhrase = texts
+    .map(extractDishPhraseFromText)
+    .find((value): value is string => Boolean(value));
+  const foodTerms = collectFoodSearchTerms(texts.join("\n"));
+  const head = dishPhrase ??
+    foodTerms.find((term) => dishHeadSearchTerms.has(term));
+
+  if (!head) {
+    return undefined;
+  }
+
+  const normalizedHead = normalizeSearchText(head);
+  const supportTerms = foodTerms
+    .filter((term) => !normalizedHead.includes(normalizeSearchText(term)))
+    .filter((term) => term !== head)
+    .slice(0, 2);
+
+  return trimSearchPhrase([head, ...supportTerms].join(" "));
+}
+
+function extractDishPhraseFromText(value?: string): string | undefined {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  for (const pattern of dishPhrasePatterns) {
+    const match = normalized.match(pattern);
+    if (match?.[0]) {
+      return trimSearchPhrase(match[0]);
+    }
+  }
+
+  return undefined;
+}
+
+function collectFoodSearchTerms(value: string): string[] {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const matches: string[] = [];
+  for (const term of prioritizedFoodSearchTerms) {
+    const pattern = new RegExp(`(?:^|\\s)${escapeSearchRegex(term)}(?:$|\\s)`, "i");
+    if (pattern.test(normalized)) {
+      matches.push(term);
+    }
+  }
+
+  return matches;
+}
+
+function normalizeSearchText(value?: string): string {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/#[\p{L}\p{N}_]+/gu, " ")
+    .replace(/@[\p{L}\p{N}._-]+/gu, " ")
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function trimSearchPhrase(value: string): string {
+  return value
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120)
+    .trim();
+}
+
+function escapeSearchRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const prioritizedFoodSearchTerms = [
+  "filet o fish",
+  "fish burger",
+  "smash burger",
+  "chicken burger",
+  "hot tenders",
+  "sweet relish",
+  "coleslaw",
+  "cornichon",
+  "pickle",
+  "cheddar",
+  "cabillaud",
+  "poisson",
+  "fish",
+  "chicken",
+  "poulet",
+  "burger",
+  "tacos",
+  "taco",
+  "pizza",
+  "pasta",
+  "pates",
+  "pâtes",
+  "sandwich",
+  "wrap",
+  "salade",
+  "salad",
+  "omelette",
+  "quiche",
+  "gratin",
+  "risotto",
+  "ramen",
+  "curry",
+  "bowl",
+  "falafel",
+  "shawarma",
+  "kebab",
+  "brownie",
+  "cookie",
+  "cookies",
+  "gateau",
+  "gâteau",
+  "cake"
+];
+
+const dishHeadSearchTerms = new Set([
+  "filet o fish",
+  "fish burger",
+  "smash burger",
+  "chicken burger",
+  "burger",
+  "tacos",
+  "taco",
+  "pizza",
+  "pasta",
+  "pates",
+  "pâtes",
+  "sandwich",
+  "wrap",
+  "salade",
+  "salad",
+  "omelette",
+  "quiche",
+  "gratin",
+  "risotto",
+  "ramen",
+  "curry",
+  "bowl",
+  "falafel",
+  "shawarma",
+  "kebab",
+  "brownie",
+  "cookie",
+  "cookies",
+  "gateau",
+  "gâteau",
+  "cake"
+]);
+
+const dishPhrasePatterns = [
+  /\bfilet o fish(?:\s+burger)?\b/i,
+  /\bfish burger\b/i,
+  /\bsmash burger\b/i,
+  /\bchicken burger\b/i,
+  /\b(?:hot tenders?|crispy chicken|poulet croustillant)\s+burger\b/i,
+  /\b(?:smash|double|crispy|spicy|veggie|vegan|chicken|fish|filet o fish|hot tenders?|pulled|bbq|bacon|cheese|cheesy|poulet|boeuf|bœuf|beef|poisson|cabillaud|saumon|salmon|halloumi|falafel|shawarma|kebab)\s+(?:burger|sandwich|wrap)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|sandwich|wrap|salade|salad|omelette|quiche|gratin|risotto|ramen|curry|bowl|falafel|shawarma|kebab|brownie|cookies?|gateau|gâteau|cake)\b/i
+];
+
 function shouldAttemptFinalNormalization(input: {
   recipe: RecipeImportResult;
   sourcePlatform: ReturnType<typeof platformFromUrl>;
@@ -1089,6 +1667,10 @@ function shouldAttemptFinalNormalization(input: {
   }
 
   if (input.fallbackPages.length) {
+    return true;
+  }
+
+  if (input.context.remoteImageUrl?.trim()) {
     return true;
   }
 
@@ -1133,6 +1715,59 @@ function looksMostlyIngredientText(text: string): boolean {
   );
 
   return ingredientLikeLines.length / lines.length >= 0.7;
+}
+
+function buildFallbackPageContext(
+  pages: ImportedPageSummary[],
+  sharedText: string | undefined,
+  sourceUrl: string
+) {
+  return {
+    mode: "url" as const,
+    sourceUrl,
+    remoteImageUrl: pages.map((page) => page.imageUrl).find(Boolean),
+    sharedText,
+    pageTitle: preferredPageValue(pages, "title"),
+    pageDescription: preferredPageValue(pages, "description"),
+    pageTextContent: combinedPageContextText(pages),
+    pageStructuredData: pages.flatMap((page) => page.structuredDataBlocks)
+  };
+}
+
+function combinedPageContextText(pages: ImportedPageSummary[]): string {
+  return pages
+    .map((page, index) => {
+      const title = page.title?.trim();
+      const host = hostLabelForImportNotice(page.url);
+      const snippet = compactPageTextSnippet(page.textContent);
+      const parts = [
+        pages.length > 1
+          ? `Source web ${index + 1}: ${title || host || page.url}`
+          : title || host ? `Source web: ${title || host}` : "",
+        page.description?.trim() ? `Résumé: ${page.description.trim()}` : "",
+        snippet
+      ]
+        .filter((value): value is string => Boolean(value));
+
+      return parts.join("\n").trim();
+    })
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+}
+
+function compactPageTextSnippet(text?: string): string | undefined {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const normalized = trimmed
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized.length > 360
+    ? `${normalized.slice(0, 360).trim()}...`
+    : normalized;
 }
 
 function buildImportDebug(
@@ -1320,15 +1955,41 @@ export async function importFromText(input: {
   imageDataUrl?: string;
 }, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
   const previewMode = options?.previewMode ?? false;
+  const profile: ImportRuntimeProfile = previewMode ? "preview" : "full";
   const startedAt = Date.now();
-  const recipe = await safeNormalize({
+  const executionDeadline = deadlineForProfile(profile, startedAt);
+  const baseContext = {
     mode: "text",
     sharedText: input.text,
     imageDataUrl: input.imageDataUrl
-  }, {
+  } as const;
+  const recipe = await safeNormalize(baseContext, {
     timeoutMs: previewMode ? 8_000 : 60_000
   });
-  const finalizedRecipe = await finalizeImportedRecipe(recipe, {
+  const reviewedRecipe = await maybeReviewRecipeCookability(
+    recipe,
+    baseContext,
+    profile,
+    executionDeadline,
+    "text"
+  );
+  const rescuedRecipe = attemptDishRescue(reviewedRecipe, baseContext);
+  const strictBaseRecipe = requireStrictRecipe(rescuedRecipe, baseContext);
+  const searchEnrichedRecipe = await maybeEnrichRecipeFromSearch(
+    strictBaseRecipe,
+    {
+      sourcePlatform: "web",
+      pageSummary: null,
+      socialContent: null,
+      sharedText: input.text,
+      transcript: null
+    },
+    profile,
+    executionDeadline
+  );
+  const strictRecipe = requireStrictRecipe(searchEnrichedRecipe, baseContext);
+  const usedWebFallback = searchEnrichedRecipe !== strictBaseRecipe
+  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
     skipNutrition: previewMode
   });
 
@@ -1338,7 +1999,7 @@ export async function importFromText(input: {
     durationMs: Date.now() - startedAt,
     usedApify: false,
     usedTranscription: false,
-    usedWebFallback: false,
+    usedWebFallback,
     usedUsda: finalizedRecipe.usedUsda,
     nutritionCoverage: finalizedRecipe.nutritionCoverage,
     matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
@@ -1356,14 +2017,40 @@ export async function importFromPhoto(input: {
   imageDataUrl: string;
 }, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
   const previewMode = options?.previewMode ?? false;
+  const profile: ImportRuntimeProfile = previewMode ? "preview" : "full";
   const startedAt = Date.now();
-  const recipe = await safeNormalize({
+  const executionDeadline = deadlineForProfile(profile, startedAt);
+  const baseContext = {
     mode: "photo",
     imageDataUrl: input.imageDataUrl
-  }, {
+  } as const;
+  const recipe = await safeNormalize(baseContext, {
     timeoutMs: previewMode ? 8_000 : 60_000
   });
-  const finalizedRecipe = await finalizeImportedRecipe(recipe, {
+  const reviewedRecipe = await maybeReviewRecipeCookability(
+    recipe,
+    baseContext,
+    profile,
+    executionDeadline,
+    "photo"
+  );
+  const rescuedRecipe = attemptDishRescue(reviewedRecipe, baseContext);
+  const strictBaseRecipe = requireStrictRecipe(rescuedRecipe, baseContext);
+  const searchEnrichedRecipe = await maybeEnrichRecipeFromSearch(
+    strictBaseRecipe,
+    {
+      sourcePlatform: "web",
+      pageSummary: null,
+      socialContent: null,
+      sharedText: strictBaseRecipe.title || strictBaseRecipe.searchQuery,
+      transcript: null
+    },
+    profile,
+    executionDeadline
+  );
+  const strictRecipe = requireStrictRecipe(searchEnrichedRecipe, baseContext);
+  const usedWebFallback = searchEnrichedRecipe !== strictBaseRecipe
+  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
     skipNutrition: previewMode
   });
 
@@ -1373,7 +2060,7 @@ export async function importFromPhoto(input: {
     durationMs: Date.now() - startedAt,
     usedApify: false,
     usedTranscription: false,
-    usedWebFallback: false,
+    usedWebFallback,
     usedUsda: finalizedRecipe.usedUsda,
     nutritionCoverage: finalizedRecipe.nutritionCoverage,
     matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
@@ -1385,6 +2072,42 @@ export async function importFromPhoto(input: {
     recipe: finalizedRecipe.recipe,
     debug
   };
+}
+
+async function maybeReviewRecipeCookability(
+  recipe: RecipeImportResult,
+  context: Parameters<typeof normalizeRecipeFromContext>[0],
+  profile: ImportRuntimeProfile,
+  deadline: number | undefined,
+  stage: ImportStrategy | "shared-text"
+): Promise<RecipeImportResult> {
+  if (!shouldAttemptCookabilityReview(recipe, context, profile)) {
+    return recipe;
+  }
+
+  const timeoutMs = cookabilityReviewTimeout(profile, deadline);
+  if (!timeoutMs) {
+    return recipe;
+  }
+
+  console.info(
+    `[importService] Reviewing cookability for ${context.sourceUrl || context.mode} at stage=${stage}`
+  );
+  const reviewedRecipe = await safeReviewCookability(
+    {
+      draft: recipe,
+      context
+    },
+    {
+      timeoutMs
+    }
+  );
+
+  if (shouldPreferRecipeCandidate(recipe, reviewedRecipe)) {
+    return reviewedRecipe;
+  }
+
+  return recipe;
 }
 
 async function safeNormalize(
@@ -1400,6 +2123,25 @@ async function safeNormalize(
   } catch (error) {
     if (isOpenAIUnavailable(error) || isTimeoutLikeError(error)) {
       return fallbackRecipeFromContext(input);
+    }
+
+    throw error;
+  }
+}
+
+async function safeReviewCookability(
+  input: Parameters<typeof reviewRecipeCookability>[0],
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<RecipeImportResult> {
+  try {
+    return await reviewRecipeCookability(input, {
+      timeoutMs: options?.timeoutMs ?? 12_000
+    });
+  } catch (error) {
+    if (isOpenAIUnavailable(error) || isTimeoutLikeError(error)) {
+      return input.draft;
     }
 
     throw error;
@@ -1427,6 +2169,18 @@ async function finalizeImportedRecipe(
     ...nutritionResult,
     recipe: sanitizeRecipeImport(nutritionResult.recipe)
   };
+}
+
+function requireStrictRecipe(
+  recipe: RecipeImportResult,
+  context: Parameters<typeof strictRecipeFromContext>[0]
+): RecipeImportResult {
+  const strictRecipe = strictRecipeFromContext(context, recipe);
+  if (!strictRecipe) {
+    throw new RecipeImportNotFoodError();
+  }
+
+  return strictRecipe;
 }
 
 function transcriptionOptions(
@@ -1467,6 +2221,119 @@ function transcriptionOptions(
     maxDurationSeconds: 75,
     maxFileBytes: 12 * 1024 * 1024
   };
+}
+
+function shouldAttemptCookabilityReview(
+  recipe: RecipeImportResult,
+  context: Parameters<typeof normalizeRecipeFromContext>[0],
+  profile: ImportRuntimeProfile
+): boolean {
+  if (profile === "preview") {
+    return false;
+  }
+
+  const hasRecipeSignal = Boolean(recipe.title.trim()) ||
+    recipe.ingredientDrafts.length > 0 ||
+    recipe.stepDrafts.length > 0;
+
+  if (!hasRecipeSignal && !hasCookabilityContext(context)) {
+    return false;
+  }
+
+  return true;
+}
+
+function hasCookabilityContext(
+  context: Parameters<typeof normalizeRecipeFromContext>[0]
+): boolean {
+  const textBudget = [
+    context.sharedText,
+    context.pageTitle,
+    context.pageDescription,
+    context.pageTextContent,
+    context.socialTitle,
+    context.socialCaption,
+    context.socialDescription,
+    context.socialPageText,
+    context.socialSubtitles,
+    context.transcript
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join("\n")
+    .trim()
+    .length;
+
+  const structuredBudget = (context.pageStructuredData ?? [])
+    .join("\n")
+    .trim()
+    .length;
+
+  return textBudget >= 140 ||
+    structuredBudget >= 140 ||
+    Boolean(context.transcript?.trim()) ||
+    Boolean((context.imageDataUrl || context.remoteImageUrl) && (textBudget >= 40 || structuredBudget >= 40)) ||
+    Boolean(context.imageDataUrl || context.remoteImageUrl);
+}
+
+function cookabilityReviewTimeout(
+  profile: ImportRuntimeProfile,
+  deadline?: number
+): number | undefined {
+  if (profile === "preview") {
+    return undefined;
+  }
+
+  if (profile === "shared") {
+    return boundedExecutionTimeout(deadline, 10_000, SHARED_RESERVE_MS);
+  }
+
+  return 12_000;
+}
+
+function shouldPreferRecipeCandidate(
+  currentRecipe: RecipeImportResult,
+  reviewedRecipe: RecipeImportResult
+): boolean {
+  const currentCookability = recipeCookabilitySignals(currentRecipe);
+  const reviewedCookability = recipeCookabilitySignals(reviewedRecipe);
+  const currentMissingCount = importMissingParts(currentRecipe).length;
+  const reviewedMissingCount = importMissingParts(reviewedRecipe).length;
+
+  if (reviewedMissingCount < currentMissingCount) {
+    return true;
+  }
+
+  if (reviewedMissingCount > currentMissingCount) {
+    return false;
+  }
+
+  if (isLikelyValidRecipe(reviewedRecipe) && !isLikelyValidRecipe(currentRecipe)) {
+    return true;
+  }
+
+  if (reviewedCookability.uncoveredMajorIngredientCount < currentCookability.uncoveredMajorIngredientCount) {
+    return true;
+  }
+
+  if (reviewedCookability.majorIngredientCoverage > currentCookability.majorIngredientCoverage + 0.15) {
+    return true;
+  }
+
+  if (
+    reviewedRecipe.ingredientDrafts.length > currentRecipe.ingredientDrafts.length &&
+    reviewedRecipe.stepDrafts.length >= currentRecipe.stepDrafts.length
+  ) {
+    return true;
+  }
+
+  if (
+    reviewedRecipe.stepDrafts.length > currentRecipe.stepDrafts.length &&
+    reviewedRecipe.ingredientDrafts.length >= currentRecipe.ingredientDrafts.length
+  ) {
+    return true;
+  }
+
+  return scoreRecipe(reviewedRecipe) >= scoreRecipe(currentRecipe);
 }
 
 function isTimeoutLikeError(error: unknown): boolean {

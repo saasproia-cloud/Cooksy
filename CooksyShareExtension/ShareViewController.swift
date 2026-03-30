@@ -70,27 +70,23 @@ final class ShareViewController: UIViewController {
 
     @MainActor
     private func handoffSharedContentToCooksyApp() async {
-        let loadingState = ShareLoadingState(
-            title: "Ouverture de Cooksy",
-            message: "Nous transmettons ce partage à l’app pour lancer l’import directement dans Cooksy."
-        )
-
         state.isPerformingAction = false
-        state.phase = .loading(loadingState)
+        state.phase = .loading(makeLoadingState(for: nil))
 
         do {
-            let draft = try await extractSharedDraft()
+            var draft = try await extractSharedDraft()
+            draft.handoffToken = UUID().uuidString
             state.latestDraft = draft
+            state.phase = .loading(makeLoadingState(for: draft))
             logger.debug("Share extension captured draft for host \(draft.hostLabel, privacy: .public)")
 
             sharedLinkInbox.enqueue(draft: draft)
             state.isPerformingAction = true
 
-            let didOpen = await openCooksyAppForSharedImport()
+            let didOpen = await openCooksyAppForSharedImport(handoffToken: draft.handoffToken)
             state.isPerformingAction = false
 
             guard didOpen else {
-                sharedLinkInbox.clear()
                 throw ShareImportError.unableToOpenCooksy
             }
         } catch {
@@ -113,6 +109,33 @@ final class ShareViewController: UIViewController {
     @MainActor
     private func importSharedContent() async {
         await handoffSharedContentToCooksyApp()
+    }
+
+    private func makeLoadingState(for draft: SharedImportDraft?) -> ShareLoadingState {
+        guard let draft else {
+            return ShareLoadingState(
+                title: "Cooksy prepare votre import",
+                message: "Nous preparons le transfert vers l'app pour lancer l'analyse dans Cooksy.",
+                hostLabel: nil,
+                isVideoImport: false
+            )
+        }
+
+        if draft.isLikelyVideoImport {
+            return ShareLoadingState(
+                title: "Import video en cours",
+                message: "Cooksy recupere ce partage depuis \(draft.hostLabel) et prepare une recette claire a partir de la video.",
+                hostLabel: draft.hostLabel,
+                isVideoImport: true
+            )
+        }
+
+        return ShareLoadingState(
+            title: "Import en cours",
+            message: "Cooksy transfere ce partage depuis \(draft.hostLabel) et prepare l'analyse dans l'app.",
+            hostLabel: draft.hostLabel,
+            isVideoImport: false
+        )
     }
 
     @MainActor
@@ -258,10 +281,26 @@ final class ShareViewController: UIViewController {
         handoffSeed.imageData = nil
         handoffDraft.preparedSeed = handoffSeed
         handoffDraft.handoffAction = action
+        handoffDraft.handoffToken = UUID().uuidString
         handoffDraft.capturedAt = .now
 
         sharedLinkInbox.enqueue(draft: handoffDraft)
-        openCooksyApp(for: action)
+
+        let didOpen = await openCooksyApp(for: action, handoffToken: handoffDraft.handoffToken)
+        state.isPerformingAction = false
+
+        guard didOpen else {
+            state.phase = .failure(
+                ShareRecipeFailure(
+                    draft: handoffDraft,
+                    seed: handoffSeed,
+                    title: "Ouverture impossible",
+                    message: ShareImportError.unableToOpenCooksy.errorDescription ?? "Impossible d'ouvrir Cooksy depuis ce partage.",
+                    allowsRetry: true
+                )
+            )
+            return
+        }
     }
 
     private func fallbackSeed(from draft: SharedImportDraft) -> RecipeEditorSeed {
@@ -327,6 +366,7 @@ final class ShareViewController: UIViewController {
             sharedImageFilename: foundImageFilename,
             preparedSeed: nil,
             handoffAction: nil,
+            handoffToken: nil,
             capturedAt: .now
         )
 
@@ -429,56 +469,93 @@ final class ShareViewController: UIViewController {
     }
 
     @MainActor
-    private func openCooksyApp(for action: SharedImportHandoffAction) {
-        guard let appURL = Self.makeAppURL(for: action) else {
+    private func openCooksyApp(
+        for action: SharedImportHandoffAction,
+        handoffToken: String?
+    ) async -> Bool {
+        guard let appURL = Self.makeAppURL(for: action, handoffToken: handoffToken) else {
             finishExtension()
-            return
+            return false
         }
 
-        if let extensionContext {
-            extensionContext.open(appURL) { _ in
-                extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-            }
-            return
-        }
-
-        if openCooksyAppViaResponderChain(appURL) {
-            finishExtension()
-        }
+        return await openCooksyApp(at: appURL, handoffToken: handoffToken)
     }
 
     @MainActor
-    private func openCooksyAppForSharedImport() async -> Bool {
-        guard let appURL = Self.makeAppURL(for: .reviewInApp) else { return false }
+    private func openCooksyAppForSharedImport(handoffToken: String?) async -> Bool {
+        guard let appURL = Self.makeAppURL(for: .reviewInApp, handoffToken: handoffToken) else { return false }
 
-        logger.debug("Share extension opening Cooksy app with \(appURL.absoluteString, privacy: .public)")
-
-        if openCooksyAppViaResponderChain(appURL) {
-            finishExtension(afterDelay: true)
-            return true
-        }
-
-        if let extensionContext {
-            let opened = await withCheckedContinuation { continuation in
-                extensionContext.open(appURL) { success in
-                    continuation.resume(returning: success)
-                }
-            }
-
-            if opened {
-                finishExtension(afterDelay: true)
-                return true
-            }
-        }
-
-        return false
+        return await openCooksyApp(at: appURL, handoffToken: handoffToken)
     }
 
-    private static func makeAppURL(for action: SharedImportHandoffAction) -> URL? {
+    @MainActor
+    private func openCooksyApp(
+        at appURL: URL,
+        handoffToken: String?
+    ) async -> Bool {
+        logger.debug("Share extension opening Cooksy app with \(appURL.absoluteString, privacy: .public)")
+
+        try? await Task.sleep(for: .milliseconds(80))
+
+        let openedViaSharedApplication = await openCooksyAppViaSharedApplication(appURL)
+        let openedViaApplicationResponder = openedViaSharedApplication ? false : await openCooksyAppViaApplicationResponder(appURL)
+        let openedViaExtensionContext = (openedViaSharedApplication || openedViaApplicationResponder)
+            ? false
+            : await openCooksyAppThroughExtensionContext(appURL)
+        let openedViaLegacyResponder = (openedViaSharedApplication || openedViaApplicationResponder || openedViaExtensionContext)
+            ? false
+            : openCooksyAppViaLegacyResponder(appURL)
+
+        guard openedViaSharedApplication || openedViaApplicationResponder || openedViaExtensionContext || openedViaLegacyResponder else {
+            return false
+        }
+
+        if let handoffToken, handoffToken.isEmpty == false {
+            logger.debug(
+                "Share extension dispatched Cooksy handoff token=\(handoffToken, privacy: .public); finishing extension immediately to let Cooksy take focus."
+            )
+        }
+        finishExtension(afterDelay: true)
+        return true
+    }
+
+    private func openCooksyAppViaSharedApplication(_ url: URL) async -> Bool {
+        guard let application = sharedApplicationObject() else {
+            logger.error("Share extension could not resolve UIApplication shared instance.")
+            return false
+        }
+
+        return await openCooksyApp(url, with: application, label: "UIApplication shared instance")
+    }
+
+    private func openCooksyAppThroughExtensionContext(_ appURL: URL) async -> Bool {
+        guard let extensionContext else { return false }
+
+        let opened = await withCheckedContinuation { continuation in
+            extensionContext.open(appURL) { success in
+                continuation.resume(returning: success)
+            }
+        }
+
+        if !opened {
+            logger.error("Share extension could not open Cooksy via extension context.")
+        }
+
+        return opened
+    }
+
+    private static func makeAppURL(
+        for action: SharedImportHandoffAction,
+        handoffToken: String?
+    ) -> URL? {
         var components = URLComponents()
         components.scheme = "cooksy"
         components.host = "shared-import"
-        components.queryItems = [URLQueryItem(name: "action", value: action.rawValue)]
+        var queryItems = [URLQueryItem(name: "action", value: action.rawValue)]
+        if let handoffToken, handoffToken.isEmpty == false {
+            queryItems.append(URLQueryItem(name: "handoffToken", value: handoffToken))
+        }
+        components.queryItems = queryItems
         return components.url
     }
 
@@ -489,25 +566,109 @@ final class ShareViewController: UIViewController {
         }
 
         let extensionContext = self.extensionContext
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
         }
     }
 
-    private func openCooksyAppViaResponderChain(_ url: URL) -> Bool {
+    private func openCooksyAppViaApplicationResponder(_ url: URL) async -> Bool {
+        guard let application = applicationResponderObject() else {
+            logger.error("Share extension could not find UIApplication in responder chain.")
+            return false
+        }
+
+        return await openCooksyApp(url, with: application, label: "UIApplication responder chain")
+    }
+
+    private func openCooksyApp(
+        _ url: URL,
+        with application: AnyObject,
+        label: String
+    ) async -> Bool {
+        let modernSelector = NSSelectorFromString("openURL:options:completionHandler:")
+        let legacySelector = NSSelectorFromString("openURL:")
+
+        if application.responds(to: modernSelector) {
+            typealias OpenURLCompletionBlock = @convention(block) (Bool) -> Void
+            typealias OpenURLModernIMP = @convention(c) (
+                AnyObject,
+                Selector,
+                NSURL,
+                NSDictionary,
+                AnyObject
+            ) -> Void
+
+            let opened = await withCheckedContinuation { continuation in
+                let completion: OpenURLCompletionBlock = { success in
+                    continuation.resume(returning: success)
+                }
+                let completionObject = completion as AnyObject
+                let implementation = application.method(for: modernSelector)
+                let function = unsafeBitCast(implementation, to: OpenURLModernIMP.self)
+
+                logger.debug("Share extension opening Cooksy app via \(label, privacy: .public) modern selector.")
+                function(application, modernSelector, url as NSURL, [:] as NSDictionary, completionObject)
+            }
+
+            logger.debug(
+                "Share extension \(label, privacy: .public) modern selector completed success=\(opened, privacy: .public)."
+            )
+            return opened
+        }
+
+        guard application.responds(to: legacySelector) else {
+            logger.error("Share extension could not find supported openURL selector on \(label, privacy: .public).")
+            return false
+        }
+
+        typealias OpenURLLegacyIMP = @convention(c) (AnyObject, Selector, NSURL) -> Bool
+
+        let implementation = application.method(for: legacySelector)
+        let function = unsafeBitCast(implementation, to: OpenURLLegacyIMP.self)
+        let didOpen = function(application, legacySelector, url as NSURL)
+        logger.debug(
+            "Share extension opening Cooksy app via \(label, privacy: .public) legacy selector success=\(didOpen, privacy: .public)."
+        )
+        return didOpen
+    }
+
+    private func sharedApplicationObject() -> AnyObject? {
+        let selector = NSSelectorFromString("sharedApplication")
+        guard UIApplication.responds(to: selector),
+              let application = UIApplication.perform(selector)?.takeUnretainedValue() else {
+            return nil
+        }
+
+        return application as AnyObject
+    }
+
+    private func applicationResponderObject() -> AnyObject? {
+        var responder: UIResponder? = self
+
+        while let currentResponder = responder {
+            if NSStringFromClass(type(of: currentResponder)) == "UIApplication" {
+                return currentResponder
+            }
+            responder = currentResponder.next
+        }
+
+        return nil
+    }
+
+    private func openCooksyAppViaLegacyResponder(_ url: URL) -> Bool {
         let selector = NSSelectorFromString("openURL:")
         var responder: UIResponder? = self
 
         while let currentResponder = responder {
             if currentResponder.responds(to: selector) {
-                logger.debug("Share extension opening Cooksy app via responder chain.")
+                logger.debug("Share extension opening Cooksy app via legacy responder chain fallback.")
                 currentResponder.perform(selector, with: url)
                 return true
             }
             responder = currentResponder.next
         }
 
-        logger.error("Share extension could not open Cooksy via responder chain.")
+        logger.error("Share extension could not open Cooksy via legacy responder fallback.")
         return false
     }
 
@@ -693,7 +854,7 @@ private enum ShareImportError: LocalizedError {
         case .noURLFound:
             return "Cooksy n'a pas trouvé de lien compatible dans ce partage."
         case .unableToOpenCooksy:
-            return "Impossible d'ouvrir Cooksy depuis ce partage."
+            return "Impossible d'ouvrir Cooksy automatiquement depuis ce partage. L'import reste disponible si vous ouvrez Cooksy manuellement."
         }
     }
 }
@@ -702,8 +863,10 @@ private enum ShareImportError: LocalizedError {
 private final class ShareExtensionState: ObservableObject {
     @Published var phase: ShareExtensionPhase = .loading(
         ShareLoadingState(
-            title: "Cooksy prépare votre recette",
-            message: "Nous analysons ce partage pour construire un aperçu propre."
+            title: "Cooksy prepare votre import",
+            message: "Nous preparons le transfert vers l'app pour lancer l'analyse dans Cooksy.",
+            hostLabel: nil,
+            isVideoImport: false
         )
     )
     @Published var isPerformingAction = false
@@ -720,6 +883,8 @@ private enum ShareExtensionPhase {
 private struct ShareLoadingState {
     let title: String
     let message: String
+    let hostLabel: String?
+    let isVideoImport: Bool
 }
 
 private struct ShareRecipePreview {
@@ -786,32 +951,21 @@ private struct ShareExtensionRootView: View {
             }
 
             if state.isPerformingAction {
-                Color.black.opacity(0.16)
-                    .ignoresSafeArea()
-
-                VStack(spacing: 14) {
-                    ProgressView()
-                        .tint(.white)
-                        .scaleEffect(1.08)
-
-                    Text("Ouverture de Cooksy")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 22)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.black.opacity(0.72))
-                )
+                ShareActionOverlay(isVideoImport: currentLoadingState?.isVideoImport ?? false)
             }
         }
+    }
+
+    private var currentLoadingState: ShareLoadingState? {
+        guard case .loading(let loadingState) = state.phase else { return nil }
+        return loadingState
     }
 }
 
 private struct ShareLoadingView: View {
     let loadingState: ShareLoadingState
     let onCancel: () -> Void
+    @State private var pulses = false
 
     var body: some View {
         VStack(spacing: 22) {
@@ -819,46 +973,242 @@ private struct ShareLoadingView: View {
 
             Spacer(minLength: 0)
 
-            VStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: 0xEAF2FF))
-                        .frame(width: 92, height: 92)
-
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x2E7DDE))
-
-                    ProgressView()
-                        .tint(Color(hex: 0xFF7A12))
-                        .offset(y: 56)
-                }
-
-                Text(loadingState.title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x221A14))
-                    .multilineTextAlignment(.center)
-
-                Text(loadingState.message)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x8B8378))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 36)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(Color.white.opacity(0.96))
+            ZStack {
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.98), Color(hex: 0xFFF7EF)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 34, style: .continuous)
+                            .stroke(Color(hex: 0xE6DED2), lineWidth: 1.2)
+                    )
                     .shadow(color: Color.black.opacity(0.08), radius: 24, y: 12)
-            )
+
+                Circle()
+                    .fill(Color(hex: 0xEAF2FF, opacity: 0.95))
+                    .frame(width: 164, height: 164)
+                    .blur(radius: 2)
+                    .offset(x: 106, y: -102)
+
+                Circle()
+                    .fill(Color(hex: 0xFFE4C8, opacity: 0.82))
+                    .frame(width: 132, height: 132)
+                    .blur(radius: 1.5)
+                    .offset(x: -118, y: 126)
+
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 10) {
+                        statusPill(
+                            text: loadingState.isVideoImport ? "Import video" : "Import partage",
+                            textColor: Color(hex: 0xA94F1D),
+                            background: Color(hex: 0xFFE9D3)
+                        )
+
+                        if let hostLabel = sanitizedHostLabel {
+                            statusPill(
+                                text: hostLabel,
+                                textColor: Color(hex: 0x275C9D),
+                                background: Color(hex: 0xE6F0FF)
+                            )
+                        }
+                    }
+
+                    HStack(alignment: .center, spacing: 18) {
+                        loadingOrb
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(loadingState.title)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color(hex: 0x221A14))
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(loadingState.message)
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .foregroundStyle(Color(hex: 0x7B7268))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    VStack(spacing: 10) {
+                        ForEach(Array(stepItems.enumerated()), id: \.offset) { _, step in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(step.tint.opacity(0.16))
+                                        .frame(width: 34, height: 34)
+
+                                    Image(systemName: step.icon)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(step.tint)
+                                }
+
+                                Text(step.title)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Color(hex: 0x3F352D))
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(height: 50)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white.opacity(0.88))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(Color(hex: 0xEEE5DA), lineWidth: 1)
+                                    )
+                            )
+                        }
+                    }
+
+                    Text(footerMessage)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(hex: 0x8B8378))
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 26)
+            }
+            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 20)
         .padding(.top, 18)
         .padding(.bottom, 34)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                pulses = true
+            }
+        }
+    }
+
+    private var loadingOrb: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x5B9AFF), Color(hex: 0x2E7DDE)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 112, height: 112)
+
+            Circle()
+                .stroke(Color.white.opacity(0.28), lineWidth: 14)
+                .frame(width: 112, height: 112)
+                .scaleEffect(pulses ? 1.08 : 0.92)
+                .opacity(pulses ? 0.22 : 0.58)
+
+            Circle()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 78, height: 78)
+
+            Image(systemName: loadingState.isVideoImport ? "play.rectangle.fill" : "sparkles")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(.white)
+
+            ProgressView()
+                .tint(.white)
+                .scaleEffect(1.05)
+                .offset(y: 60)
+        }
+    }
+
+    private var sanitizedHostLabel: String? {
+        guard let hostLabel = loadingState.hostLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !hostLabel.isEmpty else {
+            return nil
+        }
+
+        return hostLabel
+    }
+
+    private var stepItems: [(icon: String, title: String, tint: Color)] {
+        if loadingState.isVideoImport {
+            return [
+                ("play.rectangle.fill", "Lecture de la video et du contexte", Color(hex: 0x2E7DDE)),
+                ("sparkles", "Extraction des ingredients utiles", Color(hex: 0xF07B20)),
+                ("list.bullet.rectangle.fill", "Reconstruction des etapes dans Cooksy", Color(hex: 0x6A8F47))
+            ]
+        }
+
+        return [
+            ("link", "Lecture du lien partage", Color(hex: 0x2E7DDE)),
+            ("doc.text.fill", "Analyse de la recette", Color(hex: 0xF07B20)),
+            ("arrow.up.right.square.fill", "Ouverture automatique dans Cooksy", Color(hex: 0x6A8F47))
+        ]
+    }
+
+    private var footerMessage: String {
+        if loadingState.isVideoImport {
+            return "La suite continue automatiquement dans Cooksy des que l'app s'ouvre."
+        }
+
+        return "Vous pouvez patienter ici, Cooksy reprend la main automatiquement."
+    }
+
+    private func statusPill(text: String, textColor: Color, background: Color) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .foregroundStyle(textColor)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(background)
+            )
+    }
+}
+
+private struct ShareActionOverlay: View {
+    let isVideoImport: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(1.08)
+
+                Text("Ouverture de Cooksy")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(
+                    isVideoImport
+                        ? "La video est prete a etre reprise dans l'app."
+                        : "Le partage est pret a etre repris dans l'app."
+                )
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.78))
+                .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 22)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.black.opacity(0.78), Color.black.opacity(0.64)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
+        }
     }
 }
 

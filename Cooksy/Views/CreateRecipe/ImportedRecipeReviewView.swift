@@ -40,13 +40,13 @@ struct ImportedRecipeReviewView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     topBar
-                        .padding(.horizontal, 22)
-                        .padding(.top, 18)
-                        .padding(.bottom, 22)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 20)
 
                     headerSection
-                        .padding(.horizontal, 22)
-                        .padding(.bottom, 22)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
 
                     if let importNotice = viewModel.importNotice {
                         importNoticeSection(importNotice)
@@ -61,7 +61,7 @@ struct ImportedRecipeReviewView: View {
                         instructionsSection
                     }
                 }
-                .padding(.bottom, 230)
+                .padding(.bottom, 210)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -106,19 +106,19 @@ struct ImportedRecipeReviewView: View {
 
             ZStack {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(0.84))
-                    .frame(width: 72, height: 72)
+                    .fill(CooksyTheme.elevatedSurface)
+                    .frame(width: 64, height: 64)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(CooksyTheme.stroke.opacity(0.72), lineWidth: 1.2)
+                            .stroke(CooksyTheme.stroke.opacity(0.8), lineWidth: 1)
                     )
-                    .shadow(color: CooksyTheme.shadow, radius: 16, y: 10)
+                    .shadow(color: CooksyTheme.shadow, radius: 12, y: 8)
 
                 Image("HeaderLogo")
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 54, height: 54)
+                    .frame(width: 46, height: 46)
             }
         }
     }
@@ -129,7 +129,7 @@ struct ImportedRecipeReviewView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 Text("Recette reconstruite par Cooksy")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .black, design: .rounded))
                     .foregroundStyle(CooksyTheme.ctaOrangeDark)
                     .padding(.horizontal, 10)
                     .frame(height: 28)
@@ -153,22 +153,22 @@ struct ImportedRecipeReviewView: View {
                 Button(action: { showsEditor = true }) {
                     HStack(spacing: 12) {
                         Image(systemName: "pencil")
-                            .font(.system(size: 19, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(CooksyTheme.ctaOrange)
 
                         Text("Modifier la recette")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(CooksyTheme.primaryText)
                     }
-                    .padding(.horizontal, 18)
-                    .frame(height: 56)
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.white)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(CooksyTheme.elevatedSurface)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 2)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -176,73 +176,110 @@ struct ImportedRecipeReviewView: View {
 
             Spacer(minLength: 0)
         }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
     }
 
     private var ingredientsSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("INGRÉDIENTS")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.brandBlueDark)
-                .tracking(1.2)
-                .padding(.horizontal, 22)
+            Text("Ingrédients")
+                .font(.system(size: 24, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .padding(.horizontal, 20)
                 .padding(.top, 18)
 
-            VStack(spacing: 18) {
+            VStack(spacing: 14) {
                 ForEach(viewModel.seed.normalizedIngredients) { ingredient in
                     HStack(alignment: .top, spacing: 16) {
                         ingredientIcon(for: ingredient.name)
 
                         formattedIngredientText(for: ingredient)
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
                             .foregroundStyle(CooksyTheme.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Spacer(minLength: 0)
                     }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(CooksyTheme.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                    )
                 }
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(CooksyTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
     }
 
     private var instructionsSection: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("INSTRUCTIONS")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.brandBlueDark)
-                .tracking(1.2)
-                .padding(.horizontal, 22)
+            Text("Instructions")
+                .font(.system(size: 24, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .padding(.horizontal, 20)
                 .padding(.top, 18)
 
-            VStack(spacing: 18) {
+            VStack(spacing: 14) {
                 ForEach(Array(viewModel.seed.normalizedSteps.enumerated()), id: \.element.id) { index, step in
                     HStack(alignment: .top, spacing: 14) {
                         Text("\(index + 1)")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 30, height: 30)
                             .background(
-                                Circle()
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(CooksyTheme.brandBlueDark)
                             )
 
                         Text(step.detail)
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
                             .foregroundStyle(CooksyTheme.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Spacer(minLength: 0)
                     }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(CooksyTheme.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                    )
                 }
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(CooksyTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
     }
 
     private func importNoticeSection(_ notice: String) -> some View {
@@ -259,10 +296,16 @@ struct ImportedRecipeReviewView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(CooksyTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
     }
 
     private var bottomBar: some View {
@@ -278,24 +321,24 @@ struct ImportedRecipeReviewView: View {
             Button(action: { showsBookPicker = true }) {
                 HStack(spacing: 14) {
                     Text(viewModel.selectedBookLabel)
-                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
-                .padding(.horizontal, 20)
-                .frame(height: 62)
+                .padding(.horizontal, 16)
+                .frame(height: 54)
                 .background(
-                    RoundedRectangle(cornerRadius: 0, style: .continuous)
-                        .fill(Color.white)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(CooksyTheme.elevatedSurface)
                 )
                 .overlay(
-                    Rectangle()
-                        .stroke(CooksyTheme.stroke, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -304,14 +347,14 @@ struct ImportedRecipeReviewView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(viewModel.canSave ? CooksyTheme.ctaOrange : CooksyTheme.stroke.opacity(0.55))
-                        .frame(height: 66)
+                        .frame(height: 58)
 
                     if viewModel.isSaving {
                         ProgressView()
                             .tint(.white)
                     } else {
                         Text(viewModel.canSave ? "Enregistrer" : "Modifier avant d'enregistrer")
-                            .font(.system(size: 21, weight: .bold, design: .rounded))
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                     }
                 }
@@ -330,13 +373,13 @@ struct ImportedRecipeReviewView: View {
             .buttonStyle(.plain)
             .padding(.bottom, 2)
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 20)
         .padding(.top, 14)
         .padding(.bottom, 12)
         .background(
             Rectangle()
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.08), radius: 20, y: -6)
+                .fill(CooksyTheme.background.opacity(0.95))
+                .shadow(color: Color.black.opacity(0.06), radius: 16, y: -6)
         )
     }
 
@@ -352,23 +395,22 @@ struct ImportedRecipeReviewView: View {
     private func topPillButton(title: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(tint)
-                .padding(.horizontal, 26)
-                .frame(height: 62)
+                .padding(.horizontal, 18)
+                .frame(height: 50)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.white)
-                        .shadow(color: Color.black.opacity(0.06), radius: 20, y: 10)
+                        .fill(CooksyTheme.elevatedSurface)
+                        .shadow(color: Color.black.opacity(0.06), radius: 14, y: 8)
                 )
         }
         .buttonStyle(.plain)
     }
 
     private var sectionDivider: some View {
-        Rectangle()
-            .fill(CooksyTheme.warmCard.opacity(0.8))
-            .frame(height: 16)
+        Color.clear
+            .frame(height: 18)
     }
 
     private func formattedIngredientText(for ingredient: RecipeIngredient) -> Text {
@@ -386,7 +428,7 @@ struct ImportedRecipeReviewView: View {
 
     @ViewBuilder
     private func ingredientIcon(for ingredientName: String) -> some View {
-        if let emoji = ShoppingCatalog.specificEmoji(for: ingredientName) {
+        if let emoji = IngredientVisualCatalog.specificEmoji(for: ingredientName) {
             Text(emoji)
                 .font(.system(size: 30))
                 .frame(width: 38)

@@ -83,6 +83,57 @@ final class RecipeDetailViewModel: ObservableObject {
         return "Ouvrez la source"
     }
 
+    var sourceLabel: String? {
+        guard let host = sourceURL?.host(percentEncoded: false)?.lowercased() else { return nil }
+        if host.contains("tiktok") { return "TikTok" }
+        if host.contains("instagram") { return "Instagram" }
+        if host.contains("youtube") { return "YouTube" }
+        if host.contains("pinterest") { return "Pinterest" }
+        return host
+            .replacingOccurrences(of: "www.", with: "")
+            .capitalized
+    }
+
+    var ingredientCount: Int {
+        recipe?.ingredients.count ?? 0
+    }
+
+    var instructionCount: Int {
+        recipe?.steps.count ?? 0
+    }
+
+    var selectedBookLabel: String {
+        currentBook?.kind == .uncategorized ? "Non catégorisé" : (currentBook?.title ?? "Non catégorisé")
+    }
+
+    var prepTimeLabel: String? {
+        guard let minutes = recipe?.details.prepTimeMinutes, minutes > 0 else { return nil }
+        return "\(minutes) min prep"
+    }
+
+    var cookTimeLabel: String? {
+        guard let minutes = recipe?.details.cookTimeMinutes, minutes > 0 else { return nil }
+        return "\(minutes) min cuisson"
+    }
+
+    var totalTimeLabel: String? {
+        let total = (recipe?.details.prepTimeMinutes ?? 0) + (recipe?.details.cookTimeMinutes ?? 0)
+        guard total > 0 else { return nil }
+        return "\(total) min total"
+    }
+
+    var displayedNutrition: RecipeNutrition? {
+        if let stored = recipe?.nutrition {
+            return stored
+        }
+
+        return estimatedNutrition?.nutrition
+    }
+
+    var nutritionIsEstimated: Bool {
+        recipe?.nutrition == nil && estimatedNutrition != nil
+    }
+
     var displayedIngredients: [DisplayIngredient] {
         guard let recipe else { return [] }
 
@@ -90,7 +141,7 @@ final class RecipeDetailViewModel: ObservableObject {
         return recipe.ingredients.map { ingredient in
             return DisplayIngredient(
                 id: ingredient.id,
-                emoji: ShoppingCatalog.specificEmoji(for: ingredient.name),
+                emoji: IngredientVisualCatalog.specificEmoji(for: ingredient.name),
                 quantityText: RecipeQuantityScaler.scaledQuantityText(
                     for: ingredient,
                     baseServings: baseServings,
@@ -106,11 +157,11 @@ final class RecipeDetailViewModel: ObservableObject {
     }
 
     var hasNutrition: Bool {
-        recipe?.nutrition != nil
+        displayedNutrition != nil
     }
 
     var nutrition: RecipeNutrition? {
-        recipe?.nutrition
+        displayedNutrition
     }
 
     func changeServings(by delta: Int) {
@@ -131,11 +182,6 @@ final class RecipeDetailViewModel: ObservableObject {
 
     func addToMealPlan(on day: Date) {
         store.addMealPlanRecipe(recipeID: recipeID, for: day)
-    }
-
-    @discardableResult
-    func addDisplayedIngredientsToShoppingList() -> Int {
-        store.addShoppingItems(from: displayedIngredients.map(\.fullLine)).count
     }
 
     func shareText() -> String {
@@ -206,6 +252,14 @@ final class RecipeDetailViewModel: ObservableObject {
             return "Posez-moi une question sur les ingrédients, les étapes ou l’organisation de cette recette."
         }
 
+        if normalized.contains("nutrition") || normalized.contains("calorie") || normalized.contains("proteine") || normalized.contains("glucide") || normalized.contains("lipide") {
+            if let nutrition = displayedNutrition {
+                return "Par portion: \(nutrition.calories ?? "—"), protéines \(nutrition.protein ?? "—"), glucides \(nutrition.carbs ?? "—"), lipides \(nutrition.fat ?? "—")."
+            }
+
+            return "Je n’ai pas encore les valeurs nutritionnelles exactes. Utilisez le bouton nutrition sur la fiche pour les calculer."
+        }
+
         if normalized.contains("combien") && normalized.contains("temps") {
             let prep = recipe?.details.prepTimeMinutes.map { "\($0) min de préparation" }
             let cook = recipe?.details.cookTimeMinutes.map { "\($0) min de cuisson" }
@@ -213,9 +267,42 @@ final class RecipeDetailViewModel: ObservableObject {
                 ?? "Je n’ai pas encore le temps exact pour cette recette."
         }
 
-        if normalized.contains("ingredient") || normalized.contains("ingrédient") {
+        if normalized.contains("liste") || normalized.contains("ingredient") || normalized.contains("ingrédient") {
             let list = displayedIngredients.prefix(6).map(\.fullLine).joined(separator: ", ")
             return "Voici les ingrédients principaux : \(list)."
+        }
+
+        if normalized.contains("temperature") || normalized.contains("température") || normalized.contains("four") || normalized.contains("cuisson") {
+            let temperatureSteps = recipe?.steps
+                .map(\.detail)
+                .filter { $0.contains("°") || $0.localizedCaseInsensitiveContains("four") || $0.localizedCaseInsensitiveContains("cuisson") } ?? []
+
+            if let first = temperatureSteps.first {
+                return first
+            }
+
+            return "Je n’ai pas trouvé de température précise dans cette recette. Vérifiez les étapes ou adaptez selon votre matériel."
+        }
+
+        if normalized.contains("etape") || normalized.contains("étape") {
+            if let requestedStepIndex = requestedStepIndex(in: normalized),
+               instructions.indices.contains(requestedStepIndex) {
+                return "Étape \(requestedStepIndex + 1): \(instructions[requestedStepIndex].detail)"
+            }
+
+            let compactSteps = instructions.prefix(3).enumerated().map { index, step in
+                "Étape \(index + 1): \(step.detail)"
+            }
+            return compactSteps.isEmpty
+                ? "Je n’ai pas encore assez d’étapes structurées pour vous guider."
+                : compactSteps.joined(separator: "\n\n")
+        }
+
+        if normalized.contains("ensuite") || normalized.contains("apres") || normalized.contains("après") || normalized.contains("prochaine") || normalized.contains("prochain") {
+            guard let first = instructions.first else {
+                return "Je n’ai pas encore assez d’étapes structurées pour vous guider."
+            }
+            return "Commencez par ceci: \(first.detail)"
         }
 
         if normalized.contains("simpl") {
@@ -226,7 +313,7 @@ final class RecipeDetailViewModel: ObservableObject {
             return assistantReply(for: .healthier)
         }
 
-        return "Je peux vous aider à simplifier la recette, proposer des remplacements d’ingrédients, ou vous résumer les étapes."
+        return "Je peux vous aider sur les ingrédients, les étapes, les temps, la nutrition, ou proposer des remplacements."
     }
 
     private func applyRecipe(_ recipe: Recipe?) {
@@ -271,6 +358,11 @@ final class RecipeDetailViewModel: ObservableObject {
         }
     }
 
+    private var estimatedNutrition: RecipeNutritionEstimate? {
+        guard let recipe else { return nil }
+        return RecipeNutritionEstimator.estimate(recipe: recipe, forPortions: max(currentServings, 1))
+    }
+
     private func healthierSuggestions(for recipe: Recipe) -> [String] {
         var suggestions: [String] = []
         let names = recipe.ingredients.map { $0.name.localizedLowercase }
@@ -289,6 +381,85 @@ final class RecipeDetailViewModel: ObservableObject {
 
         return suggestions
     }
+
+    private func requestedStepIndex(in question: String) -> Int? {
+        let digits = question.compactMap { $0.isNumber ? String($0) : nil }.joined()
+        guard let value = Int(digits), value > 0 else { return nil }
+        return value - 1
+    }
+}
+
+enum IngredientVisualCatalog {
+    static func specificEmoji(for article: String) -> String? {
+        let normalized = normalizedSearchText(for: article)
+        guard !normalized.isEmpty else { return nil }
+
+        for entry in emojiMappings {
+            if matchesAnyKeyword(in: normalized, keywords: entry.keywords) {
+                return entry.emoji
+            }
+        }
+
+        return nil
+    }
+
+    private static func normalizedSearchText(for value: String) -> String {
+        value
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func matchesAnyKeyword(in normalized: String, keywords: [String]) -> Bool {
+        keywords.contains { keyword in
+            normalized.contains(keyword)
+        }
+    }
+
+    private static let emojiMappings: [(keywords: [String], emoji: String)] = [
+        (["tomate", "tomates"], "🍅"),
+        (["oignon", "oignons", "echalote", "échalote"], "🧅"),
+        (["ail"], "🧄"),
+        (["carotte", "carottes"], "🥕"),
+        (["courgette", "courgettes", "concombre"], "🥒"),
+        (["poivron", "poivrons"], "🫑"),
+        (["pomme de terre", "pommes de terre"], "🥔"),
+        (["citron", "citrons"], "🍋"),
+        (["avocat"], "🥑"),
+        (["champignon", "champignons"], "🍄"),
+        (["mais", "maïs"], "🌽"),
+        (["fraise", "fraises"], "🍓"),
+        (["framboise", "framboises", "raisin"], "🍇"),
+        (["banane", "bananes"], "🍌"),
+        (["pomme", "pommes"], "🍎"),
+        (["orange", "oranges"], "🍊"),
+        (["salade", "laitue", "roquette"], "🥬"),
+        (["oeuf", "oeufs", "œuf", "œufs", "egg"], "🥚"),
+        (["beurre"], "🧈"),
+        (["lait", "creme", "crème"], "🥛"),
+        (["yaourt"], "🥣"),
+        (["parmesan", "mozzarella", "emmental", "comte", "comté", "fromage", "cheddar"], "🧀"),
+        (["farine"], "🌾"),
+        (["pain", "brioche", "baguette", "bun"], "🥖"),
+        (["riz"], "🍚"),
+        (["pates", "pâtes", "spaghetti", "penne"], "🍝"),
+        (["poulet"], "🍗"),
+        (["boeuf", "bœuf", "steak", "viande hachee", "viande hachée"], "🥩"),
+        (["saumon", "thon", "poisson"], "🐟"),
+        (["crevette", "crevettes"], "🍤"),
+        (["huile"], "🫒"),
+        (["miel"], "🍯"),
+        (["sirop d erable", "sirop d'érable", "erable", "érable"], "🍁"),
+        (["sucre"], "🍚"),
+        (["chocolat", "cacao"], "🍫"),
+        (["vanille"], "🌼"),
+        (["moutarde"], "🫙"),
+        (["sauce piquante", "piment", "piments", "harissa"], "🌶️"),
+        (["mayonnaise", "ketchup", "sauce"], "🥫"),
+        (["cornichon"], "🥒"),
+        (["herbes", "persil", "basilic", "coriandre", "ciboulette"], "🌿")
+    ]
 }
 
 private extension String {

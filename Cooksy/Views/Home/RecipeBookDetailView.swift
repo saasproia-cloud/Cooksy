@@ -10,27 +10,14 @@ struct RecipeBookDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.white
+            CooksyTheme.ambientGradient
                 .ignoresSafeArea()
 
             if let book = currentBook {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 22) {
                         topBar
-                            .padding(.horizontal, 22)
-                            .padding(.top, 18)
-                            .padding(.bottom, 34)
-
-                        Text(book.title)
-                            .font(.system(size: 38, weight: .regular, design: .serif))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                            .padding(.horizontal, 22)
-
-                        Text(recipeCountLabel(for: book.recipeCount))
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .padding(.horizontal, 22)
-                            .padding(.top, 6)
+                        bookOverview(book)
 
                         if recipes.isEmpty {
                             emptyState
@@ -38,7 +25,9 @@ struct RecipeBookDetailView: View {
                             populatedState
                         }
                     }
-                    .padding(.bottom, 80)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 120)
                 }
             }
         }
@@ -66,13 +55,64 @@ struct RecipeBookDetailView: View {
                 capsuleIconButton(systemImage: "ellipsis")
             }
             .padding(.horizontal, 8)
-            .frame(height: 58)
+            .frame(height: 52)
             .background(
                 Capsule(style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.06), radius: 20, y: 10)
+                    .fill(CooksyTheme.elevatedSurface)
+                    .shadow(color: CooksyTheme.softShadow, radius: 14, y: 8)
             )
         }
+    }
+
+    private func bookOverview(_ book: RecipeBook) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(book.kind == .uncategorized ? "COLLECTION PRINCIPALE" : "LIVRE DE RECETTES")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .tracking(1.7)
+                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+
+            Text(book.title)
+                .font(.system(size: 36, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Text(recipeCountLabel(for: book.recipeCount))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(CooksyTheme.surface)
+                    )
+
+                Spacer(minLength: 0)
+
+                Button(action: { showsQuickImportSheet = true }) {
+                    Label("Ajouter", systemImage: "plus")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 42)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(CooksyTheme.accentGradient)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(22)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+        .shadow(color: CooksyTheme.shadow, radius: 18, y: 10)
     }
 
     private var emptyState: some View {
@@ -80,33 +120,41 @@ struct RecipeBookDetailView: View {
             Button(action: { showsQuickImportSheet = true }) {
                 HStack(spacing: 16) {
                     Image(systemName: "plus")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.system(size: 22, weight: .semibold))
 
                     Text("Ajouter votre première recette")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 74)
+                .frame(height: 62)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(CooksyTheme.ctaOrange)
+                        .fill(CooksyTheme.accentGradient)
                 )
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 22)
-            .padding(.top, 54)
 
             EmptyRecipeBookIllustration()
-                .padding(.top, 92)
+                .padding(.top, 60)
 
             Text("Aucune recette enregistrée")
-                .font(.system(size: 31, weight: .regular, design: .serif))
+                .font(.system(size: 29, weight: .regular, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText.opacity(0.88))
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
-                .padding(.top, 34)
+                .padding(.top, 28)
         }
+        .padding(22)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
     }
 
     private var populatedState: some View {
@@ -114,21 +162,24 @@ struct RecipeBookDetailView: View {
             Button(action: { showsQuickImportSheet = true }) {
                 HStack(spacing: 16) {
                     Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .medium))
+                        .font(.system(size: 18, weight: .bold))
 
                     Text(recipes.isEmpty ? "Ajouter votre première recette" : "Ajouter une recette")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(CooksyTheme.ctaOrangeDark)
                 .frame(maxWidth: .infinity)
-                .frame(height: 68)
+                .frame(height: 56)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(CooksyTheme.ctaOrange)
+                        .fill(CooksyTheme.blush.opacity(0.4))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(CooksyTheme.ctaOrange.opacity(0.25), lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
-            .padding(.bottom, 10)
 
             ForEach(recipes) { recipe in
                 NavigationLink {
@@ -139,8 +190,6 @@ struct RecipeBookDetailView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 46)
     }
 
     private func recipeCountLabel(for count: Int) -> String {
@@ -151,13 +200,13 @@ struct RecipeBookDetailView: View {
     private func circleButton(systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 26, weight: .semibold))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(CooksyTheme.primaryText)
-                .frame(width: 58, height: 58)
+                .frame(width: 52, height: 52)
                 .background(
                     Circle()
-                        .fill(Color.white)
-                        .shadow(color: Color.black.opacity(0.06), radius: 20, y: 10)
+                        .fill(CooksyTheme.elevatedSurface)
+                        .shadow(color: CooksyTheme.softShadow, radius: 14, y: 8)
                 )
         }
         .buttonStyle(.plain)
@@ -166,9 +215,9 @@ struct RecipeBookDetailView: View {
     private func capsuleIconButton(systemImage: String) -> some View {
         Button(action: {}) {
             Image(systemName: systemImage)
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(CooksyTheme.primaryText)
-                .frame(width: 42, height: 42)
+                .frame(width: 40, height: 40)
         }
         .buttonStyle(.plain)
     }
@@ -178,8 +227,13 @@ private struct EmptyRecipeBookIllustration: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(Color(hex: 0x5F88D6))
+                .fill(CooksyTheme.primaryAccentSoft)
                 .frame(width: 196, height: 196)
+
+            Circle()
+                .fill(CooksyTheme.secondaryAccentSoft.opacity(0.96))
+                .frame(width: 138, height: 138)
+                .offset(x: 24, y: 10)
 
             Path { path in
                 path.move(to: CGPoint(x: 30, y: 122))
@@ -194,23 +248,29 @@ private struct EmptyRecipeBookIllustration: View {
                     control2: CGPoint(x: 138, y: 176)
                 )
             }
-            .stroke(Color(hex: 0xA7CD57), style: StrokeStyle(lineWidth: 18, lineCap: .round, lineJoin: .round))
+            .stroke(
+                CooksyTheme.secondaryAccent,
+                style: StrokeStyle(lineWidth: 18, lineCap: .round, lineJoin: .round)
+            )
             .frame(width: 196, height: 196)
 
             HStack(spacing: 190) {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(hex: 0xFFD74D))
+                    .fill(CooksyTheme.sparkleYellow)
                     .frame(width: 22, height: 108)
                     .rotationEffect(.degrees(22))
                     .overlay(alignment: .top) {
                         Ellipse()
-                            .fill(Color(hex: 0xFFD74D))
+                            .fill(CooksyTheme.sparkleYellow)
                             .frame(width: 34, height: 52)
                             .offset(y: -30)
                     }
 
                 ForkShape()
-                    .stroke(Color(hex: 0xF2A86B), style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
+                    .stroke(
+                        CooksyTheme.primaryAccent,
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round)
+                    )
                     .frame(width: 38, height: 112)
                     .rotationEffect(.degrees(-18))
             }
@@ -250,23 +310,39 @@ private struct RecipeBookRecipeRow: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(recipe.title)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .regular, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .lineLimit(2)
 
-                Text("\(recipe.ingredients.count) ingrédients")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
+                HStack(spacing: 8) {
+                    Text("\(recipe.ingredients.count) ingrédients")
+                    if let totalMinutes = totalMinutes(for: recipe) {
+                        Text("• \(totalMinutes) min")
+                    }
+                }
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.04), radius: 14, y: 8)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+    }
+
+    private func totalMinutes(for recipe: Recipe) -> Int? {
+        if let prep = recipe.details.prepTimeMinutes, let cook = recipe.details.cookTimeMinutes {
+            return prep + cook
+        }
+
+        return recipe.details.prepTimeMinutes ?? recipe.details.cookTimeMinutes
     }
 }
 
@@ -274,43 +350,48 @@ private struct RecipeRowHero: View {
     let recipe: Recipe
 
     var body: some View {
+        Group {
+            if let heroImageURL = recipe.heroImageURL {
+                if heroImageURL.isFileURL, let uiImage = UIImage(contentsOfFile: heroImageURL.path) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    AsyncImage(url: heroImageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        default:
+                            fallbackTile
+                        }
+                    }
+                }
+            } else {
+                fallbackTile
+            }
+        }
+        .frame(width: 72, height: 72)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+    }
+
+    private var fallbackTile: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(gradient)
-                .frame(width: 88, height: 88)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(fallbackGradient)
 
             Image(systemName: "fork.knife")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.92))
         }
     }
 
-    private var gradient: LinearGradient {
-        switch recipe.heroStyle {
-        case .warmCocoa:
-            return LinearGradient(
-                colors: [Color(hex: 0x7B4B33), Color(hex: 0xD59B6D)],
-                startPoint: .bottomLeading,
-                endPoint: .topTrailing
-            )
-        case .citrus:
-            return LinearGradient(
-                colors: [Color(hex: 0xFFB74D), Color(hex: 0xFFD95B)],
-                startPoint: .bottomLeading,
-                endPoint: .topTrailing
-            )
-        case .ocean:
-            return LinearGradient(
-                colors: [CooksyTheme.brandBlueDark, CooksyTheme.brandBlue],
-                startPoint: .bottomLeading,
-                endPoint: .topTrailing
-            )
-        case .meadow:
-            return LinearGradient(
-                colors: [Color(hex: 0x74A962), Color(hex: 0xA9D467)],
-                startPoint: .bottomLeading,
-                endPoint: .topTrailing
-            )
-        }
+    private var fallbackGradient: LinearGradient {
+        CooksyTheme.recipeGradient(for: recipe.heroStyle)
     }
 }

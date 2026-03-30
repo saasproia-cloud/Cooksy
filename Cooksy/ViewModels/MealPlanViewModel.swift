@@ -139,6 +139,10 @@ final class MealPlanViewModel: ObservableObject {
         Self.fullDayFormatter.string(from: selectedDate).capitalized
     }
 
+    var isViewingCurrentWeek: Bool {
+        calendar.isDate(currentWeekStart, inSameDayAs: calendar.startOfWeek(for: .now))
+    }
+
     var weekPlans: [DayPlan] {
         let recipesByID = Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0) })
 

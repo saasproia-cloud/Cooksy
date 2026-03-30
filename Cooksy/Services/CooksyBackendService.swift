@@ -7,6 +7,7 @@ enum CooksyBackendError: LocalizedError {
     case invalidRequestURL(String)
     case invalidResponse
     case localBackendOnPhysicalDevice
+    case notFood
     case timedOut
     case unreachable
     case serverError(String)
@@ -23,6 +24,8 @@ enum CooksyBackendError: LocalizedError {
             return "Le backend Cooksy a renvoyé une réponse invalide."
         case .localBackendOnPhysicalDevice:
             return "BACKEND_BASE_URL pointe vers localhost. Sur iPhone réel, utilisez l'URL Railway du backend."
+        case .notFood:
+            return "Ce contenu partagé ne semble pas montrer un plat ou une recette."
         case .timedOut:
             return "Cooksy attend trop longtemps le backend. Vérifiez Railway, votre Wi-Fi ou votre réseau mobile."
         case .unreachable:
@@ -38,7 +41,6 @@ private enum CooksyBackendEndpoint: String {
     case importURL = "/api/import/url"
     case importText = "/api/import/text"
     case importPhoto = "/api/import/photo"
-    case shoppingEnrich = "/api/shopping/enrich"
 }
 
 enum CooksyBackendService {
@@ -51,12 +53,17 @@ enum CooksyBackendService {
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 60
-        configuration.timeoutIntervalForResource = 120
+        configuration.timeoutIntervalForResource = 180
         return URLSession(configuration: configuration)
     }()
 
     static func healthCheck() async throws -> BackendHealthEnvelope {
-        let request = try makeRequest(endpoint: .health, method: "GET", contentType: nil)
+        let request = try makeRequest(
+            endpoint: .health,
+            method: "GET",
+            contentType: nil,
+            timeoutInterval: 20
+        )
         return try await send(request, as: BackendHealthEnvelope.self)
     }
 
@@ -75,7 +82,8 @@ enum CooksyBackendService {
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
             endpoint: .importURL,
-            requestBody: requestBody
+            requestBody: requestBody,
+            timeoutInterval: importRequestTimeout(previewMode: previewMode, sharedMode: sharedMode)
         )
         let debug = envelope.debug?.asImportDebug()
         logBackendDebug(debug)
@@ -97,7 +105,8 @@ enum CooksyBackendService {
 
         let envelope: RecipeImportEnvelope = try await sendJSON(
             endpoint: .importText,
-            requestBody: requestBody
+            requestBody: requestBody,
+            timeoutInterval: importRequestTimeout(previewMode: previewMode, sharedMode: sharedMode)
         )
         let debug = envelope.debug?.asImportDebug()
         logBackendDebug(debug)
@@ -109,7 +118,8 @@ enum CooksyBackendService {
         let request = try makeRequest(
             endpoint: .importPhoto,
             method: "POST",
-            contentType: "multipart/form-data; boundary=\(boundary)"
+            contentType: "multipart/form-data; boundary=\(boundary)",
+            timeoutInterval: 90
         )
 
         var body = Data()
@@ -130,41 +140,12 @@ enum CooksyBackendService {
         return seed
     }
 
-    static func enrichShoppingItems(_ items: [ShoppingItem]) async throws -> [ShoppingItem.ID: URL] {
-        let payload = ShoppingImageRequestEnvelope(
-            items: items.map { item in
-                ShoppingImageRequest(
-                    id: item.id.uuidString,
-                    article: item.article,
-                    category: item.category.rawValue
-                )
-            }
-        )
-
-        let response: ShoppingImageResponseEnvelope = try await sendJSON(
-            endpoint: .shoppingEnrich,
-            requestBody: payload
-        )
-
-        return Dictionary(
-            uniqueKeysWithValues: response.items.compactMap { item in
-                guard
-                    let id = UUID(uuidString: item.id),
-                    let imageURL = item.imageURL
-                else {
-                    return nil
-                }
-
-                return (id, imageURL)
-            }
-        )
-    }
-
     private static func sendJSON<Request: Encodable, Response: Decodable>(
         endpoint: CooksyBackendEndpoint,
-        requestBody: Request
+        requestBody: Request,
+        timeoutInterval: TimeInterval? = nil
     ) async throws -> Response {
-        var request = try makeRequest(endpoint: endpoint)
+        var request = try makeRequest(endpoint: endpoint, timeoutInterval: timeoutInterval)
         request.httpBody = try JSONEncoder().encode(requestBody)
         return try await send(request, as: Response.self)
     }
@@ -221,6 +202,14 @@ enum CooksyBackendService {
 
             if
                 let backendError = try? JSONDecoder().decode(BackendErrorEnvelope.self, from: data),
+                backendError.error == "not_food",
+                backendError.reason == "no_food_detected"
+            {
+                throw CooksyBackendError.notFood
+            }
+
+            if
+                let backendError = try? JSONDecoder().decode(BackendErrorEnvelope.self, from: data),
                 let message = nonEmpty(backendError.message) ?? nonEmpty(backendError.error)
             {
                 throw CooksyBackendError.serverError(message)
@@ -239,7 +228,8 @@ enum CooksyBackendService {
     private static func makeRequest(
         endpoint: CooksyBackendEndpoint,
         method: String = "POST",
-        contentType: String? = "application/json"
+        contentType: String? = "application/json",
+        timeoutInterval: TimeInterval? = nil
     ) throws -> URLRequest {
         guard let baseURL = AppConfiguration.backendBaseURL else {
             throw CooksyBackendError.invalidBaseURL(
@@ -254,11 +244,29 @@ enum CooksyBackendService {
         let url = try buildURL(baseURL: baseURL, endpoint: endpoint)
         var request = URLRequest(url: url)
         request.httpMethod = method
+        if let timeoutInterval {
+            request.timeoutInterval = timeoutInterval
+        }
         if let contentType {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
+    }
+
+    private static func importRequestTimeout(
+        previewMode: Bool,
+        sharedMode: Bool
+    ) -> TimeInterval {
+        if sharedMode {
+            return 110
+        }
+
+        if previewMode {
+            return 45
+        }
+
+        return 90
     }
 
     private static func buildURL(baseURL: URL, endpoint: CooksyBackendEndpoint) throws -> URL {
@@ -337,16 +345,6 @@ private struct TextImportRequest: Encodable {
     let imageBase64: String?
     let previewMode: Bool?
     let sharedMode: Bool?
-}
-
-private struct ShoppingImageRequestEnvelope: Encodable {
-    let items: [ShoppingImageRequest]
-}
-
-private struct ShoppingImageRequest: Encodable {
-    let id: String
-    let article: String
-    let category: String
 }
 
 private struct RecipeImportEnvelope: Decodable {
@@ -429,28 +427,15 @@ private struct BackendStepDraft: Decodable {
     }
 }
 
-private struct ShoppingImageResponseEnvelope: Decodable {
-    let items: [ShoppingImageResponseItem]
-}
-
 struct BackendHealthEnvelope: Decodable {
     let status: String
     let env: String?
 }
 
-private struct ShoppingImageResponseItem: Decodable {
-    let id: String
-    let imageUrl: String?
-
-    var imageURL: URL? {
-        guard let imageUrl, !imageUrl.isEmpty else { return nil }
-        return URL(string: imageUrl)
-    }
-}
-
 private struct BackendErrorEnvelope: Decodable {
     let error: String?
     let message: String?
+    let reason: String?
 }
 
 private func urlIfPresent(_ string: String) -> URL? {

@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "launch-splash.png",
+      "filename" : "home-wordmark.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "launch-splash@2x.png",
+      "filename" : "home-wordmark@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "launch-splash@3x.png",
+      "filename" : "home-wordmark@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

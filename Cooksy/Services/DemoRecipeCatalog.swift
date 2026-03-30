@@ -158,7 +158,7 @@ enum DemoRecipeCatalog {
             servings: "1",
             prepMinutes: 8,
             cookMinutes: 0,
-            hero: .init(emoji: "🥣", topColorHex: 0x7A53D1, bottomColorHex: 0xD38AC9, accentColorHex: 0xFEE6FF),
+            hero: .init(emoji: "🥣", topColorHex: 0xD45A4A, bottomColorHex: 0xF0B25C, accentColorHex: 0xFFF1E2),
             ingredients: [
                 .init(amount: "60", unit: "g", name: "flocons d'avoine"),
                 .init(amount: "120", unit: "ml", name: "lait d'amande"),

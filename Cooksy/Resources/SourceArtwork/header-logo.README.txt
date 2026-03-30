@@ -1,0 +1,13 @@
+Place your exact logo image at:
+Cooksy/Resources/Assets.xcassets/HeaderLogo.imageset/
+
+Filenames:
+- logo-header.png
+- logo-header@2x.png
+- logo-header@3x.png
+
+If you only have one exact PNG and do not want it changed:
+- duplicate the exact same file 3 times
+- keep those filenames exactly
+
+This asset is used in the import header, brand pills, and fallback ingredient logo.

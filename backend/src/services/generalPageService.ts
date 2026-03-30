@@ -12,6 +12,11 @@ export type HtmlPageDocument = {
   summary: HtmlPageSummary;
 };
 
+export type RemoteFilePayload = {
+  buffer: Buffer;
+  contentType?: string;
+};
+
 export async function fetchPageSummary(
   url: string,
   options?: {
@@ -80,6 +85,17 @@ export async function fetchRemoteBuffer(
     timeoutMs?: number;
   }
 ): Promise<Buffer> {
+  const payload = await fetchRemoteFile(url, maxBytes, options);
+  return payload.buffer;
+}
+
+export async function fetchRemoteFile(
+  url: string,
+  maxBytes: number,
+  options?: {
+    timeoutMs?: number;
+  }
+): Promise<RemoteFilePayload> {
   const response = await fetch(url, {
     headers: DEFAULT_HEADERS,
     redirect: "follow",
@@ -102,7 +118,10 @@ export async function fetchRemoteBuffer(
     throw new Error(`Remote file exceeds the allowed limit (${buffer.byteLength} bytes)`);
   }
 
-  return buffer;
+  return {
+    buffer,
+    contentType: response.headers.get("content-type") ?? undefined
+  };
 }
 
 export function baseUrlForRemoteImage(candidate?: string): string | undefined {

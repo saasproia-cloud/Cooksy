@@ -2,9 +2,9 @@ import SwiftUI
 import OSLog
 
 private enum AppTab: Hashable {
+    case home
     case recipes
     case plan
-    case courses
     case more
 }
 
@@ -13,12 +13,14 @@ struct RootTabView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
 
     let sharedLinkInbox: SharedLinkInbox
+    let appDelegate: CooksyAppDelegate
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "RootSharedImport")
 
-    @State private var selection: AppTab = .recipes
+    @State private var selection: AppTab = .home
     @State private var showsQuickImportSheet = false
     @State private var isProcessingSharedImport = false
     @State private var currentSharedImportHostLabel = ""
+    @State private var currentSharedImportIsVideo = false
     @State private var sharedImportAssessment: RecipeImportAssessment?
     @State private var sharedImportFailureAssessment: RecipeImportAssessment?
     @State private var sharedImportCreateSeed: RecipeEditorSeed?
@@ -29,17 +31,26 @@ struct RootTabView: View {
     @State private var showsLaunchSplash = true
     @State private var launchSplashHasEntered = false
     @State private var launchSplashIsLeaving = false
+    @State private var showsPostSplashHero = false
+    @State private var postSplashHeroHasEntered = false
+    @State private var postSplashHeroIsLeaving = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selection) {
                 NavigationStack {
-                    HomeView(store: recipeStore, sharedLinkInbox: sharedLinkInbox)
+                    HomeView(
+                        store: recipeStore,
+                        sharedLinkInbox: sharedLinkInbox,
+                        openRecipesTab: { selection = .recipes },
+                        openPlanTab: { selection = .plan },
+                        openImportSheet: { showsQuickImportSheet = true }
+                    )
                 }
                 .tabItem {
-                    Label("Recettes", systemImage: "bookmark.fill")
+                    Label("Accueil", systemImage: "house.fill")
                 }
-                .tag(AppTab.recipes)
+                .tag(AppTab.home)
 
                 NavigationStack {
                     MealPlanView(store: recipeStore)
@@ -50,12 +61,16 @@ struct RootTabView: View {
                 .tag(AppTab.plan)
 
                 NavigationStack {
-                    ShoppingListView(store: recipeStore)
+                    RecipeLibraryView(
+                        store: recipeStore,
+                        sharedLinkInbox: sharedLinkInbox,
+                        openImportSheet: { showsQuickImportSheet = true }
+                    )
                 }
                 .tabItem {
-                    Label("Courses", systemImage: "cart")
+                    Label("Recettes", systemImage: "bookmark.fill")
                 }
-                .tag(AppTab.courses)
+                .tag(AppTab.recipes)
 
                 NavigationStack {
                     PlaceholderView(
@@ -91,9 +106,16 @@ struct RootTabView: View {
                 await processPendingSharedImportIfNeeded()
             }
         }
-        .onOpenURL { _ in
+        .onOpenURL { url in
             Task {
-                await processPendingSharedImportIfNeeded()
+                await handleIncomingURL(url)
+            }
+        }
+        .onReceive(appDelegate.$pendingURL) { pendingURL in
+            guard let pendingURL else { return }
+            appDelegate.consumePendingURLIfNeeded(pendingURL)
+            Task {
+                await handleIncomingURL(pendingURL)
             }
         }
         .fullScreenCover(
@@ -164,7 +186,10 @@ struct RootTabView: View {
         }
         .overlay {
             if isProcessingSharedImport {
-                RootSharedImportOverlay(hostLabel: currentSharedImportHostLabel)
+                RootSharedImportOverlay(
+                    hostLabel: currentSharedImportHostLabel,
+                    isVideoImport: currentSharedImportIsVideo
+                )
             }
         }
         .sheet(item: $savedImportedRecipeRoute) { route in
@@ -182,17 +207,40 @@ struct RootTabView: View {
                 .zIndex(10)
             }
         }
+        .overlay {
+            if showsPostSplashHero {
+                AppPostSplashHeroOverlay(
+                    hasEntered: postSplashHeroHasEntered,
+                    isLeaving: postSplashHeroIsLeaving
+                )
+                .transition(.identity)
+                .zIndex(9)
+            }
+        }
     }
 
     @MainActor
-    private func processPendingSharedImportIfNeeded(force: Bool = false) async {
+    private func processPendingSharedImportIfNeeded(
+        force: Bool = false,
+        preferredHandoffToken: String? = nil
+    ) async {
         guard !isProcessingSharedImport else { return }
-        guard let draft = sharedLinkInbox.peek(), draft.hasPayload else { return }
-        guard force || lastDeferredSharedImportKey != draft.dedupeKey else { return }
+        guard let draft = await pendingSharedImport(matching: preferredHandoffToken), draft.hasPayload else {
+            return
+        }
+
+        if let acknowledgementToken = preferredHandoffToken ?? draft.handoffToken {
+            sharedLinkInbox.acknowledgeHandoff(acknowledgementToken)
+        }
+
+        guard force || preferredHandoffToken != nil || lastDeferredSharedImportKey != draft.dedupeKey else {
+            return
+        }
 
         selection = .recipes
         isProcessingSharedImport = true
         currentSharedImportHostLabel = draft.hostLabel
+        currentSharedImportIsVideo = draft.isLikelyVideoImport
         logger.debug(
             "App started processing shared import host=\(draft.hostLabel, privacy: .public) url=\(draft.preferredImportURL?.absoluteString ?? draft.urlString ?? "(nil)", privacy: .public) sharedTextLength=\(draft.sharedText?.count ?? 0, privacy: .public)"
         )
@@ -234,7 +282,48 @@ struct RootTabView: View {
         }
 
         currentSharedImportHostLabel = ""
+        currentSharedImportIsVideo = false
         isProcessingSharedImport = false
+    }
+
+    @MainActor
+    private func handleIncomingURL(_ url: URL) async {
+        guard let openRequest = SharedImportOpenRequest(url: url) else {
+            await processPendingSharedImportIfNeeded()
+            return
+        }
+
+        logger.debug(
+            "App received shared import URL token=\(openRequest.handoffToken ?? "(nil)", privacy: .public)"
+        )
+
+        await processPendingSharedImportIfNeeded(
+            force: true,
+            preferredHandoffToken: openRequest.handoffToken
+        )
+    }
+
+    @MainActor
+    private func pendingSharedImport(matching handoffToken: String?) async -> SharedImportDraft? {
+        if handoffToken == nil {
+            return sharedLinkInbox.peek()
+        }
+
+        for attempt in 0..<12 {
+            if let draft = sharedLinkInbox.peek(),
+               draft.hasPayload,
+               draft.handoffToken == handoffToken {
+                return draft
+            }
+
+            let delayMilliseconds = attempt < 4 ? 120 : 220
+            try? await Task.sleep(for: .milliseconds(delayMilliseconds))
+        }
+
+        return sharedLinkInbox.peek().flatMap { draft in
+            guard draft.handoffToken == handoffToken else { return nil }
+            return draft
+        }
     }
 
     private func shouldRouteRejectedSharedImportToReview(
@@ -367,6 +456,12 @@ struct RootTabView: View {
 
         guard showsLaunchSplash else { return }
 
+        preparePostSplashHeroIfNeeded()
+
+        withAnimation(.spring(duration: 0.78, bounce: 0.14)) {
+            postSplashHeroHasEntered = true
+        }
+
         withAnimation(.easeInOut(duration: 0.5)) {
             launchSplashIsLeaving = true
         }
@@ -374,6 +469,46 @@ struct RootTabView: View {
         try? await Task.sleep(for: .milliseconds(520))
 
         showsLaunchSplash = false
+        await finishPostSplashHeroIfNeeded()
+    }
+
+    @MainActor
+    private func preparePostSplashHeroIfNeeded() {
+        guard !showsPostSplashHero else { return }
+        showsPostSplashHero = true
+        postSplashHeroHasEntered = false
+        postSplashHeroIsLeaving = false
+    }
+
+    @MainActor
+    private func finishPostSplashHeroIfNeeded() async {
+        guard showsPostSplashHero, postSplashHeroHasEntered, !postSplashHeroIsLeaving else { return }
+
+        try? await Task.sleep(for: .milliseconds(1180))
+
+        guard showsPostSplashHero else { return }
+
+        withAnimation(.easeInOut(duration: 0.45)) {
+            postSplashHeroIsLeaving = true
+        }
+
+        try? await Task.sleep(for: .milliseconds(460))
+
+        showsPostSplashHero = false
+    }
+}
+
+private struct SharedImportOpenRequest {
+    let handoffToken: String?
+
+    init?(url: URL) {
+        guard url.scheme?.lowercased() == "cooksy",
+              url.host?.lowercased() == "shared-import" else {
+            return nil
+        }
+
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        handoffToken = components?.queryItems?.first(where: { $0.name == "handoffToken" })?.value
     }
 }
 
@@ -388,15 +523,25 @@ private struct FloatingImportButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "plus")
-                .font(.system(size: 30, weight: .medium, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 72, height: 72)
-                .background(
-                    Circle()
-                        .fill(CooksyTheme.ctaOrange)
-                )
-                .shadow(color: CooksyTheme.ctaOrange.opacity(0.28), radius: 18, y: 10)
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .bold))
+
+                Text("Importer")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .frame(height: 56)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.accentGradient)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: CooksyTheme.ctaOrange.opacity(0.3), radius: 18, y: 10)
         }
         .buttonStyle(.plain)
     }
@@ -404,44 +549,206 @@ private struct FloatingImportButton: View {
 
 private struct RootSharedImportOverlay: View {
     let hostLabel: String
+    let isVideoImport: Bool
+    @State private var pulses = false
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.16)
+            LinearGradient(
+                colors: [
+                    CooksyTheme.background.opacity(0.68),
+                    CooksyTheme.primaryAccentSoft.opacity(0.42)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
                 .ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                ProgressView()
-                    .tint(CooksyTheme.ctaOrange)
-                    .scaleEffect(1.2)
+            ZStack {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white, CooksyTheme.elevatedSurface],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .stroke(CooksyTheme.stroke.opacity(0.75), lineWidth: 1.2)
+                    )
+                    .shadow(color: CooksyTheme.shadow, radius: 26, y: 14)
 
-                Text("Cooksy prépare votre recette")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
+                Circle()
+                    .fill(CooksyTheme.secondaryAccentSoft.opacity(0.9))
+                    .frame(width: 170, height: 170)
+                    .blur(radius: 4)
+                    .offset(x: 112, y: -104)
 
-                Text(importMessage)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                    .multilineTextAlignment(.center)
+                Circle()
+                    .fill(CooksyTheme.primaryAccentSoft.opacity(0.88))
+                    .frame(width: 132, height: 132)
+                    .blur(radius: 3)
+                    .offset(x: -116, y: 120)
+
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 10) {
+                        overlayPill(
+                            text: isVideoImport ? "Import video" : "Import partage",
+                            textColor: CooksyTheme.ctaOrangeDark,
+                            fill: CooksyTheme.blush.opacity(0.92)
+                        )
+
+                        if let trimmedHost = trimmedHostLabel {
+                            overlayPill(
+                                text: trimmedHost,
+                                textColor: CooksyTheme.brandBlueDark,
+                                fill: CooksyTheme.softCloud.opacity(0.92)
+                            )
+                        }
+                    }
+
+                    HStack(alignment: .center, spacing: 18) {
+                        loadingOrb
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(isVideoImport ? "Cooksy reconstruit votre video" : "Cooksy prepare votre recette")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(importMessage)
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(CooksyTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    VStack(spacing: 10) {
+                        ForEach(Array(stepItems.enumerated()), id: \.offset) { _, step in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(step.tint.opacity(0.14))
+                                        .frame(width: 34, height: 34)
+
+                                    Image(systemName: step.icon)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(step.tint)
+                                }
+
+                                Text(step.title)
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(CooksyTheme.primaryText)
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(height: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white.opacity(0.88))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(CooksyTheme.stroke.opacity(0.55), lineWidth: 1)
+                                    )
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 26)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 30)
-            .frame(maxWidth: 320)
-            .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.12), radius: 22, y: 12)
-            )
+            .padding(.horizontal, 24)
+            .frame(maxWidth: 372)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.45).repeatForever(autoreverses: true)) {
+                pulses = true
+            }
         }
     }
 
     private var importMessage: String {
-        let trimmedHost = hostLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty else {
-            return "Nous analysons le partage et rassemblons les ingredients, l'image et les etapes."
+        guard let trimmedHost = trimmedHostLabel else {
+            return isVideoImport
+                ? "Nous lisons la video, recuperons les bons indices et recomposons les ingredients et les etapes."
+                : "Nous analysons le partage et rassemblons les ingredients, l'image et les etapes."
+        }
+
+        if isVideoImport {
+            return "Nous recuperons la video depuis \(trimmedHost) et reconstruisons une recette claire pour vous."
         }
 
         return "Nous analysons le partage depuis \(trimmedHost) et reconstruisons la recette pour vous."
+    }
+
+    private var trimmedHostLabel: String? {
+        let trimmedHost = hostLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedHost.isEmpty ? nil : trimmedHost
+    }
+
+    private var loadingOrb: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: isVideoImport
+                            ? [CooksyTheme.secondaryAccent, CooksyTheme.secondaryAccentStrong]
+                            : [CooksyTheme.primaryAccent, CooksyTheme.primaryAccentStrong],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 104, height: 104)
+
+            Circle()
+                .stroke(Color.white.opacity(0.22), lineWidth: 12)
+                .frame(width: 104, height: 104)
+                .scaleEffect(pulses ? 1.08 : 0.92)
+                .opacity(pulses ? 0.2 : 0.56)
+
+            Circle()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 74, height: 74)
+
+            Image(systemName: isVideoImport ? "play.rectangle.fill" : "sparkles")
+                .font(.system(size: 31, weight: .bold))
+                .foregroundStyle(.white)
+
+            ProgressView()
+                .tint(.white)
+                .scaleEffect(1.02)
+                .offset(y: 56)
+        }
+    }
+
+    private var stepItems: [(icon: String, title: String, tint: Color)] {
+        if isVideoImport {
+            return [
+                ("play.rectangle.fill", "Lecture de la video partagee", CooksyTheme.brandBlueDark),
+                ("sparkles", "Extraction des ingredients et des gestes", CooksyTheme.ctaOrangeDark),
+                ("list.bullet.rectangle.fill", "Preparation de la fiche recette", Color(hex: 0x5C7A46))
+            ]
+        }
+
+        return [
+            ("link", "Lecture du partage", CooksyTheme.brandBlueDark),
+            ("doc.text.fill", "Analyse du contenu", CooksyTheme.ctaOrangeDark),
+            ("square.and.arrow.down.fill", "Preparation dans Cooksy", Color(hex: 0x5C7A46))
+        ]
+    }
+
+    private func overlayPill(text: String, textColor: Color, fill: Color) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(textColor)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(fill)
+            )
     }
 }
 
@@ -451,20 +758,11 @@ private struct AppLaunchSplashOverlay: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let splashSize = CGSize(
-                width: geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing,
-                height: geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom
-            )
-
-            splashContent(in: splashSize)
-                .frame(width: splashSize.width, height: splashSize.height)
+            splashContent(in: geometry.size)
+                .frame(width: geometry.size.width, height: geometry.size.height)
                 .scaleEffect(isLeaving ? 1.02 : (hasEntered ? 1 : 0.985))
                 .opacity(isLeaving ? 0 : (hasEntered ? 1 : 0.82))
                 .offset(y: isLeaving ? -10 : (hasEntered ? 0 : 14))
-                .offset(
-                    x: (geometry.safeAreaInsets.leading - geometry.safeAreaInsets.trailing) / 2,
-                    y: (geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom) / 2
-                )
         }
         .ignoresSafeArea()
         .allowsHitTesting(true)
@@ -473,12 +771,16 @@ private struct AppLaunchSplashOverlay: View {
     @ViewBuilder
     private func splashContent(in size: CGSize) -> some View {
         if UIImage(named: "LaunchSplash") != nil {
-            Image("LaunchSplash")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFill()
-                .frame(width: size.width, height: size.height)
-                .clipped()
+            ZStack {
+                Color.white
+
+                Image("LaunchSplash")
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+            }
         } else {
             ZStack {
                 SplashBackdrop()
@@ -525,6 +827,251 @@ private struct AppLaunchSplashOverlay: View {
     }
 }
 
+private struct AppPostSplashHeroOverlay: View {
+    let hasEntered: Bool
+    let isLeaving: Bool
+
+    @State private var animates = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                CooksyTheme.ambientGradient
+                    .ignoresSafeArea()
+
+                Image("PostSplashHero")
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                    .scaleEffect(animates ? 1.004 : 0.996)
+                    .offset(y: animates ? -2 : 0)
+
+                animatedHeroOverlays(in: geometry.size)
+            }
+            .scaleEffect(isLeaving ? 1.012 : (hasEntered ? 1 : 0.988))
+            .opacity(isLeaving ? 0 : (hasEntered ? 1 : 0.78))
+            .offset(y: isLeaving ? -16 : (hasEntered ? 0 : 22))
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(true)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
+                animates = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func animatedHeroOverlays(in size: CGSize) -> some View {
+        let clusterWidth = min(size.width * 0.47, 290)
+        let clusterHeight = clusterWidth * 0.63
+        let centerX = size.width * 0.5
+        let centerY = size.height * 0.52
+
+        ZStack {
+            BowlBreathHalo()
+                .frame(width: clusterWidth * 0.86, height: clusterHeight * 0.38)
+                .offset(x: 0, y: clusterHeight * 0.18)
+
+            BottleLiquidWave()
+                .frame(width: clusterWidth * 0.15, height: clusterHeight * 0.46)
+                .offset(x: clusterWidth * 0.3, y: clusterHeight * 0.04)
+
+            ProduceFloatCluster()
+                .frame(width: clusterWidth * 0.92, height: clusterHeight * 0.72)
+                .offset(x: 0, y: -clusterHeight * 0.06)
+
+            FloatingSparkPulse()
+                .frame(width: clusterWidth * 0.14, height: clusterWidth * 0.14)
+                .offset(x: 0, y: -clusterHeight * 0.28)
+
+            GentleSpeckleField()
+                .frame(width: clusterWidth, height: clusterHeight)
+        }
+        .position(x: centerX, y: centerY)
+        .blendMode(.plusLighter)
+    }
+}
+
+private struct BowlBreathHalo: View {
+    @State private var expands = false
+
+    var body: some View {
+        Ellipse()
+            .fill(Color(hex: 0xB0DC5A, opacity: 0.18))
+            .blur(radius: 12)
+            .scaleEffect(expands ? 1.06 : 0.92)
+            .opacity(expands ? 0.18 : 0.1)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.1).repeatForever(autoreverses: true)) {
+                    expands = true
+                }
+            }
+    }
+}
+
+private struct BottleLiquidWave: View {
+    @State private var phase: CGFloat = -18
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Capsule(style: .continuous)
+                .fill(Color.white.opacity(0.08))
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: 0xFFE97A, opacity: 0.18),
+                                Color(hex: 0xFFD11A, opacity: 0.34),
+                                Color(hex: 0xF6A300, opacity: 0.16)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                WaveRibbon()
+                    .fill(Color.white.opacity(0.22))
+                    .frame(height: 14)
+                    .offset(y: phase)
+                    .blur(radius: 0.4)
+            }
+            .mask(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 8)
+                    .padding(.top, 24)
+            )
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                phase = -8
+            }
+        }
+    }
+}
+
+private struct ProduceFloatCluster: View {
+    @State private var offsetUp = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hex: 0x7BCB32, opacity: 0.22))
+                .frame(width: 12, height: 12)
+                .offset(x: -78, y: -8)
+                .offset(y: offsetUp ? -4 : 2)
+
+            Circle()
+                .fill(Color(hex: 0x8CD83F, opacity: 0.2))
+                .frame(width: 9, height: 9)
+                .offset(x: -62, y: -24)
+                .offset(y: offsetUp ? 3 : -3)
+
+            Circle()
+                .fill(Color(hex: 0x9BE34E, opacity: 0.18))
+                .frame(width: 10, height: 10)
+                .offset(x: 66, y: -32)
+                .offset(y: offsetUp ? -3 : 3)
+
+            Capsule(style: .continuous)
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 20, height: 6)
+                .rotationEffect(.degrees(-22))
+                .offset(x: -6, y: -68)
+                .offset(y: offsetUp ? -2 : 2)
+
+            Capsule(style: .continuous)
+                .fill(Color(hex: 0xFFF9D4, opacity: 0.2))
+                .frame(width: 16, height: 5)
+                .rotationEffect(.degrees(16))
+                .offset(x: 40, y: -18)
+                .offset(y: offsetUp ? 2 : -2)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                offsetUp = true
+            }
+        }
+    }
+}
+
+private struct FloatingSparkPulse: View {
+    @State private var pulses = false
+
+    var body: some View {
+        SplashSparkleShape()
+            .fill(
+                LinearGradient(
+                    colors: [Color(hex: 0xFF8C71), Color(hex: 0xFF5D46)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaleEffect(pulses ? 1.12 : 0.92)
+            .opacity(pulses ? 0.92 : 0.55)
+            .shadow(color: Color(hex: 0xFF8860, opacity: 0.28), radius: 8)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true)) {
+                    pulses = true
+                }
+            }
+    }
+}
+
+private struct GentleSpeckleField: View {
+    @State private var drifts = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<5, id: \.self) { index in
+                Circle()
+                    .fill(Color(hex: 0xA2D946, opacity: index.isMultiple(of: 2) ? 0.18 : 0.1))
+                    .frame(width: index.isMultiple(of: 2) ? 7 : 5, height: index.isMultiple(of: 2) ? 7 : 5)
+                    .offset(position(for: index))
+                    .offset(y: drifts ? -5 : 4)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                drifts = true
+            }
+        }
+    }
+
+    private func position(for index: Int) -> CGSize {
+        let positions: [CGSize] = [
+            CGSize(width: -96, height: -14),
+            CGSize(width: -78, height: -36),
+            CGSize(width: 58, height: -34),
+            CGSize(width: 86, height: -18),
+            CGSize(width: -24, height: -74)
+        ]
+        return positions[index]
+    }
+}
+
+private struct WaveRibbon: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.midY),
+            control1: CGPoint(x: rect.width * 0.22, y: rect.minY),
+            control2: CGPoint(x: rect.width * 0.78, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
 private struct SplashBackdrop: View {
     var body: some View {
         GeometryReader { geometry in
@@ -542,7 +1089,7 @@ private struct SplashBackdrop: View {
                 Image(systemName: "circle.hexagongrid.fill")
                     .resizable()
                     .scaledToFill()
-                    .foregroundStyle(Color.white.opacity(0.055))
+                    .foregroundStyle(CooksyTheme.elevatedSurface.opacity(0.12))
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .blendMode(.overlay)
 
@@ -575,7 +1122,10 @@ private struct SplashBackdrop: View {
                 )
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: 0xC34FC5), Color(hex: 0xA35FD3)],
+                        colors: [
+                            CooksyTheme.secondaryAccent.opacity(0.96),
+                            CooksyTheme.secondaryAccentStrong.opacity(0.92)
+                        ],
                         startPoint: .top,
                         endPoint: .bottom
                     )

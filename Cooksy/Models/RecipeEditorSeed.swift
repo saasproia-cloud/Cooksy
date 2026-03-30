@@ -11,6 +11,8 @@ struct RecipeImportDebugInfo: Codable, Hashable {
 
     var userFacingFailureMessage: String? {
         switch failureReason {
+        case "not_food":
+            return "Ce contenu ne semble pas montrer une recette"
         case "import_too_slow":
             return "Import trop lent"
         case "weak_tiktok_metadata":

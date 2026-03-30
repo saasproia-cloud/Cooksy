@@ -1,6 +1,7 @@
 import { ApifyClient } from "apify-client";
 
 import { env, providerStatus } from "../config/env.js";
+import { hasSuspiciousRecipeTitle } from "../types/recipe.js";
 import { fetchPageDocument } from "./generalPageService.js";
 import { hostFromUrl, normalizeWhitespace, platformFromUrl, safeUrl } from "../utils/text.js";
 
@@ -247,7 +248,7 @@ async function resolveViaDirectFetch(
         platform,
         source: "direct",
         canonicalUrl: tiktokSnapshot.canonicalUrl ?? page.summary.canonicalUrl ?? page.url,
-        title: tiktokSnapshot.title ?? page.summary.title,
+        title: pickCleanSocialTitle(tiktokSnapshot.title, page.summary.title),
         caption: tiktokSnapshot.caption ?? page.summary.description,
         description: tiktokSnapshot.description ?? page.summary.description,
         authorName: tiktokSnapshot.authorName,
@@ -469,7 +470,7 @@ function deriveTikTokRecipeTitle(
   ...descriptions: Array<string | undefined>
 ): string | undefined {
   const stickerTitle = normalizeTikTokTitle(readTikTokStickerTitle(item));
-  if (stickerTitle) {
+  if (stickerTitle && !hasSuspiciousRecipeTitle(stickerTitle)) {
     return stickerTitle;
   }
 
@@ -497,12 +498,18 @@ function deriveTikTokRecipeTitle(
         .trim()
     );
 
-    if (cleaned && cleaned.length <= 80) {
+    if (cleaned && cleaned.length <= 80 && !hasSuspiciousRecipeTitle(cleaned)) {
       return cleaned;
     }
   }
 
   return undefined;
+}
+
+function pickCleanSocialTitle(...values: Array<string | undefined>): string | undefined {
+  return values
+    .map((value) => normalizeWhitespace(value ?? ""))
+    .find((value) => Boolean(value) && !hasSuspiciousRecipeTitle(value));
 }
 
 function extractTikTokContentLines(item?: Record<string, unknown>): string[] {

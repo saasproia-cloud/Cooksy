@@ -155,14 +155,31 @@ enum RecipeValidationService {
         "breaking news",
         "entertainment",
         "style",
-        "shopping deals",
         "actually taste good"
+    ]
+
+    private static let socialNoisePhrases = [
+        "original sound",
+        "son original",
+        "the playful waltz",
+        "ajouter un commentaire",
+        "watch more"
+    ]
+
+    private static let socialNoiseKeywords = [
+        "audio",
+        "follow",
+        "playlist",
+        "remix",
+        "soundtrack",
+        "suivre",
+        "waltz"
     ]
 
     private static let articleKeywords: Set<String> = [
         "article", "articles", "breaking", "celebrity", "celebrities", "editor", "editorial",
         "entertainment", "fashion", "headline", "headlines", "lifestyle", "magazine", "news",
-        "newsletter", "post", "posts", "read", "share", "shopping", "story", "stories", "style",
+        "newsletter", "post", "posts", "read", "share", "story", "stories", "style",
         "subscribe", "travel", "viral", "watch", "view"
     ]
 
@@ -212,18 +229,18 @@ enum RecipeValidationService {
 
     private static let foodTokens: Set<String> = [
         "almond", "apple", "avocado", "banana", "basil", "bean", "beans", "beef", "broccoli",
-        "broth", "butter", "cake", "carrot", "cheese", "chicken", "chili", "chocolate", "cocoa",
+        "broth", "burger", "burgers", "butter", "cake", "carrot", "cheese", "chicken", "chili", "chocolate", "cocoa",
         "cream", "cucumber", "dough", "egg", "eggs", "flour", "garlic", "ginger", "ham", "honey",
         "juice", "lemon", "lettuce", "lime", "meat", "milk", "mushroom", "mushrooms", "noodle",
         "noodles", "oil", "onion", "orange", "pasta", "pepper", "potato", "potatoes", "rice",
         "salad", "salt", "sauce", "shrimp", "spinach", "sugar", "syrup", "tomato", "tomatoes",
-        "tortilla", "vanilla", "water", "yogurt",
+        "tortilla", "truffle", "water", "yogurt",
         "ail", "amande", "amandes", "beurre", "boeuf", "bœuf", "bouillon", "carotte", "carottes",
-        "champignon", "champignons", "chocolat", "citron", "citron vert", "concombre", "creme",
+        "burger", "burgers", "champignon", "champignons", "chocolat", "citron", "citron vert", "concombre", "creme",
         "crème", "farine", "fromage", "gingembre", "huile", "jaune", "lait", "miel", "oeuf",
         "œuf", "oeufs", "œufs", "oignon", "oignons", "pate", "pâtes", "persil", "piment", "poire",
         "poivre", "pomme", "poulet", "riz", "salade", "saumon", "sel", "sucre", "thon", "tomate",
-        "tomates", "vanille", "yaourt"
+        "tomates", "truffe", "vanille", "yaourt"
     ]
 
     private static let weakTitles: Set<String> = [
@@ -274,9 +291,16 @@ enum RecipeValidationService {
         let titleLooksArticleLike = isArticleStyleTitle(seed.normalizedTitle)
         let titleLooksRecipeLike = isRecipeLikeTitle(seed.normalizedTitle)
         let sourceLooksArticleLike = isLikelyNonRecipeURL(seed.sourceURL)
+        let backendTrustedImport = seed.importDebug?.isLikelyValid == true
         let hasEnoughRecipeStructure = validIngredientCount >= 3 && validStepCount >= 2
         let unrelatedWordPressure = unrelatedWordPressure(in: combinedText)
         let mostlyArticleText = proseLikeLineRatio >= 0.45 || unrelatedWordPressure >= 5
+        let hasCompactCookableStructure = titleLooksRecipeLike &&
+            !titleLooksArticleLike &&
+            validIngredientCount >= 2 &&
+            validStepCount >= 2 &&
+            !mostlyArticleText &&
+            articleSignalCount < 4
 
         var score = 100
         var hardReasons = Set<RecipeValidationResult.Reason>()
@@ -291,8 +315,13 @@ enum RecipeValidationService {
         }
 
         if validIngredientCount < 3 {
-            hardReasons.insert(.notEnoughIngredients)
-            score -= 32
+            if hasCompactCookableStructure {
+                warningReasons.insert(.notEnoughIngredients)
+                score -= 12
+            } else {
+                hardReasons.insert(.notEnoughIngredients)
+                score -= 32
+            }
         } else if validIngredientCount < ingredientLines.count {
             warningReasons.insert(.notEnoughIngredients)
             score -= 8
@@ -337,7 +366,18 @@ enum RecipeValidationService {
         score -= max(0, rawSignals.removedNoiseLineCount - 1) * 2
         score = max(0, min(100, score))
 
-        let canSave = hardReasons.isEmpty && score >= 70
+        let backendCompactRecipeIsUsable = backendTrustedImport &&
+            validIngredientCount >= 2 &&
+            validStepCount >= 2 &&
+            titleLooksRecipeLike &&
+            !titleLooksArticleLike
+        if backendCompactRecipeIsUsable && hardReasons.contains(.notEnoughIngredients) {
+            hardReasons.remove(.notEnoughIngredients)
+            warningReasons.insert(.notEnoughIngredients)
+        }
+
+        let minimumSaveScore = sourceKind == .url ? 62 : 58
+        let canSave = hardReasons.isEmpty && (score >= minimumSaveScore || backendCompactRecipeIsUsable)
         if hardReasons.isEmpty && !canSave {
             warningReasons.insert(.lowQualityScore)
         }
@@ -406,12 +446,19 @@ enum RecipeValidationService {
 
     private static func sanitizeIngredients(_ drafts: [IngredientDraft]) -> [IngredientDraft] {
         dedupeLines(
-            drafts.compactMap { draft in
+            drafts.flatMap { draft -> [IngredientDraft] in
                 let line = cleanIngredientLine(ingredientLine(from: draft))
-                guard !line.isEmpty else { return nil }
-                guard !isExactNoiseLine(line) else { return nil }
-                guard !shouldDropAsIrrelevantIngredient(line) else { return nil }
-                return parseIngredientLine(line)
+                guard !line.isEmpty else { return [] }
+                guard !isExactNoiseLine(line) else { return [] }
+                guard !shouldDropAsIrrelevantIngredient(line) else { return [] }
+
+                return splitIngredientLine(line).compactMap { segment in
+                    let cleanedSegment = cleanIngredientLine(segment)
+                    guard !cleanedSegment.isEmpty else { return nil }
+                    guard !isExactNoiseLine(cleanedSegment) else { return nil }
+                    guard !shouldDropAsIrrelevantIngredient(cleanedSegment) else { return nil }
+                    return parseIngredientLine(cleanedSegment)
+                }
             },
             key: { normalizedPhrase(ingredientLine(from: $0)) }
         )
@@ -486,6 +533,72 @@ enum RecipeValidationService {
                 options: .regularExpression
             )
         )
+    }
+
+    private static func splitIngredientLine(_ line: String) -> [String] {
+        let cleaned = cleanIngredientLine(line)
+            .replacingOccurrences(of: #"\s*(?:\.\.\.|…)\s*"#, with: " / ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s*(?:/|\||;|•|·|\+|&)\s*"#, with: " / ", options: .regularExpression)
+
+        if let slashSegments = plausibleIngredientSegments(
+            cleaned.components(separatedBy: " / ")
+        ) {
+            return slashSegments
+        }
+
+        if let commaSegments = plausibleIngredientSegments(
+            cleaned.components(separatedBy: ",")
+        ) {
+            return commaSegments
+        }
+
+        let conjunctionNormalized = cleaned.replacingOccurrences(
+            of: #"\s+\b(?:et|and)\b\s+"#,
+            with: " / ",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        if let conjunctionSegments = plausibleIngredientSegments(
+            conjunctionNormalized.components(separatedBy: " / ")
+        ) {
+            return conjunctionSegments
+        }
+
+        return [line]
+    }
+
+    private static func plausibleIngredientSegments(_ rawSegments: [String]) -> [String]? {
+        let segments = rawSegments
+            .map(cleanIngredientLine(_:))
+            .filter { !$0.isEmpty }
+
+        guard segments.count >= 2 else { return nil }
+        guard segments.allSatisfy(isPlausibleIngredientSegment(_:)) else { return nil }
+        return segments
+    }
+
+    private static func isPlausibleIngredientSegment(_ value: String) -> Bool {
+        let stripped = stripLeadingMeasurement(from: value)
+        let tokens = tokenized(stripped)
+        guard !tokens.isEmpty, tokens.count <= 6 else { return false }
+        return stripped.range(of: #"[A-Za-zÀ-ÿ]"#, options: .regularExpression) != nil
+    }
+
+    private static func stripLeadingMeasurement(from value: String) -> String {
+        let cleaned = cleanIngredientLine(value)
+        let tokens = cleaned.split(separator: " ").map(String.init)
+        guard !tokens.isEmpty else { return cleaned }
+
+        let first = normalizedPhrase(tokens[0])
+        let second = tokens.count > 1 ? normalizedPhrase(tokens[1]) : ""
+        let hasQuantityPrefix = first.range(of: #"^\d|^[¼½¾⅓⅔⅛]|^\d+/\d+"#, options: .regularExpression) != nil ||
+            quantityWords.contains(first)
+
+        guard hasQuantityPrefix else { return cleaned }
+        if tokens.count >= 3, unitTokens.contains(second) {
+            return tokens.dropFirst(2).joined(separator: " ")
+        }
+
+        return tokens.dropFirst().joined(separator: " ")
     }
 
     private static func cleanInstructionLine(_ value: String) -> String {
@@ -563,7 +676,7 @@ enum RecipeValidationService {
     }
 
     private static func isExactNoiseLine(_ text: String) -> Bool {
-        exactNoiseLines.contains(normalizedPhrase(text))
+        exactNoiseLines.contains(normalizedPhrase(text)) || looksLikeSocialNoiseLine(text)
     }
 
     private static func containsHardArticlePhrase(_ text: String) -> Bool {
@@ -575,6 +688,7 @@ enum RecipeValidationService {
         let normalized = normalizedPhrase(line)
         guard !normalized.isEmpty else { return false }
         guard !containsHardArticlePhrase(line) else { return false }
+        guard !looksLikeSocialNoiseLine(line) else { return false }
         guard !looksLikeProseLine(line) else { return false }
 
         let words = tokenized(normalized)
@@ -592,6 +706,7 @@ enum RecipeValidationService {
         let normalized = normalizedPhrase(line)
         guard !normalized.isEmpty else { return false }
         guard !containsHardArticlePhrase(line) else { return false }
+        guard !looksLikeSocialNoiseLine(line) else { return false }
         guard !looksLikeProseLine(line) else { return false }
 
         let tokens = tokenized(normalized)
@@ -618,7 +733,9 @@ enum RecipeValidationService {
             return true
         }
 
-        return containsHardArticlePhrase(line) || (!looksLikeIngredientLine(line) && looksLikeProseLine(line))
+        return looksLikeSocialNoiseLine(line) ||
+            containsHardArticlePhrase(line) ||
+            (!looksLikeIngredientLine(line) && looksLikeProseLine(line))
     }
 
     private static func shouldDropAsIrrelevantStep(_ line: String) -> Bool {
@@ -626,7 +743,31 @@ enum RecipeValidationService {
             return true
         }
 
-        return containsHardArticlePhrase(line) || (!looksLikeCookingStep(line) && looksLikeProseLine(line))
+        return looksLikeSocialNoiseLine(line) ||
+            containsHardArticlePhrase(line) ||
+            (!looksLikeCookingStep(line) && looksLikeProseLine(line))
+    }
+
+    private static func looksLikeSocialNoiseLine(_ text: String) -> Bool {
+        let normalized = normalizedPhrase(text)
+        guard !normalized.isEmpty else { return false }
+
+        if socialNoisePhrases.contains(where: normalized.contains) {
+            return true
+        }
+
+        if normalized.contains("follow") || normalized.contains("suivre") {
+            return true
+        }
+
+        let tokens = tokenized(normalized)
+        if tokens.count <= 5 && socialNoiseKeywords.contains(where: normalized.contains) {
+            let hasFoodSignal = tokens.contains(where: foodTokens.contains(_:)) ||
+                tokens.contains(where: cookingWords.contains(_:))
+            return !hasFoodSignal
+        }
+
+        return false
     }
 
     private static func isArticleStyleTitle(_ title: String) -> Bool {

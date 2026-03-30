@@ -34,15 +34,15 @@ struct CreateRecipeView: View {
 
     var body: some View {
         ZStack {
-            CooksyTheme.background
+            CooksyTheme.ambientGradient
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     topBar
-                        .padding(.horizontal, 22)
-                        .padding(.top, 18)
-                        .padding(.bottom, 16)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 18)
 
                     sectionDivider
 
@@ -70,6 +70,11 @@ struct CreateRecipeView: View {
                         )
                     }
                     .background(CooksyTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                    )
 
                     sectionDivider
 
@@ -89,6 +94,7 @@ struct CreateRecipeView: View {
                         addAction: viewModel.addStep
                     )
                 }
+                .padding(.horizontal, 20)
                 .padding(.bottom, 40)
             }
         }
@@ -118,39 +124,54 @@ struct CreateRecipeView: View {
     }
 
     private var topBar: some View {
-        HStack {
-            topPillButton(title: "Annuler", tint: CooksyTheme.primaryText) {
-                dismiss()
-            }
-
-            Spacer()
-
-            topPillButton(
-                title: saveButtonTitle,
-                tint: viewModel.canSave ? CooksyTheme.ctaOrange : CooksyTheme.secondaryText.opacity(0.55)
-            ) {
-                if viewModel.saveRecipe() {
-                    onSave?()
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                topPillButton(title: "Annuler", tint: CooksyTheme.primaryText) {
                     dismiss()
                 }
+
+                Spacer()
+
+                topPillButton(
+                    title: saveButtonTitle,
+                    tint: viewModel.canSave ? .white : CooksyTheme.secondaryText.opacity(0.55),
+                    background: viewModel.canSave ? CooksyTheme.ctaOrange : CooksyTheme.elevatedSurface
+                ) {
+                    if viewModel.saveRecipe() {
+                        onSave?()
+                        dismiss()
+                    }
+                }
+                .disabled(!viewModel.canSave)
             }
-            .disabled(!viewModel.canSave)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("ATELIER RECETTE")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(1.8)
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+
+                Text(viewModel.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Composer une recette" : viewModel.title)
+                    .font(.system(size: 31, weight: .regular, design: .serif))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(2)
+            }
         }
     }
 
     private var titleRow: some View {
         TextField("Titre", text: $viewModel.title)
-            .font(.system(size: 24, weight: .semibold, design: .rounded))
+            .font(.system(size: 22, weight: .semibold, design: .rounded))
             .foregroundStyle(CooksyTheme.primaryText)
-            .padding(.horizontal, 22)
-            .frame(height: 96)
+            .padding(.horizontal, 18)
+            .frame(height: 82)
             .background(CooksyTheme.surface)
     }
 
     private func imageRow(selectedImage: UIImage?) -> some View {
         HStack {
             Text("Image")
-                .font(.system(size: 24, weight: .medium, design: .rounded))
+                .font(.system(size: 20, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
 
             Spacer()
@@ -158,30 +179,30 @@ struct CreateRecipeView: View {
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(CooksyTheme.surface)
-                        .frame(width: 86, height: 86)
+                        .fill(CooksyTheme.elevatedSurface)
+                        .frame(width: 80, height: 80)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(CooksyTheme.ctaOrange, lineWidth: 2)
+                                .stroke(CooksyTheme.ctaOrange, lineWidth: 1.5)
                         )
 
                     if let selectedImage {
                         Image(uiImage: selectedImage)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 78, height: 78)
+                            .frame(width: 72, height: 72)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     } else {
                         Image(systemName: "camera")
-                            .font(.system(size: 28, weight: .medium))
+                            .font(.system(size: 24, weight: .medium))
                             .foregroundStyle(CooksyTheme.ctaOrange)
                     }
                 }
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 22)
-        .frame(minHeight: 116)
+        .padding(.horizontal, 18)
+        .frame(minHeight: 96)
         .background(CooksyTheme.surface)
     }
 
@@ -217,24 +238,24 @@ struct CreateRecipeView: View {
         Button(action: action) {
             HStack(spacing: 16) {
                 Text(title)
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
 
                 Spacer()
 
                 if let value, !value.isEmpty {
                     Text(value)
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .lineLimit(1)
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(CooksyTheme.ctaOrange)
-            }
-            .padding(.horizontal, 22)
-            .frame(height: 76)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.ctaOrange)
+                }
+            .padding(.horizontal, 18)
+            .frame(height: 64)
             .background(CooksyTheme.surface)
         }
         .buttonStyle(.plain)
@@ -248,51 +269,60 @@ struct CreateRecipeView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 23, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.brandBlueDark)
-                .tracking(1.2)
-                .padding(.horizontal, 22)
+                .font(.system(size: 24, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .padding(.horizontal, 18)
                 .padding(.top, 18)
-                .padding(.bottom, 14)
+                .padding(.bottom, 12)
 
             rows
 
             addRow(label: addLabel, action: addAction)
         }
         .background(CooksyTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
     }
 
     private func addRow(label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(CooksyTheme.secondaryText.opacity(0.5))
 
                 Text(label)
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText.opacity(0.55))
 
                 Spacer()
             }
-            .padding(.horizontal, 22)
-            .frame(height: 82)
+            .padding(.horizontal, 18)
+            .frame(height: 68)
             .background(CooksyTheme.surface)
         }
         .buttonStyle(.plain)
     }
 
-    private func topPillButton(title: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func topPillButton(
+        title: String,
+        tint: Color,
+        background: Color = CooksyTheme.elevatedSurface,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(tint)
-                .padding(.horizontal, 26)
-                .frame(height: 62)
+                .padding(.horizontal, 18)
+                .frame(height: 48)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(CooksyTheme.surface)
-                        .shadow(color: Color.black.opacity(0.05), radius: 18, y: 8)
+                        .fill(background)
+                        .shadow(color: Color.black.opacity(0.05), radius: 12, y: 6)
                 )
         }
         .buttonStyle(.plain)
@@ -305,9 +335,8 @@ struct CreateRecipeView: View {
     }
 
     private var sectionDivider: some View {
-        Rectangle()
-            .fill(CooksyTheme.warmCard.opacity(0.7))
-            .frame(height: 14)
+        Color.clear
+            .frame(height: 18)
     }
 }
 
@@ -422,7 +451,7 @@ private struct InformationEditorSheet: View {
                     Button("Terminé") {
                         dismiss()
                     }
-                    .tint(UIColor(hex: 0xFF7A12).swiftUIColor)
+                    .tint(CooksyTheme.ctaOrange)
                 }
             }
         }
@@ -451,7 +480,7 @@ private struct NutritionEditorSheet: View {
                     Button("Terminé") {
                         dismiss()
                     }
-                    .tint(UIColor(hex: 0xFF7A12).swiftUIColor)
+                    .tint(CooksyTheme.ctaOrange)
                 }
             }
         }

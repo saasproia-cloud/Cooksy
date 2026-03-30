@@ -7,6 +7,7 @@ struct SharedLinkInbox {
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let key = "cooksy.pending.shared.import"
+    private let acknowledgementKey = "cooksy.pending.shared.import.acknowledged.handoff"
 
     init(
         defaults: UserDefaults? = UserDefaults(suiteName: SharedLinkInbox.appGroupID),
@@ -29,6 +30,7 @@ struct SharedLinkInbox {
             sharedImageFilename: sharedImageFilename,
             preparedSeed: nil,
             handoffAction: nil,
+            handoffToken: nil,
             capturedAt: .now
         )
         save(draft)
@@ -58,6 +60,22 @@ struct SharedLinkInbox {
             deletePendingImage(for: existingDraft.sharedImageFilename)
         }
         defaults.removeObject(forKey: key)
+        flushDefaults()
+    }
+
+    func hasAcknowledgedHandoff(_ handoffToken: String?) -> Bool {
+        guard let handoffToken, handoffToken.isEmpty == false else { return false }
+        return defaults.string(forKey: acknowledgementKey) == handoffToken
+    }
+
+    func acknowledgeHandoff(_ handoffToken: String?) {
+        guard let handoffToken, handoffToken.isEmpty == false else { return }
+        defaults.set(handoffToken, forKey: acknowledgementKey)
+        flushDefaults()
+    }
+
+    func clearHandoffAcknowledgement() {
+        defaults.removeObject(forKey: acknowledgementKey)
     }
 
     func storePendingImageData(_ data: Data) -> String? {
@@ -90,10 +108,18 @@ struct SharedLinkInbox {
 
         guard let data = try? JSONEncoder().encode(draft) else { return }
         defaults.set(data, forKey: key)
+        if previousDraft?.handoffToken != draft.handoffToken {
+            clearHandoffAcknowledgement()
+        }
+        flushDefaults()
 
         if previousDraft?.sharedImageFilename != draft.sharedImageFilename {
             deletePendingImage(for: previousDraft?.sharedImageFilename)
         }
+    }
+
+    private func flushDefaults() {
+        defaults.synchronize()
     }
 
     private func pendingImportsDirectoryURL() -> URL? {

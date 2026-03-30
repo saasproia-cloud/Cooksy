@@ -48,10 +48,6 @@
 		8E1A0A14123456789ABCDE01 /* StepByStepCookingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */; };
 		91D0AA10123456789ABCDE01 /* DemoRecipeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */; };
 		91D0AA11123456789ABCDE01 /* DemoRecipeMatcherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */; };
-		A1C0F0011A11111111111111 /* ShoppingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1011A11111111111111 /* ShoppingItem.swift */; };
-		A1C0F0021A11111111111111 /* ShoppingCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1021A11111111111111 /* ShoppingCatalog.swift */; };
-		A1C0F0031A11111111111111 /* ShoppingListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1031A11111111111111 /* ShoppingListViewModel.swift */; };
-		A1C0F0041A11111111111111 /* ShoppingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1041A11111111111111 /* ShoppingListView.swift */; };
 		A1C0F0051A11111111111111 /* MealPlanEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1051A11111111111111 /* MealPlanEntry.swift */; };
 		A1C0F0061A11111111111111 /* MealPlanViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1061A11111111111111 /* MealPlanViewModel.swift */; };
 		A1C0F0071A11111111111111 /* MealPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1071A11111111111111 /* MealPlanView.swift */; };
@@ -133,10 +129,6 @@
 		91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoRecipeMatcherService.swift; sourceTree = "<group>"; };
 		9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientPhotoClassifierService.swift; sourceTree = "<group>"; };
 		A178E636136507ED9665AA0A /* SharedImportDraft.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedImportDraft.swift; sourceTree = "<group>"; };
-		A1C0F1011A11111111111111 /* ShoppingItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingItem.swift; sourceTree = "<group>"; };
-		A1C0F1021A11111111111111 /* ShoppingCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingCatalog.swift; sourceTree = "<group>"; };
-		A1C0F1031A11111111111111 /* ShoppingListViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingListViewModel.swift; sourceTree = "<group>"; };
-		A1C0F1041A11111111111111 /* ShoppingListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingListView.swift; sourceTree = "<group>"; };
 		A1C0F1051A11111111111111 /* MealPlanEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanEntry.swift; sourceTree = "<group>"; };
 		A1C0F1061A11111111111111 /* MealPlanViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanViewModel.swift; sourceTree = "<group>"; };
 		A1C0F1071A11111111111111 /* MealPlanView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealPlanView.swift; sourceTree = "<group>"; };
@@ -201,7 +193,6 @@
 			children = (
 				FD31655D8A0CBE5D299EB204 /* RecipeStore.swift */,
 				8E1A0A21123456789ABCDE01 /* RecipeNutritionEstimator.swift */,
-				A1C0F1021A11111111111111 /* ShoppingCatalog.swift */,
 				4B8E5E722E7E46B2A2B1C1F4 /* RecipeTextParser.swift */,
 				91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */,
 				91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */,
@@ -307,17 +298,8 @@
 				5EDCBDB118D39C396F9B5882 /* HomeViewModel.swift */,
 				A1C0F1061A11111111111111 /* MealPlanViewModel.swift */,
 				8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */,
-				A1C0F1031A11111111111111 /* ShoppingListViewModel.swift */,
 			);
 			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		A1C0F2011A11111111111111 /* Courses */ = {
-			isa = PBXGroup;
-			children = (
-				A1C0F1041A11111111111111 /* ShoppingListView.swift */,
-			);
-			path = Courses;
 			sourceTree = "<group>";
 		};
 		A1C0F2021A11111111111111 /* Plan */ = {
@@ -352,7 +334,6 @@
 				6FFE86A462D70EEF79877DD9 /* Recipe.swift */,
 				E295B4D72656690C64670ED8 /* RecipeBook.swift */,
 				A1C0F1051A11111111111111 /* MealPlanEntry.swift */,
-				A1C0F1011A11111111111111 /* ShoppingItem.swift */,
 				1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */,
 				A178E636136507ED9665AA0A /* SharedImportDraft.swift */,
 			);
@@ -382,7 +363,6 @@
 			isa = PBXGroup;
 			children = (
 				8C4F61A3C33D5034B4CB3E32 /* CreateRecipe */,
-				A1C0F2011A11111111111111 /* Courses */,
 				E915287779E0755E4F3ED9B6 /* Home */,
 				A1C0F2021A11111111111111 /* Plan */,
 				81C38A0D1D456AD4675C53AB /* Placeholders */,
@@ -559,12 +539,10 @@
 				77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */,
 				0DEA03C6F3737AD192298935 /* RecipeBook.swift in Sources */,
 				A1C0F0051A11111111111111 /* MealPlanEntry.swift in Sources */,
-				A1C0F0011A11111111111111 /* ShoppingItem.swift in Sources */,
 				1D7C4B31F11A4E6CA2918C53 /* RecipeEditorSeed.swift in Sources */,
 				49CC8DD46C283C80A08F38F1 /* SharedImportDraft.swift in Sources */,
 				1AFC5D1791617C6C35E13546 /* RecipeStore.swift in Sources */,
 				8E1A0A11123456789ABCDE01 /* RecipeNutritionEstimator.swift in Sources */,
-				A1C0F0021A11111111111111 /* ShoppingCatalog.swift in Sources */,
 				4B8E5E732E7E46B2A2B1C1F4 /* RecipeTextParser.swift in Sources */,
 				91D0AA10123456789ABCDE01 /* DemoRecipeCatalog.swift in Sources */,
 				91D0AA11123456789ABCDE01 /* DemoRecipeMatcherService.swift in Sources */,
@@ -576,10 +554,8 @@
 				21A26D0F6BCAD5F6BDAC0D99 /* HomeViewModel.swift in Sources */,
 				A1C0F0061A11111111111111 /* MealPlanViewModel.swift in Sources */,
 				8E1A0A12123456789ABCDE01 /* RecipeDetailViewModel.swift in Sources */,
-				A1C0F0031A11111111111111 /* ShoppingListViewModel.swift in Sources */,
 				1C2D52E6A11B4E2292A91C10 /* CreateRecipeView.swift in Sources */,
 				32A9D223A55E4F0B9E4B7F61 /* PasteTextImportView.swift in Sources */,
-				A1C0F0041A11111111111111 /* ShoppingListView.swift in Sources */,
 				5B78639BF09ECAFF9589AE2A /* HomeView.swift in Sources */,
 				A1C0F0071A11111111111111 /* MealPlanView.swift in Sources */,
 				7BDDF7C3C56E41828A086F4B /* CreateRecipeBookSheet.swift in Sources */,

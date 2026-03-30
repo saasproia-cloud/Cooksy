@@ -5,15 +5,12 @@ import Foundation
 final class RecipeStore: ObservableObject {
     @Published private(set) var recipes: [Recipe] = []
     @Published private(set) var books: [RecipeBook] = []
-    @Published private(set) var shoppingItems: [ShoppingItem] = []
     @Published private(set) var mealPlanEntries: [MealPlanEntry] = []
 
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let fileManager: FileManager
     private let mealPlanCalendar: Calendar
-    private var shoppingImageLookupsInFlight = Set<ShoppingItem.ID>()
-    private var shoppingImageLastAttemptAt: [ShoppingItem.ID: Date] = [:]
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -33,7 +30,6 @@ final class RecipeStore: ObservableObject {
         self.decoder = decoder
 
         load()
-        scheduleShoppingImageEnrichment(for: shoppingItems.map(\.id))
     }
 
     var uncategorizedBookID: RecipeBook.ID? {
@@ -144,82 +140,6 @@ final class RecipeStore: ObservableObject {
         recipes.filter { book.recipeIDs.contains($0.id) }
     }
 
-    @discardableResult
-    func addShoppingItems(from rawText: String) -> [ShoppingItem] {
-        let parsedItems = ShoppingCatalog.parseItems(from: rawText)
-        guard !parsedItems.isEmpty else { return [] }
-
-        let newItems = parsedItems.map { parsedItem in
-            ShoppingItem(
-                article: parsedItem.article,
-                quantity: parsedItem.quantity,
-                category: parsedItem.category
-            )
-        }
-
-        shoppingItems.append(contentsOf: newItems)
-        save()
-        scheduleShoppingImageEnrichment(for: newItems.map(\.id))
-        return newItems
-    }
-
-    @discardableResult
-    func addShoppingItems(from ingredientLines: [String]) -> [ShoppingItem] {
-        addShoppingItems(from: ingredientLines.joined(separator: "\n"))
-    }
-
-    func updateShoppingItem(
-        id: ShoppingItem.ID,
-        article: String,
-        quantity: String,
-        category: ShoppingCategory
-    ) {
-        guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return }
-
-        shoppingItems[index].article = ShoppingCatalog.displayArticle(for: article)
-        shoppingItems[index].quantity = quantity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? nil
-            : quantity.trimmingCharacters(in: .whitespacesAndNewlines)
-        shoppingItems[index].category = category
-        shoppingItems[index].remoteImageURLString = nil
-        shoppingItems[index].updatedAt = .now
-        save()
-        shoppingImageLastAttemptAt[id] = nil
-        scheduleShoppingImageEnrichment(for: [id])
-    }
-
-    func toggleShoppingItemCompletion(id: ShoppingItem.ID) {
-        guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return }
-
-        shoppingItems[index].isCompleted.toggle()
-        shoppingItems[index].updatedAt = .now
-        save()
-    }
-
-    func deleteShoppingItem(id: ShoppingItem.ID) {
-        shoppingItems.removeAll { $0.id == id }
-        shoppingImageLookupsInFlight.remove(id)
-        shoppingImageLastAttemptAt[id] = nil
-        save()
-    }
-
-    func clearCompletedShoppingItems() {
-        let completedIDs = shoppingItems.filter(\.isCompleted).map(\.id)
-        shoppingItems.removeAll { $0.isCompleted }
-        completedIDs.forEach {
-            shoppingImageLookupsInFlight.remove($0)
-            shoppingImageLastAttemptAt[$0] = nil
-        }
-        save()
-    }
-
-    func clearShoppingItems() {
-        shoppingItems.removeAll()
-        shoppingImageLookupsInFlight.removeAll()
-        shoppingImageLastAttemptAt.removeAll()
-        save()
-    }
-
     func addMealPlanRecipe(recipeID: Recipe.ID, for day: Date, meal mealKind: MealPlanEntry.MealKind? = nil) {
         let normalizedDay = mealPlanCalendar.startOfDay(for: day)
         let targetMeal = mealKind ?? nextAvailableMealKind(on: normalizedDay)
@@ -291,7 +211,6 @@ final class RecipeStore: ObservableObject {
 
         recipes = snapshot.recipes
         books = snapshot.books
-        shoppingItems = snapshot.shoppingItems
         mealPlanEntries = snapshot.mealPlanEntries
         migrateMealPlanEntriesIfNeeded()
     }
@@ -335,7 +254,6 @@ final class RecipeStore: ObservableObject {
                 recipeIDs: []
             )
         ]
-        shoppingItems = []
         mealPlanEntries = []
 
         save()
@@ -346,7 +264,6 @@ final class RecipeStore: ObservableObject {
             let snapshot = LibrarySnapshot(
                 recipes: recipes,
                 books: books,
-                shoppingItems: shoppingItems,
                 mealPlanEntries: mealPlanEntries
             )
             let data = try encoder.encode(snapshot)
@@ -442,74 +359,20 @@ final class RecipeStore: ObservableObject {
         save()
     }
 
-    private func scheduleShoppingImageEnrichment(for ids: [ShoppingItem.ID]) {
-        guard CooksyBackendService.isAvailable else { return }
-
-        let now = Date()
-        let retryDelay: TimeInterval = 300
-
-        let itemsToEnrich = ids.compactMap { id -> ShoppingItem? in
-            guard let item = shoppingItems.first(where: { $0.id == id }) else { return nil }
-            guard item.remoteImageURL == nil else { return nil }
-            guard !shoppingImageLookupsInFlight.contains(id) else { return nil }
-
-            if
-                let lastAttemptAt = shoppingImageLastAttemptAt[id],
-                now.timeIntervalSince(lastAttemptAt) < retryDelay
-            {
-                return nil
-            }
-
-            shoppingImageLookupsInFlight.insert(id)
-            shoppingImageLastAttemptAt[id] = now
-            return item
-        }
-
-        guard !itemsToEnrich.isEmpty else { return }
-
-        Task {
-            do {
-                let enrichedImages = try await CooksyBackendService.enrichShoppingItems(itemsToEnrich)
-
-                for item in itemsToEnrich {
-                    shoppingImageLookupsInFlight.remove(item.id)
-                }
-
-                var didUpdate = false
-                for (id, imageURL) in enrichedImages {
-                    guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { continue }
-                    guard shoppingItems[index].remoteImageURLString != imageURL.absoluteString else { continue }
-                    shoppingItems[index].remoteImageURLString = imageURL.absoluteString
-                    didUpdate = true
-                }
-
-                if didUpdate {
-                    save()
-                }
-            } catch {
-                for item in itemsToEnrich {
-                    shoppingImageLookupsInFlight.remove(item.id)
-                }
-            }
-        }
-    }
 }
 
 private struct LibrarySnapshot: Codable {
     var recipes: [Recipe]
     var books: [RecipeBook]
-    var shoppingItems: [ShoppingItem]
     var mealPlanEntries: [MealPlanEntry]
 
     init(
         recipes: [Recipe],
         books: [RecipeBook],
-        shoppingItems: [ShoppingItem] = [],
         mealPlanEntries: [MealPlanEntry] = []
     ) {
         self.recipes = recipes
         self.books = books
-        self.shoppingItems = shoppingItems
         self.mealPlanEntries = mealPlanEntries
     }
 
@@ -517,7 +380,6 @@ private struct LibrarySnapshot: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         recipes = try container.decode([Recipe].self, forKey: .recipes)
         books = try container.decode([RecipeBook].self, forKey: .books)
-        shoppingItems = try container.decodeIfPresent([ShoppingItem].self, forKey: .shoppingItems) ?? []
         mealPlanEntries = try container.decodeIfPresent([MealPlanEntry].self, forKey: .mealPlanEntries) ?? []
     }
 }

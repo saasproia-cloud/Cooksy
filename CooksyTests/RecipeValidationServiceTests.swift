@@ -135,12 +135,12 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertTrue(assessment.validation.rejectionReasons.contains(.articleLikeContentDetected))
     }
 
-    func testShoppingCatalogUsesSpecificFoodEmojiForCommonImportedIngredients() {
-        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "viande hachée 5 %"), "🥩")
-        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "cheddar fondu"), "🧀")
-        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "sirop d'érable"), "🍁")
-        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "ciboulette fraîche"), "🌿")
-        XCTAssertEqual(ShoppingCatalog.specificEmoji(for: "sauce piquante"), "🌶️")
+    func testIngredientVisualCatalogUsesSpecificFoodEmojiForCommonImportedIngredients() {
+        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "viande hachée 5 %"), "🥩")
+        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "cheddar fondu"), "🧀")
+        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "sirop d'érable"), "🍁")
+        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "ciboulette fraîche"), "🌿")
+        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "sauce piquante"), "🌶️")
     }
 
     func testRecipeEditorSeedShortensVerboseImportedTitleForDisplayAndSave() {
@@ -149,6 +149,130 @@ final class RecipeValidationServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(seed.normalizedTitle, "Animal Fries Cajun")
+    }
+
+    func testCompactSharedRecipeWithTwoRealIngredientsCanStillBeSaved() {
+        let seed = RecipeEditorSeed(
+            title: "Omelette fromage",
+            ingredientDrafts: [
+                IngredientDraft(amount: "2", unit: "", name: "oeufs"),
+                IngredientDraft(amount: "30", unit: "g", name: "gruyere")
+            ],
+            stepDrafts: [
+                StepDraft(detail: "Battez les oeufs puis versez-les dans une poele chaude."),
+                StepDraft(detail: "Ajoutez le fromage, repliez l'omelette et servez.")
+            ]
+        )
+
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .shared)
+
+        XCTAssertFalse(assessment.validation.isRejected)
+        XCTAssertTrue(assessment.validation.canSave)
+        XCTAssertNil(assessment.validation.reviewNotice)
+    }
+
+    func testTrustedBackendRecipeAvoidsIncompleteBlocker() {
+        let seed = RecipeEditorSeed(
+            title: "Burger a la truffe",
+            ingredientDrafts: [
+                IngredientDraft(amount: "2", unit: "piece", name: "pains burger"),
+                IngredientDraft(amount: "320", unit: "g", name: "boeuf hache"),
+                IngredientDraft(amount: "120", unit: "g", name: "champignons")
+            ],
+            stepDrafts: [
+                StepDraft(detail: "Faites revenir les champignons puis saisissez le boeuf dans une poele tres chaude."),
+                StepDraft(detail: "Toastez les pains, ajoutez la viande, les champignons et servez aussitot.")
+            ],
+            notesText: "Recette reconstruite depuis le web.",
+            importDebug: RecipeImportDebugInfo(
+                ingredientsCount: 3,
+                stepsCount: 2,
+                strategy: "fallback",
+                durationMs: 1200,
+                isLikelyValid: true,
+                missing: [],
+                failureReason: nil
+            )
+        )
+
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .url)
+
+        XCTAssertFalse(assessment.validation.isRejected)
+        XCTAssertTrue(assessment.validation.canSave)
+        XCTAssertNotEqual(assessment.validation.reviewNotice, "Import incomplet. Modifiez la recette pour l'enregistrer.")
+    }
+
+    func testMergedImportedIngredientsAreSplitBeforeDisplayAndSave() {
+        let seed = RecipeEditorSeed(
+            title: "Burger maison",
+            ingredientDrafts: [
+                IngredientDraft(amount: "2", unit: "tranches", name: "emmental/cornichon"),
+                IngredientDraft(name: "ketchup, mayonnaise"),
+                IngredientDraft(name: "cheddar et salade")
+            ],
+            stepDrafts: [
+                StepDraft(detail: "Faites cuire les steaks puis montez les burgers."),
+                StepDraft(detail: "Ajoutez le fromage, les cornichons, la salade et les sauces avant de servir.")
+            ]
+        )
+
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .shared)
+
+        XCTAssertEqual(
+            assessment.seed.normalizedIngredients.map(\.name),
+            ["emmental", "cornichon", "ketchup", "mayonnaise", "cheddar", "salade"]
+        )
+        XCTAssertEqual(assessment.seed.normalizedIngredients.first?.amount, "2")
+        XCTAssertEqual(assessment.seed.normalizedIngredients.first?.unit, "tranches")
+    }
+
+    func testRecipeTextParserParsesStructuredTikTokCaptionWithoutSocialNoise() {
+        let caption = """
+        LaCuisineDeKam + Suivre
+        👇 SANDWICH NAAN 👇
+        ⭐ INGREDIENTS
+        - 300g de farine ( ici de la T45 de chez Lidl )
+        - 6g de levure déshydratée
+        - 1 C.A.C de levure chimique
+        - 125g de yaourt nature
+        - 1 C.A.C de sucre
+        - 1 C.A.C de sel
+        - 30g de beurre mou
+        - 60ml d’eau tiède
+        - une 10 ène de fromage qui rit
+        ⭐ INSTRUCTIONS
+        1) diluer la levure boulangère sèche dans 4 C.A.S d’eau tiède et laisser agir 10 min
+        2) dans la cuve du robot mélanger farine + sel + sucre + levure chimique
+        3) ajouter ensuite le yaourt
+        4) puis mélangez et ajouter la levure boulangère diluée
+        5) ajouter le beurre mou et commencer à pétrir
+        6) finir par l’ajout de l’eau tiède
+        7) dégazer votre pâte puis former des pâtons
+        8) aplatir le pâton et déposer le fromage au centre
+        9) fermer les extrémités puis retourner votre pâton
+        10) étaler le naan puis le cuire 2 min de chaque côté
+        The playful waltz
+        """
+
+        let seed = RecipeTextParser.parse(caption)
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .shared)
+
+        XCTAssertEqual(seed.normalizedTitle, "Sandwich Naan")
+        XCTAssertGreaterThanOrEqual(seed.normalizedIngredients.count, 8)
+        XCTAssertGreaterThanOrEqual(seed.normalizedSteps.count, 8)
+        XCTAssertFalse(seed.normalizedIngredients.contains { ingredient in
+            ingredient.name.localizedCaseInsensitiveContains("playful") ||
+                ingredient.name.localizedCaseInsensitiveContains("waltz") ||
+                ingredient.name.localizedCaseInsensitiveContains("suivre")
+        })
+        XCTAssertFalse(seed.normalizedSteps.contains { step in
+            step.detail.localizedCaseInsensitiveContains("playful") ||
+                step.detail.localizedCaseInsensitiveContains("waltz") ||
+                step.detail.localizedCaseInsensitiveContains("suivre")
+        })
+        XCTAssertFalse(assessment.validation.isRejected)
+        XCTAssertTrue(assessment.validation.canSave)
+        XCTAssertNil(assessment.validation.reviewNotice)
     }
 
     private func makeSnapshotJSON(
