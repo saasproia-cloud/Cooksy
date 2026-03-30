@@ -275,6 +275,78 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertNil(assessment.validation.reviewNotice)
     }
 
+    func testCompleteReconstructedRecipeWithNutritionIsAcceptedWithoutIncompleteNotice() {
+        let seed = RecipeEditorSeed(
+            title: "Chicken Wrap",
+            sourceURL: URL(string: "https://www.tiktok.com/@cooksy/video/123456789"),
+            ingredientDrafts: [
+                IngredientDraft(amount: "2", unit: "", name: "wraps"),
+                IngredientDraft(amount: "300", unit: "g", name: "poulet"),
+                IngredientDraft(amount: "80", unit: "g", name: "salade"),
+                IngredientDraft(amount: "1", unit: "", name: "tomate"),
+                IngredientDraft(amount: "2", unit: "c. à soupe", name: "sauce yaourt")
+            ],
+            stepDrafts: [
+                StepDraft(detail: "Assaisonnez le poulet puis faites-le cuire jusqu'à ce qu'il soit bien doré."),
+                StepDraft(detail: "Réchauffez les wraps quelques secondes pour les assouplir."),
+                StepDraft(detail: "Disposez la salade, la tomate, le poulet et la sauce au centre des wraps."),
+                StepDraft(detail: "Rabattez les côtés, roulez les wraps bien serrés et servez immédiatement.")
+            ],
+            caloriesText: "540 kcal",
+            proteinText: "31 g",
+            carbsText: "38 g",
+            fatText: "24 g"
+        )
+
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .url)
+
+        XCTAssertFalse(assessment.validation.isRejected)
+        XCTAssertTrue(assessment.validation.canSave)
+        if case .accepted = assessment.validation.status {
+        } else {
+            XCTFail("Expected accepted validation status")
+        }
+        XCTAssertNil(assessment.validation.reviewNotice)
+        XCTAssertTrue(assessment.validation.metrics.hasCompleteNutrition)
+        XCTAssertEqual(assessment.validation.metrics.validStepCount, 4)
+    }
+
+    func testStepFragmentsAreDroppedBeforeValidation() {
+        let seed = RecipeEditorSeed(
+            title: "Chicken Wrap",
+            ingredientDrafts: [
+                IngredientDraft(amount: "2", unit: "", name: "wraps"),
+                IngredientDraft(amount: "300", unit: "g", name: "poulet"),
+                IngredientDraft(amount: "80", unit: "g", name: "salade"),
+                IngredientDraft(amount: "1", unit: "", name: "tomate"),
+                IngredientDraft(amount: "2", unit: "c. à soupe", name: "sauce yaourt")
+            ],
+            stepDrafts: [
+                StepDraft(detail: "Ensuite je vais prendre"),
+                StepDraft(detail: "et après voilà"),
+                StepDraft(detail: "comme ça"),
+                StepDraft(detail: "Assaisonnez le poulet puis faites-le cuire jusqu'à ce qu'il soit bien doré."),
+                StepDraft(detail: "Réchauffez les wraps quelques secondes pour les assouplir."),
+                StepDraft(detail: "Disposez la salade, la tomate, le poulet et la sauce au centre des wraps."),
+                StepDraft(detail: "Rabattez les côtés, roulez les wraps bien serrés et servez immédiatement.")
+            ],
+            caloriesText: "540 kcal",
+            proteinText: "31 g",
+            carbsText: "38 g",
+            fatText: "24 g"
+        )
+
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .url)
+
+        XCTAssertEqual(assessment.seed.normalizedSteps.count, 4)
+        XCTAssertFalse(assessment.seed.normalizedSteps.contains { step in
+            step.detail.localizedCaseInsensitiveContains("Ensuite je vais prendre") ||
+                step.detail.localizedCaseInsensitiveContains("et après voilà") ||
+                step.detail.localizedCaseInsensitiveContains("comme ça")
+        })
+        XCTAssertTrue(assessment.validation.canSave)
+    }
+
     private func makeSnapshotJSON(
         title: String,
         h1Title: String,

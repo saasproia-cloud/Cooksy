@@ -80,14 +80,18 @@ enum CooksyBackendService {
             sharedMode: sharedMode
         )
 
-        let envelope: RecipeImportEnvelope = try await sendJSON(
+        let envelope: URLImportEnvelope = try await sendJSON(
             endpoint: .importURL,
             requestBody: requestBody,
             timeoutInterval: importRequestTimeout(previewMode: previewMode, sharedMode: sharedMode)
         )
+        guard envelope.success, let seed = envelope.asSeed() else {
+            throw CooksyBackendError.serverError(envelope.error ?? "Impossible de générer la recette")
+        }
+
         let debug = envelope.debug?.asImportDebug()
         logBackendDebug(debug)
-        return envelope.recipe.asSeed(debug: debug)
+        return seed
     }
 
     static func importText(
@@ -352,6 +356,53 @@ private struct RecipeImportEnvelope: Decodable {
     let debug: BackendRecipeImportDebug?
 }
 
+private struct URLImportEnvelope: Decodable {
+    let success: Bool
+    let data: BackendStableRecipeSeed?
+    let debug: BackendRecipeImportDebug?
+    let error: String?
+    let legacyRecipe: BackendRecipeSeed?
+
+    private enum CodingKeys: String, CodingKey {
+        case success
+        case data
+        case debug
+        case error
+        case recipe
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if container.contains(.success) {
+            success = try container.decode(Bool.self, forKey: .success)
+            data = try container.decodeIfPresent(BackendStableRecipeSeed.self, forKey: .data)
+            debug = try container.decodeIfPresent(BackendRecipeImportDebug.self, forKey: .debug)
+            error = try container.decodeIfPresent(String.self, forKey: .error)
+            legacyRecipe = nil
+            return
+        }
+
+        success = true
+        data = nil
+        debug = try container.decodeIfPresent(BackendRecipeImportDebug.self, forKey: .debug)
+        error = nil
+        legacyRecipe = try container.decode(BackendRecipeSeed.self, forKey: .recipe)
+    }
+
+    func asSeed() -> RecipeEditorSeed? {
+        if let data {
+            return data.asSeed()
+        }
+
+        if let legacyRecipe {
+            return legacyRecipe.asSeed(debug: debug?.asImportDebug())
+        }
+
+        return nil
+    }
+}
+
 private struct BackendRecipeSeed: Decodable {
     let title: String
     let sourceUrl: String
@@ -387,6 +438,34 @@ private struct BackendRecipeSeed: Decodable {
     }
 }
 
+private struct BackendStableRecipeSeed: Decodable {
+    let title: String
+    let ingredients: [BackendStableIngredient]
+    let steps: [BackendStableStep]
+    let nutrition: BackendStableNutrition
+    let image: String
+    let sourceUrl: String
+
+    func asSeed() -> RecipeEditorSeed {
+        RecipeEditorSeed(
+            title: title,
+            sourceURL: urlIfPresent(sourceUrl),
+            ingredientDrafts: ingredients.map { $0.asDraft() },
+            stepDrafts: steps.map { $0.asDraft() },
+            notesText: "",
+            prepTimeText: "",
+            cookTimeText: "",
+            servingsText: "",
+            caloriesText: BackendStableNutrition.formatCalories(nutrition.calories),
+            proteinText: BackendStableNutrition.formatMacro(nutrition.protein),
+            carbsText: BackendStableNutrition.formatMacro(nutrition.carbs),
+            fatText: BackendStableNutrition.formatMacro(nutrition.fat),
+            remoteImageURL: urlIfPresent(image),
+            importDebug: nil
+        )
+    }
+}
+
 private struct BackendRecipeImportDebug: Decodable {
     let ingredientsCount: Int
     let stepsCount: Int
@@ -406,6 +485,45 @@ private struct BackendRecipeImportDebug: Decodable {
             missing: missing,
             failureReason: failureReason
         )
+    }
+}
+
+private struct BackendStableIngredient: Decodable {
+    let name: String
+    let quantity: String
+    let unit: String
+
+    func asDraft() -> IngredientDraft {
+        IngredientDraft(amount: quantity, unit: unit, name: name)
+    }
+}
+
+private struct BackendStableStep: Decodable {
+    let stepNumber: Int
+    let description: String
+
+    func asDraft() -> StepDraft {
+        StepDraft(detail: description)
+    }
+}
+
+private struct BackendStableNutrition: Decodable {
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fat: Double
+
+    static func formatCalories(_ value: Double) -> String {
+        "\(Int(value.rounded())) kcal"
+    }
+
+    static func formatMacro(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        if rounded == rounded.rounded() {
+            return "\(Int(rounded)) g"
+        }
+
+        return "\(rounded.formatted(.number.precision(.fractionLength(1)))) g"
     }
 }
 

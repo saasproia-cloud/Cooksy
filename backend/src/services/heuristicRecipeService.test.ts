@@ -207,7 +207,7 @@ test("strictRecipeFromContext rebuilds weak food extractions into a full recipe"
   assert.ok(strictRecipe, "expected food content to be reconstructed");
   assert.equal(strictRecipe?.title, "Chicken Wrap");
   assert.ok((strictRecipe?.ingredientDrafts.length ?? 0) >= 5);
-  assert.ok((strictRecipe?.stepDrafts.length ?? 0) >= 3);
+  assert.ok((strictRecipe?.stepDrafts.length ?? 0) >= 4);
   assert.equal(strictRecipe?.needsWebFallback, false);
   assert.equal(strictRecipe?.flags?.usedInferredIngredients, true);
   assert.equal(strictRecipe?.flags?.generatedSteps, true);

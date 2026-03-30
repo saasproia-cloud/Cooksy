@@ -162,7 +162,7 @@ export function strictRecipeFromContext(
     stepDrafts: explicitSteps
   };
   const shouldGenerateSteps = shouldFullReconstruct ||
-    explicitSteps.length < 3 ||
+    explicitSteps.length < 4 ||
     shouldRegenerateDishSteps(explicitStepRecipe, finalIngredients);
   let finalSteps = shouldGenerateSteps
     ? generateDishSteps(intent, finalIngredients)
@@ -365,7 +365,7 @@ function ensureMinimumDishSteps(
   steps: Array<{ detail: string }>,
   ingredients: RecipeIngredientDraft[]
 ): Array<{ detail: string }> {
-  if (steps.length >= 3) {
+  if (steps.length >= 4) {
     return steps;
   }
 
@@ -1003,7 +1003,7 @@ function shouldRegenerateDishSteps(
   }
 
   return parsed.stepDrafts.some((step) =>
-    /\b(?:tiktok|instagram|abonne|abonnez|like|commentaires?|link in bio|bon app)\b/i.test(step.detail)
+    /\b(?:tiktok|instagram|abonne|abonnez|like|commentaires?|link in bio|bon app|je vais|on va|comme ca|comme ça|voila|voilà|et apres|et après)\b/i.test(step.detail)
   );
 }
 

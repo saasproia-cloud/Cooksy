@@ -11,6 +11,10 @@ import {
   RecipeImportNotFoodError
 } from "./services/importService.js";
 import { enrichShoppingImages } from "./services/shoppingImageService.js";
+import {
+  buildURLImportFailureResponse,
+  buildURLImportResponse
+} from "./services/urlImportResponseService.js";
 
 const app = Fastify({
   logger: true
@@ -57,12 +61,28 @@ app.get("/health", async () => {
   };
 });
 
-app.post("/api/import/url", async (request) => {
-  const body = urlImportSchema.parse(request.body);
-  return importFromUrl(body, {
-    previewMode: body.previewMode,
-    sharedMode: body.sharedMode
-  });
+app.post("/api/import/url", async (request, reply) => {
+  try {
+    const body = urlImportSchema.parse(request.body);
+    const imported = await importFromUrl(body, {
+      previewMode: body.previewMode,
+      sharedMode: body.sharedMode
+    });
+    const response = await buildURLImportResponse({
+      recipe: imported.recipe,
+      sourceUrl: body.url
+    });
+
+    console.log("FINAL_RESPONSE", JSON.stringify(response, null, 2));
+    reply.status(200);
+    return response;
+  } catch (error) {
+    request.log.error(error);
+    const response = buildURLImportFailureResponse();
+    console.log("FINAL_RESPONSE", JSON.stringify(response, null, 2));
+    reply.status(200);
+    return response;
+  }
 });
 
 app.post("/api/import/text", async (request) => {

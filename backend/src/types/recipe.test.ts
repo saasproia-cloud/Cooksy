@@ -82,6 +82,40 @@ test("sanitizeRecipeImport trims polluted titles and drops transcript timestamps
   assert.equal(sanitized.stepDrafts.some((step) => /00:00:00/.test(step.detail)), false);
 });
 
+test("sanitizeRecipeImport drops incomplete spoken fragments from steps", () => {
+  const sanitized = sanitizeRecipeImport({
+    title: "Chicken Wrap",
+    sourceUrl: "",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "2", unit: "", name: "wraps", nutritionQuery: "flour tortilla" },
+      { amount: "300", unit: "g", name: "poulet", nutritionQuery: "chicken breast" },
+      { amount: "80", unit: "g", name: "salade", nutritionQuery: "lettuce" }
+    ],
+    stepDrafts: [
+      { detail: "Ensuite je vais prendre" },
+      { detail: "et après voilà" },
+      { detail: "Assaisonnez le poulet puis faites-le cuire dans une poele chaude." },
+      { detail: "Rabattez les cotes, roulez le wrap et servez immediatement." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "",
+    inferredFromPhoto: false
+  });
+
+  assert.equal(sanitized.stepDrafts.length, 2);
+  assert.equal(sanitized.stepDrafts.some((step) => /ensuite je vais prendre|et après voilà/i.test(step.detail)), false);
+});
+
 test("sanitizeRecipeImport shortens verbose social titles and drops commentary-only steps", () => {
   const sanitized = sanitizeRecipeImport({
     title: "ANIMAL FRIES CAJUN Les Animal Fries d’un fast food qu’on a pas ici, mais avec plus de muscles et moins de gras",

@@ -168,7 +168,7 @@ export function sanitizeRecipeImport(input: RecipeImportResult): RecipeImportRes
       .map((step) => ({
         detail: sanitizeStepDetail(step.detail)
       }))
-      .filter((step) => isPlausibleCookingStep(step.detail))
+      .filter((step) => isPlausibleCookingStep(step.detail) && !looksLikeIncompleteStepFragment(step.detail))
   );
   const titleLooksArticleLike = (rawTitle.length > 0 && hasSuspiciousRecipeTitle(rawTitle)) ||
     (title.length > 0 && hasSuspiciousRecipeTitle(title));
@@ -875,6 +875,9 @@ function isPlausibleCookingStep(detail: string): boolean {
   }
 
   const normalized = normalizeLookup(detail);
+  if (looksLikeIncompleteStepFragment(normalized)) {
+    return false;
+  }
   if (
     /^(?:j espere|j espere|bon app|bon appetit|oui j ose le dire|n hesite pas|abonne toi|like|follow|partage|commente)\b/.test(normalized)
   ) {
@@ -895,6 +898,37 @@ function isPlausibleCookingStep(detail: string): boolean {
   }
 
   return containsCookingVerb(normalized) || startsLikeProcedure;
+}
+
+function looksLikeIncompleteStepFragment(value: string): boolean {
+  const normalized = normalizeLookup(value);
+  if (!normalized) {
+    return false;
+  }
+
+  if (containsCookingVerb(normalized)) {
+    return false;
+  }
+
+  if (
+    /\b(?:je vais|on va|tu vas|vous allez)\b/.test(normalized) &&
+    /\b(?:prendre|faire|mettre|voir|montrer|rajouter|ajouter)\b/.test(normalized)
+  ) {
+    return true;
+  }
+
+  if (
+    /^(?:ensuite|puis|apres|après|et apres|et après|du coup|alors|comme ca|comme ça|voila|voilà)\b/.test(normalized)
+  ) {
+    return true;
+  }
+
+  if (/^(?:comme ca|comme ça|voila|voilà|et voila|et voilà)\b/.test(normalized)) {
+    return true;
+  }
+
+  return normalized.split(" ").filter(Boolean).length <= 4 &&
+    /^(?:prendre|mettre|faire|voir|voila|voilà|ensuite|puis|apres|après)\b/.test(normalized);
 }
 
 function isLikelyArticleTitle(title: string): boolean {
@@ -1206,7 +1240,7 @@ const likelyFoodTitlePatterns = [
 const cookingVerbPatterns = [
   /\b(?:preheat|heat|mix|stir|add|combine|cook|bake|roast|fry|boil|simmer|whisk|blend|serve|set|put|wipe|keep|rest|pour|flip)\b/,
   /\b(?:prechauffez|faites|melangez|melanger|ajoutez|ajouter|versez|verser|cuisez|cuire|laissez|laisser|deposez|deposer|disposez|disposer|fouettez|fouetter|diluez|diluer|petrissez|petrir|pétrir|rechauffez|rechauffer|roulez|rouler|rabattez|rabattre)\b/,
-  /\b(?:incorporez|incorporer|faites revenir|repartissez|repartir|servez|servir|enfournez|enfourner|chauffez|chauffer|degazez|degazer|dégazer|formez|former)\b/,
+  /\b(?:incorporez|incorporer|faites revenir|repartissez|repartir|servez|servir|enfournez|enfourner|chauffez|chauffer|degazez|degazer|dégazer|formez|former|montez|monter|assemblez|assembler)\b/,
   /\b(?:coupez|couper|grillez|griller|saisissez|saisir|caramelisez|carameliser|retournez|retourner|garnissez|garnir|nappez|napper|ecrasez|ecraser|aplatissez|aplatir|etalez|etaler|étaler|enrobez|enrober|procedez|proceder|procédez|procéder|fermez|fermer)\b/
 ];
 
