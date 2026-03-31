@@ -734,41 +734,8 @@ private struct RecipePresentationEmptyState: View {
 struct IngredientIconBadge: View {
     let ingredientName: String
 
-    private var kind: IngredientIconKind {
-        IngredientIconCatalog.kind(for: ingredientName)
-    }
-
-    private var tint: Color {
-        switch kind {
-        case .fish:
-            return Color(hex: 0x4D86A8)
-        case .produce:
-            return Color(hex: 0xD96A3A)
-        case .herb:
-            return CooksyTheme.brandBlueDark
-        case .bulb:
-            return Color(hex: 0xA27B5D)
-        case .dairy:
-            return Color(hex: 0x90A8C3)
-        case .cheese:
-            return Color(hex: 0xE2A23A)
-        case .grain:
-            return Color(hex: 0xB88945)
-        case .bread:
-            return Color(hex: 0xBF8243)
-        case .egg:
-            return Color(hex: 0xDDAF63)
-        case .protein:
-            return Color(hex: 0xB25B46)
-        case .sauce:
-            return Color(hex: 0xC45A3A)
-        case .spice:
-            return Color(hex: 0xC84A2E)
-        case .sweet:
-            return Color(hex: 0xA3606D)
-        case .logo:
-            return CooksyTheme.ctaOrangeDark
-        }
+    private var resolution: IngredientVisualResolution {
+        IngredientVisualCatalog.resolution(for: ingredientName)
     }
 
     var body: some View {
@@ -777,200 +744,28 @@ struct IngredientIconBadge: View {
                 .fill(Color.white)
                 .frame(width: 42, height: 42)
 
-            if kind == .logo {
-                Image("HeaderLogo")
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
-            } else {
-                IngredientGlyph(kind: kind, tint: tint)
-                    .frame(width: 24, height: 24)
-            }
+            iconView
+                .frame(width: 24, height: 24)
         }
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
     }
-}
 
-private struct IngredientGlyph: View {
-    let kind: IngredientIconKind
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            switch kind {
-            case .fish:
-                FishGlyph().fill(tint)
-            case .produce:
-                ProduceGlyph().fill(tint)
-            case .herb:
-                HerbGlyph().fill(tint)
-            case .bulb:
-                BulbGlyph().fill(tint)
-            case .dairy:
-                DairyGlyph().fill(tint)
-            case .cheese:
-                CheeseGlyph().fill(tint)
-            case .grain:
-                GrainGlyph().fill(tint)
-            case .bread:
-                BreadGlyph().fill(tint)
-            case .egg:
-                EggGlyph().fill(tint)
-            case .protein:
-                ProteinGlyph().fill(tint)
-            case .sauce:
-                SauceGlyph().fill(tint)
-            case .spice:
-                SpiceGlyph().fill(tint)
-            case .sweet:
-                SweetGlyph().fill(tint)
-            case .logo:
-                EmptyView()
-            }
+    @ViewBuilder
+    private var iconView: some View {
+        if let assetName = resolution.assetName,
+           let image = UIImage(named: assetName) {
+            Image(uiImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+        } else {
+            Image("HeaderLogo")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
         }
-    }
-}
-
-private struct FishGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let bodyRect = CGRect(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.25, width: rect.width * 0.56, height: rect.height * 0.5)
-        path.addEllipse(in: bodyRect)
-        path.move(to: CGPoint(x: bodyRect.maxX - 1, y: rect.midY))
-        path.addLines([
-            CGPoint(x: rect.maxX - rect.width * 0.05, y: rect.minY + rect.height * 0.18),
-            CGPoint(x: rect.maxX - rect.width * 0.05, y: rect.maxY - rect.height * 0.18)
-        ])
-        path.closeSubpath()
-        return path
-    }
-}
-
-private struct ProduceGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.26, width: rect.width * 0.72, height: rect.height * 0.62))
-        path.addEllipse(in: CGRect(x: rect.midX - rect.width * 0.12, y: rect.minY + rect.height * 0.06, width: rect.width * 0.24, height: rect.height * 0.16))
-        return path
-    }
-}
-
-private struct HerbGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.18, width: rect.width * 0.34, height: rect.height * 0.58))
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.44, y: rect.minY + rect.height * 0.08, width: rect.width * 0.34, height: rect.height * 0.58))
-        path.addRect(CGRect(x: rect.midX - rect.width * 0.03, y: rect.minY + rect.height * 0.52, width: rect.width * 0.06, height: rect.height * 0.32))
-        return path
-    }
-}
-
-private struct BulbGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.24, width: rect.width * 0.64, height: rect.height * 0.58))
-        path.addRoundedRect(in: CGRect(x: rect.midX - rect.width * 0.1, y: rect.minY + rect.height * 0.06, width: rect.width * 0.2, height: rect.height * 0.24), cornerSize: CGSize(width: 4, height: 4))
-        return path
-    }
-}
-
-private struct DairyGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.24, y: rect.minY + rect.height * 0.18, width: rect.width * 0.44, height: rect.height * 0.64), cornerSize: CGSize(width: 4, height: 4))
-        path.addRect(CGRect(x: rect.minX + rect.width * 0.48, y: rect.minY + rect.height * 0.08, width: rect.width * 0.14, height: rect.height * 0.14))
-        return path
-    }
-}
-
-private struct CheeseGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.maxY - rect.height * 0.18))
-        path.addLines([
-            CGPoint(x: rect.maxX - rect.width * 0.12, y: rect.maxY - rect.height * 0.18),
-            CGPoint(x: rect.minX + rect.width * 0.32, y: rect.minY + rect.height * 0.18)
-        ])
-        path.closeSubpath()
-        return path
-    }
-}
-
-private struct GrainGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.54, width: rect.width * 0.64, height: rect.height * 0.18), cornerSize: CGSize(width: 6, height: 6))
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.26, y: rect.minY + rect.height * 0.26, width: rect.width * 0.16, height: rect.height * 0.18))
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.2, width: rect.width * 0.16, height: rect.height * 0.2))
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.58, y: rect.minY + rect.height * 0.26, width: rect.width * 0.16, height: rect.height * 0.18))
-        return path
-    }
-}
-
-private struct BreadGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.26, width: rect.width * 0.72, height: rect.height * 0.48), cornerSize: CGSize(width: 9, height: 9))
-        return path
-    }
-}
-
-private struct EggGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path(ellipseIn: CGRect(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.14, width: rect.width * 0.44, height: rect.height * 0.68))
-    }
-}
-
-private struct ProteinGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.26, width: rect.width * 0.38, height: rect.height * 0.38))
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.38, y: rect.minY + rect.height * 0.22, width: rect.width * 0.38, height: rect.height * 0.42), cornerSize: CGSize(width: 7, height: 7))
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.72, y: rect.minY + rect.height * 0.28, width: rect.width * 0.1, height: rect.height * 0.12), cornerSize: CGSize(width: 2, height: 2))
-        return path
-    }
-}
-
-private struct SauceGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.22, width: rect.width * 0.44, height: rect.height * 0.5), cornerSize: CGSize(width: 6, height: 6))
-        path.addRect(CGRect(x: rect.midX - rect.width * 0.08, y: rect.minY + rect.height * 0.08, width: rect.width * 0.16, height: rect.height * 0.12))
-        return path
-    }
-}
-
-private struct SpiceGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.08))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.maxY - rect.height * 0.12),
-            control: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.minY + rect.height * 0.42)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - rect.width * 0.12, y: rect.minY + rect.height * 0.36),
-            control: CGPoint(x: rect.maxX - rect.width * 0.02, y: rect.maxY - rect.height * 0.08)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.08),
-            control: CGPoint(x: rect.maxX - rect.width * 0.06, y: rect.minY + rect.height * 0.08)
-        )
-        return path
-    }
-}
-
-private struct SweetGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.2, y: rect.minY + rect.height * 0.22, width: rect.width * 0.6, height: rect.height * 0.5), cornerSize: CGSize(width: 6, height: 6))
-        path.addRect(CGRect(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.12, width: rect.width * 0.1, height: rect.height * 0.1))
-        path.addRect(CGRect(x: rect.minX + rect.width * 0.44, y: rect.minY + rect.height * 0.12, width: rect.width * 0.1, height: rect.height * 0.1))
-        path.addRect(CGRect(x: rect.minX + rect.width * 0.6, y: rect.minY + rect.height * 0.12, width: rect.width * 0.1, height: rect.height * 0.1))
-        return path
     }
 }

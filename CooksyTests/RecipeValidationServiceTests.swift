@@ -135,12 +135,51 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertTrue(assessment.validation.rejectionReasons.contains(.articleLikeContentDetected))
     }
 
-    func testIngredientVisualCatalogUsesSpecificFoodEmojiForCommonImportedIngredients() {
-        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "viande hachée 5 %"), "🥩")
-        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "cheddar fondu"), "🧀")
-        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "sirop d'érable"), "🍁")
-        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "ciboulette fraîche"), "🌿")
-        XCTAssertEqual(IngredientVisualCatalog.specificEmoji(for: "sauce piquante"), "🌶️")
+    func testIngredientNameNormalizerCanonicalizesCommonBakingIngredients() {
+        let flour = IngredientNameNormalizer.normalize("300 g de farine (ici de la T45 de chez Lidl)")
+        XCTAssertTrue(flour.candidateKeys.contains("farine"))
+        XCTAssertTrue(flour.familyHints.contains("flour"))
+
+        let butter = IngredientNameNormalizer.normalize("unsalted butter")
+        XCTAssertTrue(butter.candidateKeys.contains("unsalted butter"))
+        XCTAssertTrue(butter.candidateKeys.contains("butter"))
+        XCTAssertTrue(butter.familyHints.contains("butter"))
+
+        let powderedSugar = IngredientNameNormalizer.normalize("powdered sugar")
+        XCTAssertTrue(powderedSugar.candidateKeys.contains("powdered sugar"))
+        XCTAssertTrue(powderedSugar.familyHints.contains("sugar"))
+
+        let bakingPowder = IngredientNameNormalizer.normalize("levure chimique")
+        XCTAssertTrue(bakingPowder.candidateKeys.contains("levure chimique"))
+        XCTAssertTrue(bakingPowder.familyHints.contains("baking powder"))
+    }
+
+    func testIngredientVisualResolverMatchesFrenchAndEnglishAliases() {
+        let resolver = makeIngredientVisualResolver()
+
+        XCTAssertEqual(resolver.resolve("beurre demi-sel").assetName, "IngredientIconButter")
+        XCTAssertEqual(resolver.resolve("powdered sugar").assetName, "IngredientIconSugar")
+        XCTAssertEqual(resolver.resolve("œuf").assetName, "IngredientIconEgg")
+        XCTAssertEqual(resolver.resolve("baking powder").assetName, "IngredientIconBakingPowder")
+        XCTAssertEqual(resolver.resolve("fresh spinach").assetName, "IngredientIconLeafyGreen")
+    }
+
+    func testIngredientVisualResolverUsesFamilyFallbackBeforeLogo() {
+        let resolver = makeIngredientVisualResolver()
+        let resolution = resolver.resolve("romaine hearts")
+
+        XCTAssertEqual(resolution.matchKind, .family)
+        XCTAssertEqual(resolution.assetName, "IngredientIconLeafyGreen")
+        XCTAssertFalse(resolution.usesLogoFallback)
+    }
+
+    func testIngredientVisualResolverFallsBackToLogoForUnknownIngredient() {
+        let resolver = makeIngredientVisualResolver()
+        let resolution = resolver.resolve("mystery galaxy powder")
+
+        XCTAssertEqual(resolution.matchKind, .logo)
+        XCTAssertNil(resolution.assetName)
+        XCTAssertTrue(resolution.usesLogoFallback)
     }
 
     func testRecipeEditorSeedShortensVerboseImportedTitleForDisplayAndSave() {
@@ -375,4 +414,53 @@ final class RecipeValidationServiceTests: XCTestCase {
         let data = try! JSONSerialization.data(withJSONObject: object, options: [])
         return String(decoding: data, as: UTF8.self)
     }
+}
+
+private func makeIngredientVisualResolver() -> IngredientVisualResolver {
+    IngredientVisualResolver(
+        entries: [
+            IngredientVisualCatalogEntry(
+                canonicalKey: "flour",
+                assetName: "IngredientIconFlour",
+                aliases: ["farine", "wheat flour", "all purpose flour"],
+                family: "flour",
+                priority: 100
+            ),
+            IngredientVisualCatalogEntry(
+                canonicalKey: "butter",
+                assetName: "IngredientIconButter",
+                aliases: ["beurre", "unsalted butter", "salted butter"],
+                family: "butter",
+                priority: 100
+            ),
+            IngredientVisualCatalogEntry(
+                canonicalKey: "sugar",
+                assetName: "IngredientIconSugar",
+                aliases: ["sucre", "powdered sugar", "sucre glace"],
+                family: "sugar",
+                priority: 100
+            ),
+            IngredientVisualCatalogEntry(
+                canonicalKey: "egg",
+                assetName: "IngredientIconEgg",
+                aliases: ["oeuf", "œuf", "egg"],
+                family: "egg",
+                priority: 100
+            ),
+            IngredientVisualCatalogEntry(
+                canonicalKey: "baking powder",
+                assetName: "IngredientIconBakingPowder",
+                aliases: ["levure chimique"],
+                family: "baking powder",
+                priority: 100
+            ),
+            IngredientVisualCatalogEntry(
+                canonicalKey: "leafy green",
+                assetName: "IngredientIconLeafyGreen",
+                aliases: ["spinach", "epinard", "épinard"],
+                family: "leafy green",
+                priority: 100
+            ),
+        ]
+    )
 }

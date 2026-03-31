@@ -1,0 +1,804 @@
+[
+  {
+    "canonicalKey": "flour",
+    "assetName": "IngredientIconFlour",
+    "aliases": [
+      "farine",
+      "farine de ble",
+      "wheat flour",
+      "all purpose flour",
+      "plain flour",
+      "bread flour",
+      "cake flour",
+      "self rising flour",
+      "self raising flour",
+      "t45 flour",
+      "t55 flour",
+      "t65 flour",
+      "tipo 00",
+      "00 flour",
+      "almond flour"
+    ],
+    "family": "flour",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "butter",
+    "assetName": "IngredientIconButter",
+    "aliases": [
+      "beurre",
+      "beurre doux",
+      "beurre demi sel",
+      "unsalted butter",
+      "salted butter",
+      "melted butter"
+    ],
+    "family": "butter",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "sugar",
+    "assetName": "IngredientIconSugar",
+    "aliases": [
+      "sucre",
+      "granulated sugar",
+      "white sugar",
+      "caster sugar",
+      "brown sugar",
+      "cassonade",
+      "vergeoise",
+      "powdered sugar",
+      "icing sugar",
+      "sucre glace",
+      "confectioners sugar"
+    ],
+    "family": "sugar",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "egg",
+    "assetName": "IngredientIconEgg",
+    "aliases": [
+      "oeuf",
+      "oeufs",
+      "œuf",
+      "œufs",
+      "egg",
+      "eggs",
+      "egg yolk",
+      "egg white",
+      "jaune d oeuf",
+      "blanc d oeuf"
+    ],
+    "family": "egg",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "milk",
+    "assetName": "IngredientIconMilk",
+    "aliases": [
+      "lait",
+      "milk",
+      "whole milk",
+      "skim milk",
+      "semi skimmed milk",
+      "lait entier",
+      "lait demi ecreme",
+      "lait ecreme"
+    ],
+    "family": "milk",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "cream",
+    "assetName": "IngredientIconCream",
+    "aliases": [
+      "creme",
+      "crème",
+      "heavy cream",
+      "double cream",
+      "whipping cream",
+      "sour cream",
+      "creme fraiche",
+      "crème fraîche"
+    ],
+    "family": "cream",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "yogurt",
+    "assetName": "IngredientIconYogurt",
+    "aliases": [
+      "yaourt",
+      "yogurt",
+      "yoghurt",
+      "greek yogurt",
+      "greek yoghurt",
+      "yaourt grec"
+    ],
+    "family": "yogurt",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "cheese",
+    "assetName": "IngredientIconCheese",
+    "aliases": [
+      "cheese",
+      "fromage",
+      "cheddar",
+      "parmesan",
+      "gruyere",
+      "gruyère",
+      "emmental",
+      "pecorino",
+      "mozzarella",
+      "comte",
+      "comté"
+    ],
+    "family": "cheese",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "white cheese",
+    "assetName": "IngredientIconWhiteCheese",
+    "aliases": [
+      "feta",
+      "ricotta",
+      "mascarpone",
+      "cottage cheese",
+      "goat cheese",
+      "cream cheese",
+      "fromage blanc",
+      "chèvre",
+      "chevre"
+    ],
+    "family": "white cheese",
+    "priority": 110
+  },
+  {
+    "canonicalKey": "baking powder",
+    "assetName": "IngredientIconBakingPowder",
+    "aliases": [
+      "baking powder",
+      "levure chimique"
+    ],
+    "family": "baking powder",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "yeast",
+    "assetName": "IngredientIconYeast",
+    "aliases": [
+      "yeast",
+      "dry yeast",
+      "instant yeast",
+      "fresh yeast",
+      "levure",
+      "levure boulangere",
+      "levure boulangère"
+    ],
+    "family": "yeast",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "salt",
+    "assetName": "IngredientIconSalt",
+    "aliases": [
+      "salt",
+      "sea salt",
+      "kosher salt",
+      "sel",
+      "fleur de sel"
+    ],
+    "family": "salt",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "spice",
+    "assetName": "IngredientIconSpice",
+    "aliases": [
+      "paprika",
+      "curry",
+      "cumin",
+      "ginger",
+      "gingembre",
+      "turmeric",
+      "curcuma",
+      "chili",
+      "chilli",
+      "piment",
+      "harissa",
+      "garam masala"
+    ],
+    "family": "spice",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "herbs",
+    "assetName": "IngredientIconHerbs",
+    "aliases": [
+      "herbs",
+      "herbes",
+      "basil",
+      "basilic",
+      "parsley",
+      "persil",
+      "cilantro",
+      "coriander",
+      "coriandre",
+      "mint",
+      "menthe",
+      "thyme",
+      "thym",
+      "rosemary",
+      "romarin",
+      "chives",
+      "ciboulette",
+      "dill",
+      "aneth"
+    ],
+    "family": "herbs",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "oil",
+    "assetName": "IngredientIconOil",
+    "aliases": [
+      "oil",
+      "olive oil",
+      "vegetable oil",
+      "sesame oil",
+      "huile",
+      "huile d olive",
+      "huile de sesame",
+      "huile végétale",
+      "huile végétale"
+    ],
+    "family": "oil",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "honey",
+    "assetName": "IngredientIconHoney",
+    "aliases": [
+      "honey",
+      "miel",
+      "maple syrup",
+      "sirop d erable",
+      "sirop d'érable",
+      "agave",
+      "molasses"
+    ],
+    "family": "honey",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "chocolate",
+    "assetName": "IngredientIconChocolate",
+    "aliases": [
+      "chocolate",
+      "dark chocolate",
+      "milk chocolate",
+      "chocolat",
+      "cocoa",
+      "cacao",
+      "cocoa powder",
+      "pépites de chocolat",
+      "pepites de chocolat"
+    ],
+    "family": "chocolate",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "vanilla",
+    "assetName": "IngredientIconVanilla",
+    "aliases": [
+      "vanilla",
+      "vanille",
+      "vanilla extract",
+      "vanilla bean",
+      "extrait de vanille"
+    ],
+    "family": "vanilla",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "water",
+    "assetName": "IngredientIconWater",
+    "aliases": [
+      "water",
+      "eau",
+      "sparkling water"
+    ],
+    "family": "water",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "stock",
+    "assetName": "IngredientIconStock",
+    "aliases": [
+      "stock",
+      "broth",
+      "bouillon",
+      "chicken stock",
+      "vegetable stock",
+      "beef stock",
+      "fish stock",
+      "court bouillon"
+    ],
+    "family": "stock",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "rice",
+    "assetName": "IngredientIconRice",
+    "aliases": [
+      "rice",
+      "riz",
+      "basmati",
+      "jasmine rice",
+      "arborio rice",
+      "risotto rice"
+    ],
+    "family": "rice",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "pasta",
+    "assetName": "IngredientIconPasta",
+    "aliases": [
+      "pasta",
+      "pâtes",
+      "pates",
+      "spaghetti",
+      "penne",
+      "fusilli",
+      "linguine",
+      "ramen noodles",
+      "noodles",
+      "nouilles",
+      "udon"
+    ],
+    "family": "pasta",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "bread",
+    "assetName": "IngredientIconBread",
+    "aliases": [
+      "bread",
+      "pain",
+      "baguette",
+      "toast",
+      "brioche",
+      "bun",
+      "burger bun",
+      "breadcrumbs",
+      "panko"
+    ],
+    "family": "bread",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "tortilla",
+    "assetName": "IngredientIconTortilla",
+    "aliases": [
+      "tortilla",
+      "wrap",
+      "naan",
+      "pita",
+      "flatbread"
+    ],
+    "family": "tortilla",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "beans",
+    "assetName": "IngredientIconBeans",
+    "aliases": [
+      "beans",
+      "black beans",
+      "kidney beans",
+      "haricots",
+      "haricots noirs",
+      "haricots rouges",
+      "lentils",
+      "lentilles",
+      "chickpeas",
+      "pois chiches",
+      "peas",
+      "petits pois"
+    ],
+    "family": "beans",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "nuts",
+    "assetName": "IngredientIconNuts",
+    "aliases": [
+      "almond",
+      "amandes",
+      "amande",
+      "walnut",
+      "noix",
+      "pecan",
+      "cashew",
+      "cacahuete",
+      "cacahuètes",
+      "peanut",
+      "sesame",
+      "graines de sesame",
+      "seed mix",
+      "sunflower seeds"
+    ],
+    "family": "nuts",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "tofu",
+    "assetName": "IngredientIconTofu",
+    "aliases": [
+      "tofu",
+      "tempeh"
+    ],
+    "family": "tofu",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "chicken",
+    "assetName": "IngredientIconChicken",
+    "aliases": [
+      "chicken",
+      "poulet",
+      "chicken breast",
+      "chicken thigh"
+    ],
+    "family": "chicken",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "beef",
+    "assetName": "IngredientIconBeef",
+    "aliases": [
+      "beef",
+      "boeuf",
+      "bœuf",
+      "steak",
+      "ground beef",
+      "minced beef",
+      "viande hachee",
+      "viande hachée"
+    ],
+    "family": "beef",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "pork",
+    "assetName": "IngredientIconPork",
+    "aliases": [
+      "pork",
+      "porc",
+      "bacon",
+      "ham",
+      "lardons",
+      "sausage",
+      "saucisse",
+      "prosciutto"
+    ],
+    "family": "pork",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "fish",
+    "assetName": "IngredientIconFish",
+    "aliases": [
+      "fish",
+      "poisson",
+      "salmon",
+      "saumon",
+      "tuna",
+      "thon",
+      "cod",
+      "cabillaud",
+      "tilapia",
+      "trout",
+      "sea bass"
+    ],
+    "family": "fish",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "shrimp",
+    "assetName": "IngredientIconShrimp",
+    "aliases": [
+      "shrimp",
+      "prawn",
+      "crevette",
+      "crevettes",
+      "crab",
+      "lobster",
+      "langoustine"
+    ],
+    "family": "shrimp",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "tomato",
+    "assetName": "IngredientIconTomato",
+    "aliases": [
+      "tomato",
+      "tomates",
+      "tomate",
+      "cherry tomato",
+      "passata",
+      "tomato sauce",
+      "tomato paste",
+      "concentré de tomate",
+      "sauce tomate"
+    ],
+    "family": "tomato",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "onion",
+    "assetName": "IngredientIconOnion",
+    "aliases": [
+      "onion",
+      "oignon",
+      "red onion",
+      "yellow onion",
+      "shallot",
+      "echalote",
+      "échalote",
+      "spring onion",
+      "scallion",
+      "green onion"
+    ],
+    "family": "onion",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "garlic",
+    "assetName": "IngredientIconGarlic",
+    "aliases": [
+      "garlic",
+      "ail",
+      "garlic cloves",
+      "ail en poudre"
+    ],
+    "family": "garlic",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "potato",
+    "assetName": "IngredientIconPotato",
+    "aliases": [
+      "potato",
+      "potatoes",
+      "pomme de terre",
+      "pommes de terre",
+      "sweet potato",
+      "patate douce"
+    ],
+    "family": "potato",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "carrot",
+    "assetName": "IngredientIconCarrot",
+    "aliases": [
+      "carrot",
+      "carotte",
+      "carottes"
+    ],
+    "family": "carrot",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "mushroom",
+    "assetName": "IngredientIconMushroom",
+    "aliases": [
+      "mushroom",
+      "champignon",
+      "champignons",
+      "shiitake",
+      "portobello"
+    ],
+    "family": "mushroom",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "leafy green",
+    "assetName": "IngredientIconLeafyGreen",
+    "aliases": [
+      "spinach",
+      "epinard",
+      "épinard",
+      "lettuce",
+      "laitue",
+      "salade",
+      "rocket",
+      "roquette",
+      "kale",
+      "chou kale",
+      "bok choy"
+    ],
+    "family": "leafy green",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "broccoli",
+    "assetName": "IngredientIconBroccoli",
+    "aliases": [
+      "broccoli",
+      "brocoli",
+      "cauliflower",
+      "chou fleur"
+    ],
+    "family": "broccoli",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "pepper",
+    "assetName": "IngredientIconPepper",
+    "aliases": [
+      "pepper",
+      "bell pepper",
+      "poivron",
+      "poivrons",
+      "jalapeno",
+      "jalapeño"
+    ],
+    "family": "pepper",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "cucumber",
+    "assetName": "IngredientIconCucumber",
+    "aliases": [
+      "cucumber",
+      "concombre",
+      "pickle",
+      "cornichon"
+    ],
+    "family": "cucumber",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "zucchini",
+    "assetName": "IngredientIconZucchini",
+    "aliases": [
+      "zucchini",
+      "courgette",
+      "eggplant",
+      "aubergine"
+    ],
+    "family": "zucchini",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "corn",
+    "assetName": "IngredientIconCorn",
+    "aliases": [
+      "corn",
+      "maïs",
+      "mais"
+    ],
+    "family": "corn",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "avocado",
+    "assetName": "IngredientIconAvocado",
+    "aliases": [
+      "avocado",
+      "avocat"
+    ],
+    "family": "avocado",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "lemon",
+    "assetName": "IngredientIconLemon",
+    "aliases": [
+      "lemon",
+      "citron",
+      "lemon juice",
+      "jus de citron"
+    ],
+    "family": "lemon",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "lime",
+    "assetName": "IngredientIconLime",
+    "aliases": [
+      "lime",
+      "citron vert",
+      "lime juice"
+    ],
+    "family": "lime",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "orange",
+    "assetName": "IngredientIconOrange",
+    "aliases": [
+      "orange",
+      "orange juice",
+      "jus d orange"
+    ],
+    "family": "orange",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "apple",
+    "assetName": "IngredientIconApple",
+    "aliases": [
+      "apple",
+      "pomme",
+      "pear",
+      "poire"
+    ],
+    "family": "apple",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "berry",
+    "assetName": "IngredientIconBerry",
+    "aliases": [
+      "berries",
+      "berry",
+      "strawberry",
+      "fraise",
+      "blueberry",
+      "myrtille",
+      "raspberry",
+      "framboise",
+      "cranberry"
+    ],
+    "family": "berry",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "banana",
+    "assetName": "IngredientIconBanana",
+    "aliases": [
+      "banana",
+      "banane"
+    ],
+    "family": "banana",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "coconut",
+    "assetName": "IngredientIconCoconut",
+    "aliases": [
+      "coconut",
+      "noix de coco",
+      "coconut milk",
+      "coconut cream"
+    ],
+    "family": "coconut",
+    "priority": 100
+  },
+  {
+    "canonicalKey": "sauce",
+    "assetName": "IngredientIconSauce",
+    "aliases": [
+      "soy sauce",
+      "sauce soja",
+      "vinaigre",
+      "vinegar",
+      "mustard",
+      "moutarde",
+      "ketchup",
+      "mayonnaise",
+      "mayo",
+      "hot sauce",
+      "sauce piquante"
+    ],
+    "family": "sauce",
+    "priority": 100
+  }
+]

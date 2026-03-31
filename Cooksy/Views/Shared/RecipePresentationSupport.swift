@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum RecipePresentationTab: String, CaseIterable, Identifiable {
     case ingredients = "Ingredients"
@@ -30,21 +31,37 @@ struct RecipeNutritionDisplay: Hashable {
     let fatText: String
 }
 
-enum IngredientIconKind: Hashable {
-    case fish
-    case produce
-    case herb
-    case bulb
-    case dairy
-    case cheese
-    case grain
-    case bread
-    case egg
-    case protein
-    case sauce
-    case spice
-    case sweet
+struct IngredientVisualCatalogEntry: Codable, Hashable {
+    let canonicalKey: String
+    let assetName: String
+    let aliases: [String]
+    let family: String
+    let priority: Int
+}
+
+struct NormalizedIngredient: Hashable {
+    let original: String
+    let normalizedText: String
+    let candidateKeys: [String]
+    let familyHints: [String]
+}
+
+enum IngredientVisualMatchKind: String, Hashable {
+    case canonical
+    case alias
+    case family
     case logo
+}
+
+struct IngredientVisualResolution: Hashable {
+    let assetName: String?
+    let matchKind: IngredientVisualMatchKind
+    let matchedEntry: IngredientVisualCatalogEntry?
+    let normalizedIngredient: NormalizedIngredient
+
+    var usesLogoFallback: Bool {
+        matchKind == .logo || assetName == nil
+    }
 }
 
 enum RecipePresentationFormatter {
@@ -186,6 +203,10 @@ enum RecipePresentationFormatter {
 
     static func normalizedSearchText(for value: String) -> String {
         value
+            .replacingOccurrences(of: "œ", with: "oe")
+            .replacingOccurrences(of: "Œ", with: "oe")
+            .replacingOccurrences(of: "æ", with: "ae")
+            .replacingOccurrences(of: "Æ", with: "ae")
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
             .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -282,33 +303,359 @@ enum RecipeNutritionDisplayBuilder {
     }
 }
 
-enum IngredientIconCatalog {
-    static func kind(for ingredientName: String) -> IngredientIconKind {
-        let normalized = RecipePresentationFormatter.normalizedSearchText(for: ingredientName)
-        guard !normalized.isEmpty else { return .logo }
+struct IngredientVisualResolver {
+    private let canonicalEntries: [String: IngredientVisualCatalogEntry]
+    private let aliasEntries: [String: IngredientVisualCatalogEntry]
+    private let familyAssetNames: [String: String]
 
-        for mapping in mappings where mapping.keywords.contains(where: normalized.contains) {
-            return mapping.kind
+    init(entries: [IngredientVisualCatalogEntry]) {
+        var canonicalEntries: [String: IngredientVisualCatalogEntry] = [:]
+        var aliasEntries: [String: IngredientVisualCatalogEntry] = [:]
+        var familyAssetNames: [String: (priority: Int, assetName: String)] = [:]
+
+        for entry in entries {
+            let canonicalKey = RecipePresentationFormatter.normalizedSearchText(for: entry.canonicalKey)
+            if let existing = canonicalEntries[canonicalKey], existing.priority > entry.priority {
+                // Keep the higher-priority mapping already registered.
+            } else {
+                canonicalEntries[canonicalKey] = entry
+            }
+
+            for alias in entry.aliases {
+                let normalizedAlias = RecipePresentationFormatter.normalizedSearchText(for: alias)
+                guard !normalizedAlias.isEmpty else { continue }
+
+                if let existing = aliasEntries[normalizedAlias], existing.priority > entry.priority {
+                    continue
+                }
+
+                aliasEntries[normalizedAlias] = entry
+            }
+
+            let normalizedFamily = RecipePresentationFormatter.normalizedSearchText(for: entry.family)
+            guard !normalizedFamily.isEmpty else { continue }
+
+            if let existing = familyAssetNames[normalizedFamily], existing.priority > entry.priority {
+                continue
+            }
+
+            familyAssetNames[normalizedFamily] = (entry.priority, entry.assetName)
         }
 
-        return .logo
+        self.canonicalEntries = canonicalEntries
+        self.aliasEntries = aliasEntries
+        self.familyAssetNames = familyAssetNames.mapValues(\.assetName)
     }
 
-    private static let mappings: [(keywords: [String], kind: IngredientIconKind)] = [
-        (["saumon", "thon", "cabillaud", "morue", "poisson", "crevette", "shrimp"], .fish),
-        (["tomate", "poivron", "citron", "orange", "avocat", "fraise", "framboise", "pomme", "banane"], .produce),
-        (["epinard", "épinard", "salade", "roquette", "basilic", "persil", "coriandre", "menthe", "courgette", "brocoli", "concombre"], .herb),
-        (["oignon", "echalote", "échalote", "ail"], .bulb),
-        (["lait", "creme", "crème", "yaourt", "beurre"], .dairy),
-        (["fromage", "mozzarella", "parmesan", "cheddar", "emmental", "comte", "comté"], .cheese),
-        (["farine", "riz", "quinoa", "lentille", "lentilles", "pois chiche", "haricot", "haricots", "avoine", "mais", "maïs", "pates", "pâtes", "spaghetti", "penne"], .grain),
-        (["pain", "baguette", "brioche", "bun", "toast", "tortilla"], .bread),
-        (["oeuf", "oeufs", "œuf", "œufs", "egg"], .egg),
-        (["poulet", "boeuf", "bœuf", "steak", "viande", "porc", "tofu"], .protein),
-        (["huile", "mayo", "mayonnaise", "ketchup", "moutarde", "sauce", "vinaigre", "sirop"], .sauce),
-        (["piment", "harissa", "paprika", "epice", "épice", "gingembre", "ail en poudre"], .spice),
-        (["miel", "sucre", "chocolat", "cacao", "vanille"], .sweet)
+    func resolve(_ ingredientName: String) -> IngredientVisualResolution {
+        let normalizedIngredient = IngredientNameNormalizer.normalize(ingredientName)
+
+        for candidate in normalizedIngredient.candidateKeys {
+            if let entry = canonicalEntries[candidate] {
+                return IngredientVisualResolution(
+                    assetName: entry.assetName,
+                    matchKind: .canonical,
+                    matchedEntry: entry,
+                    normalizedIngredient: normalizedIngredient
+                )
+            }
+        }
+
+        for candidate in normalizedIngredient.candidateKeys {
+            if let entry = aliasEntries[candidate] {
+                return IngredientVisualResolution(
+                    assetName: entry.assetName,
+                    matchKind: .alias,
+                    matchedEntry: entry,
+                    normalizedIngredient: normalizedIngredient
+                )
+            }
+        }
+
+        for familyHint in normalizedIngredient.familyHints {
+            if let assetName = familyAssetNames[familyHint] {
+                return IngredientVisualResolution(
+                    assetName: assetName,
+                    matchKind: .family,
+                    matchedEntry: nil,
+                    normalizedIngredient: normalizedIngredient
+                )
+            }
+        }
+
+        return IngredientVisualResolution(
+            assetName: nil,
+            matchKind: .logo,
+            matchedEntry: nil,
+            normalizedIngredient: normalizedIngredient
+        )
+    }
+}
+
+enum IngredientNameNormalizer {
+    static func normalize(_ value: String) -> NormalizedIngredient {
+        let normalizedText = cleanedSearchText(from: value)
+        let tokens = normalizedText
+            .split(separator: " ")
+            .compactMap { cleanedToken(from: String($0)) }
+
+        let candidateKeys = orderedUnique(
+            ([normalizedText] + candidatePhrases(from: tokens))
+                .map { RecipePresentationFormatter.normalizedSearchText(for: $0) }
+                .filter { !$0.isEmpty }
+        )
+
+        let familyHints = orderedUnique(
+            familyMappings.compactMap { mapping in
+                let tokenSet = Set(tokens)
+                if !tokenSet.isDisjoint(with: mapping.keywords) {
+                    return mapping.family
+                }
+
+                if mapping.phrases.contains(where: normalizedText.contains) {
+                    return mapping.family
+                }
+
+                return nil
+            }
+        )
+
+        return NormalizedIngredient(
+            original: value,
+            normalizedText: normalizedText,
+            candidateKeys: candidateKeys,
+            familyHints: familyHints
+        )
+    }
+
+    private static func cleanedSearchText(from value: String) -> String {
+        let withoutParentheses = value.replacingOccurrences(
+            of: "\\([^)]*\\)",
+            with: " ",
+            options: .regularExpression
+        )
+
+        let normalized = RecipePresentationFormatter.normalizedSearchText(for: withoutParentheses)
+        return normalized
+            .replacingOccurrences(of: "\\b\\d+[\\d.,/%]*\\b", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\b(t\\d{2,3}|type\\s*\\d{2,3})\\b", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func cleanedToken(from token: String) -> String? {
+        guard !token.isEmpty else { return nil }
+        guard !measurementPattern.matches(token) else { return nil }
+        guard !units.contains(token), !stopWords.contains(token), !descriptors.contains(token) else { return nil }
+
+        let singular = singularized(token)
+        guard !singular.isEmpty, !units.contains(singular), !stopWords.contains(singular), !descriptors.contains(singular) else {
+            return nil
+        }
+
+        return singular
+    }
+
+    private static func candidatePhrases(from tokens: [String]) -> [String] {
+        guard !tokens.isEmpty else { return [] }
+        var candidates: [String] = [tokens.joined(separator: " ")]
+
+        let maxWindow = min(tokens.count, 4)
+        if maxWindow > 1 {
+            for length in stride(from: maxWindow, through: 1, by: -1) {
+                for startIndex in 0...(tokens.count - length) {
+                    let phrase = tokens[startIndex..<(startIndex + length)].joined(separator: " ")
+                    candidates.append(phrase)
+                }
+            }
+        }
+
+        if let last = tokens.last {
+            candidates.append(last)
+        }
+
+        return candidates
+    }
+
+    private static func singularized(_ token: String) -> String {
+        guard !pluralExceptions.contains(token) else { return token }
+
+        if token.count > 4, token.hasSuffix("ies") {
+            return String(token.dropLast(3)) + "y"
+        }
+
+        if token.count > 4, token.hasSuffix("ves") {
+            return String(token.dropLast(3)) + "f"
+        }
+
+        if token.count > 4, token.hasSuffix("oes") {
+            return String(token.dropLast(2))
+        }
+
+        if token.count > 4, token.hasSuffix("ches") || token.hasSuffix("shes") {
+            return String(token.dropLast(2))
+        }
+
+        if token.count > 3, token.hasSuffix("es"), !token.hasSuffix("ses"), !token.hasSuffix("ees") {
+            return String(token.dropLast(1))
+        }
+
+        if token.count > 3, token.hasSuffix("s"), !token.hasSuffix("ss") {
+            return String(token.dropLast())
+        }
+
+        return token
+    }
+
+    private static func orderedUnique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+
+        for value in values where !value.isEmpty {
+            if seen.insert(value).inserted {
+                ordered.append(value)
+            }
+        }
+
+        return ordered
+    }
+
+    private struct FamilyMapping {
+        let family: String
+        let keywords: Set<String>
+        let phrases: [String]
+    }
+
+    private static let measurementPattern = try! NSRegularExpression(pattern: #"^\d+[a-z0-9./%]*$"#)
+
+    private static let stopWords: Set<String> = [
+        "a", "au", "aux", "avec", "d", "de", "des", "du", "for", "la", "le", "les", "or", "ou", "the", "to"
     ]
+
+    private static let units: Set<String> = [
+        "c", "ca", "cac", "cac.", "cas", "cas.", "cl", "cup", "cups", "dl", "g", "kg", "lb", "l", "ml", "mg",
+        "oz", "piece", "pieces", "pinch", "pincee", "pincees", "sachet", "sachets", "slice", "slices", "sprig",
+        "sprigs", "tablespoon", "tablespoons", "tbsp", "teaspoon", "teaspoons", "tsp"
+    ]
+
+    private static let descriptors: Set<String> = [
+        "bio", "chopped", "cooked", "coupe", "coupes", "diced", "emince", "emincee", "emincees", "fresh", "freshly",
+        "frozen", "grated", "ground", "halved", "minced", "nature", "naturel", "naturelle", "optional", "organic",
+        "peeled", "rinsed", "roasted", "salted", "softened", "toasted", "unsalted", "vierge", "virgin", "warm"
+    ]
+
+    private static let pluralExceptions: Set<String> = [
+        "couscous", "greens", "herbs", "leeks", "molasses", "oats", "pasta", "rice", "spinach"
+    ]
+
+    private static let familyMappings: [FamilyMapping] = [
+        FamilyMapping(family: "flour", keywords: ["farine", "flour"], phrases: []),
+        FamilyMapping(family: "butter", keywords: ["beurre", "butter"], phrases: []),
+        FamilyMapping(family: "sugar", keywords: ["sucre", "sugar", "cassonade", "vergeoise"], phrases: ["powdered sugar", "sucre glace"]),
+        FamilyMapping(family: "egg", keywords: ["egg", "oeuf"], phrases: ["blanc d oeuf", "jaune d oeuf"]),
+        FamilyMapping(family: "milk", keywords: ["lait", "milk"], phrases: []),
+        FamilyMapping(family: "cream", keywords: ["cream", "creme"], phrases: ["creme fraiche", "crème fraîche"]),
+        FamilyMapping(family: "yogurt", keywords: ["yaourt", "yogurt", "yoghurt"], phrases: []),
+        FamilyMapping(family: "cheese", keywords: ["cheese", "fromage", "parmesan", "cheddar", "mozzarella", "gruyere"], phrases: []),
+        FamilyMapping(family: "white cheese", keywords: ["feta", "ricotta", "mascarpone", "chevre"], phrases: ["fromage blanc", "goat cheese", "cream cheese", "cottage cheese"]),
+        FamilyMapping(family: "baking powder", keywords: ["baking", "levure"], phrases: ["baking powder", "levure chimique"]),
+        FamilyMapping(family: "yeast", keywords: ["yeast"], phrases: ["levure boulangere", "levure boulangère"]),
+        FamilyMapping(family: "salt", keywords: ["salt", "sel"], phrases: []),
+        FamilyMapping(family: "spice", keywords: ["cumin", "curry", "curcuma", "ginger", "gingembre", "paprika", "piment"], phrases: ["garam masala", "hot sauce"]),
+        FamilyMapping(family: "herbs", keywords: ["basilic", "basil", "ciboulette", "coriandre", "cilantro", "dill", "herbe", "herb", "menthe", "mint", "parsley", "persil", "rosemary", "romarin", "thym", "thyme"], phrases: []),
+        FamilyMapping(family: "oil", keywords: ["huile", "oil"], phrases: ["olive oil", "sesame oil"]),
+        FamilyMapping(family: "honey", keywords: ["agave", "honey", "miel"], phrases: ["maple syrup", "sirop d erable", "sirop d'érable"]),
+        FamilyMapping(family: "chocolate", keywords: ["cacao", "chocolate", "chocolat", "cocoa"], phrases: ["cocoa powder"]),
+        FamilyMapping(family: "vanilla", keywords: ["vanilla", "vanille"], phrases: []),
+        FamilyMapping(family: "water", keywords: ["eau", "water"], phrases: []),
+        FamilyMapping(family: "stock", keywords: ["bouillon", "broth", "stock"], phrases: ["chicken stock", "vegetable stock", "beef stock"]),
+        FamilyMapping(family: "rice", keywords: ["arborio", "basmati", "jasmine", "rice", "riz"], phrases: ["risotto rice"]),
+        FamilyMapping(family: "pasta", keywords: ["linguine", "noodle", "nouille", "pasta", "penne", "ramen", "spaghetti", "udon"], phrases: []),
+        FamilyMapping(family: "bread", keywords: ["baguette", "bread", "breadcrumbs", "brioche", "bun", "pain", "toast"], phrases: ["burger bun", "panko breadcrumbs"]),
+        FamilyMapping(family: "tortilla", keywords: ["flatbread", "naan", "pita", "tortilla", "wrap"], phrases: []),
+        FamilyMapping(family: "beans", keywords: ["bean", "chickpea", "haricot", "lentil", "lentille", "pea", "pois"], phrases: ["black beans", "kidney beans", "pois chiches", "petits pois"]),
+        FamilyMapping(family: "nuts", keywords: ["almond", "amande", "cashew", "noix", "peanut", "pecan", "sesame"], phrases: ["sunflower seeds", "graines de sesame"]),
+        FamilyMapping(family: "tofu", keywords: ["tempeh", "tofu"], phrases: []),
+        FamilyMapping(family: "chicken", keywords: ["chicken", "poulet"], phrases: ["chicken breast", "chicken thigh"]),
+        FamilyMapping(family: "beef", keywords: ["beef", "boeuf", "steak", "viande"], phrases: ["ground beef", "minced beef", "viande hachee", "viande hachée"]),
+        FamilyMapping(family: "pork", keywords: ["bacon", "ham", "lardon", "pork", "porc", "prosciutto", "sausage", "saucisse"], phrases: []),
+        FamilyMapping(family: "fish", keywords: ["cabillaud", "cod", "fish", "poisson", "salmon", "saumon", "thon", "tilapia", "trout", "tuna"], phrases: ["sea bass"]),
+        FamilyMapping(family: "shrimp", keywords: ["crab", "crevette", "lobster", "prawn", "shrimp"], phrases: ["langoustine"]),
+        FamilyMapping(family: "tomato", keywords: ["tomate", "tomato"], phrases: ["cherry tomato", "tomato sauce", "tomato paste", "sauce tomate"]),
+        FamilyMapping(family: "onion", keywords: ["echalote", "oignon", "onion", "scallion", "shallot"], phrases: ["green onion", "spring onion"]),
+        FamilyMapping(family: "garlic", keywords: ["ail", "garlic"], phrases: ["garlic cloves"]),
+        FamilyMapping(family: "potato", keywords: ["patate", "pomme", "potato"], phrases: ["pomme de terre", "pommes de terre", "sweet potato", "patate douce"]),
+        FamilyMapping(family: "carrot", keywords: ["carotte", "carrot"], phrases: []),
+        FamilyMapping(family: "mushroom", keywords: ["champignon", "mushroom", "portobello", "shiitake"], phrases: []),
+        FamilyMapping(family: "leafy green", keywords: ["epinard", "kale", "laitue", "lettuce", "rocket", "romaine", "roquette", "salad", "salade", "spinach"], phrases: ["bok choy", "chou kale"]),
+        FamilyMapping(family: "broccoli", keywords: ["broccoli", "brocoli", "cauliflower"], phrases: ["chou fleur"]),
+        FamilyMapping(family: "pepper", keywords: ["jalapeno", "pepper", "poivron"], phrases: ["bell pepper"]),
+        FamilyMapping(family: "cucumber", keywords: ["concombre", "cucumber", "pickle"], phrases: ["cornichon"]),
+        FamilyMapping(family: "zucchini", keywords: ["aubergine", "courgette", "eggplant", "zucchini"], phrases: []),
+        FamilyMapping(family: "corn", keywords: ["corn", "mais"], phrases: ["maïs"]),
+        FamilyMapping(family: "avocado", keywords: ["avocado", "avocat"], phrases: []),
+        FamilyMapping(family: "lemon", keywords: ["citron", "lemon"], phrases: ["lemon juice", "jus de citron"]),
+        FamilyMapping(family: "lime", keywords: ["lime"], phrases: ["citron vert", "lime juice"]),
+        FamilyMapping(family: "orange", keywords: ["orange"], phrases: ["orange juice", "jus d orange"]),
+        FamilyMapping(family: "apple", keywords: ["apple", "pear", "poire", "pomme"], phrases: []),
+        FamilyMapping(family: "berry", keywords: ["berry", "blueberry", "cranberry", "fraise", "framboise", "myrtille", "raspberry", "strawberry"], phrases: []),
+        FamilyMapping(family: "banana", keywords: ["banana", "banane"], phrases: []),
+        FamilyMapping(family: "coconut", keywords: ["coconut", "coco"], phrases: ["coconut milk", "coconut cream", "noix de coco"]),
+        FamilyMapping(family: "sauce", keywords: ["ketchup", "mayo", "mayonnaise", "moutarde", "mustard", "sauce", "soy", "vinaigre", "vinegar"], phrases: ["sauce soja", "soy sauce", "hot sauce", "sauce piquante"]),
+    ]
+}
+
+enum IngredientVisualCatalog {
+    static func preload() {
+        _ = resolver
+    }
+
+    static func assetName(for ingredientName: String) -> String? {
+        resolution(for: ingredientName).assetName
+    }
+
+    static func resolution(for ingredientName: String) -> IngredientVisualResolution {
+        resolver.resolve(ingredientName)
+    }
+
+    private static let resolver = IngredientVisualResolver(entries: loadEntries())
+
+    private static func loadEntries() -> [IngredientVisualCatalogEntry] {
+        let decoder = JSONDecoder()
+
+        for bundle in bundleCandidates {
+            if let dataAsset = NSDataAsset(name: manifestAssetName, bundle: bundle),
+               let entries = try? decoder.decode([IngredientVisualCatalogEntry].self, from: dataAsset.data),
+               !entries.isEmpty {
+                return entries
+            }
+        }
+
+        return []
+    }
+
+    private static var bundleCandidates: [Bundle] {
+        let bundles = [Bundle.main, Bundle(for: IngredientVisualBundleSentinel.self)] + Bundle.allBundles + Bundle.allFrameworks
+        var seen = Set<String>()
+        var ordered: [Bundle] = []
+
+        for bundle in bundles where seen.insert(bundle.bundlePath).inserted {
+            ordered.append(bundle)
+        }
+
+        return ordered
+    }
+
+    private static let manifestAssetName = "IngredientIconManifest"
+}
+
+private final class IngredientVisualBundleSentinel {}
+
+private extension NSRegularExpression {
+    func matches(_ value: String) -> Bool {
+        let range = NSRange(location: 0, length: value.utf16.count)
+        return firstMatch(in: value, options: [], range: range) != nil
+    }
 }
 
 private extension String {

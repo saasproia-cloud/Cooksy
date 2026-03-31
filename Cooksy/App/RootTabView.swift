@@ -62,7 +62,7 @@ struct RootTabView: View {
                 .tag(AppTab.plan)
 
                 NavigationStack {
-                    RecipeLibraryView(
+                    RecipeLibraryScreen(
                         store: recipeStore,
                         sharedLinkInbox: sharedLinkInbox,
                         openImportSheet: { showsQuickImportSheet = true }

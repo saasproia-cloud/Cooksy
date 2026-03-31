@@ -28,6 +28,7 @@ struct CooksyApp: App {
 
     init() {
         AppAppearance.configure()
+        IngredientVisualCatalog.preload()
     }
 
     var body: some Scene {

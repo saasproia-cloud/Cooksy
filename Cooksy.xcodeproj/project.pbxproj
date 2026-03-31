@@ -46,6 +46,7 @@
 		8E1A0A12123456789ABCDE01 /* RecipeDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */; };
 		8E1A0A13123456789ABCDE01 /* RecipeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A23123456789ABCDE01 /* RecipeDetailView.swift */; };
 		8E1A0A14123456789ABCDE01 /* StepByStepCookingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */; };
+		8E1A0A15123456789ABCDE01 /* RecipeLibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A0A25123456789ABCDE02 /* RecipeLibraryScreen.swift */; };
 		91D0AA10123456789ABCDE01 /* DemoRecipeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */; };
 		91D0AA11123456789ABCDE01 /* DemoRecipeMatcherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */; };
 		A1C0F0051A11111111111111 /* MealPlanEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1051A11111111111111 /* MealPlanEntry.swift */; };
@@ -127,6 +128,7 @@
 		8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeDetailViewModel.swift; sourceTree = "<group>"; };
 		8E1A0A23123456789ABCDE01 /* RecipeDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeDetailView.swift; sourceTree = "<group>"; };
 		8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StepByStepCookingView.swift; sourceTree = "<group>"; };
+		8E1A0A25123456789ABCDE02 /* RecipeLibraryScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeLibraryScreen.swift; sourceTree = "<group>"; };
 		91D0AA20123456789ABCDE01 /* DemoRecipeCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoRecipeCatalog.swift; sourceTree = "<group>"; };
 		91D0AA21123456789ABCDE01 /* DemoRecipeMatcherService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoRecipeMatcherService.swift; sourceTree = "<group>"; };
 		9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientPhotoClassifierService.swift; sourceTree = "<group>"; };
@@ -291,6 +293,7 @@
 		8E1A0A25123456789ABCDE01 /* Recipes */ = {
 			isa = PBXGroup;
 			children = (
+				8E1A0A25123456789ABCDE02 /* RecipeLibraryScreen.swift */,
 				8E1A0A23123456789ABCDE01 /* RecipeDetailView.swift */,
 				8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */,
 			);
@@ -569,6 +572,7 @@
 				646B541B44F24D2497BEF4A7 /* RecipeBookDetailView.swift in Sources */,
 				EF6766BBFB2920DA16C208E8 /* RecipeBookCard.swift in Sources */,
 				08F3B41177D07292DEE51D95 /* PlaceholderView.swift in Sources */,
+				8E1A0A15123456789ABCDE01 /* RecipeLibraryScreen.swift in Sources */,
 				8E1A0A13123456789ABCDE01 /* RecipeDetailView.swift in Sources */,
 				8E1A0A14123456789ABCDE01 /* StepByStepCookingView.swift in Sources */,
 				222C62212B8D663AE8B103D1 /* BrandHeaderView.swift in Sources */,

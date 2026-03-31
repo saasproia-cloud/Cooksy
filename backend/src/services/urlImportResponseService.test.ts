@@ -139,3 +139,48 @@ test("buildURLImportResponse replaces weak spoken fragments with complete French
     false
   );
 });
+
+test("buildURLImportResponse generates missing steps and nutrition when only ingredients are available", async () => {
+  const recipe: RecipeImportResult = {
+    title: "Crêpes",
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/111222333",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "250", unit: "g", name: "farine", nutritionQuery: "flour" },
+      { amount: "500", unit: "ml", name: "lait", nutritionQuery: "milk" },
+      { amount: "3", unit: "oeufs", name: "oeufs", nutritionQuery: "egg" },
+      { amount: "40", unit: "g", name: "sucre", nutritionQuery: "sugar" },
+      { amount: "30", unit: "g", name: "beurre", nutritionQuery: "butter" }
+    ],
+    stepDrafts: [],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "4",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "Crêpes",
+    inferredFromPhoto: false
+  };
+
+  const response = await buildURLImportResponse({
+    recipe,
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/111222333"
+  });
+
+  assert.equal(response.success, true);
+
+  if (!response.success) {
+    assert.fail("expected a success response");
+  }
+
+  assert.ok(response.data.steps.length >= 4);
+  assert.ok(response.data.nutrition.calories > 0);
+  assert.ok(response.data.nutrition.protein > 0);
+  assert.ok(response.data.nutrition.carbs > 0);
+  assert.ok(response.data.nutrition.fat > 0);
+});

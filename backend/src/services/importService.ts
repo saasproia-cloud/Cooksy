@@ -62,11 +62,11 @@ const PREVIEW_RESOLVE_TIMEOUT_MS = 2_500;
 const PREVIEW_SOCIAL_TIMEOUT_MS = 4_500;
 const PREVIEW_WEB_TIMEOUT_MS = 2_000;
 const PREVIEW_RESERVE_MS = 700;
-const SHARED_TOTAL_LIMIT_MS = 30_000;
+const SHARED_TOTAL_LIMIT_MS = 75_000;
 const SHARED_RESOLVE_TIMEOUT_MS = 2_500;
 const SHARED_SOCIAL_TIMEOUT_MS = 5_000;
 const SHARED_SOCIAL_NORMALIZE_TIMEOUT_MS = 12_000;
-const SHARED_APIFY_TIMEOUT_MS = 9_000;
+const SHARED_APIFY_TIMEOUT_MS = 45_000;
 const SHARED_AUDIO_FETCH_TIMEOUT_MS = 8_000;
 const SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS = 12_000;
 const SHARED_AUDIO_MAX_DURATION_SECONDS = 75;
@@ -1589,6 +1589,10 @@ const prioritizedFoodSearchTerms = [
   "pasta",
   "pates",
   "pâtes",
+  "crepe",
+  "crepes",
+  "pancake",
+  "pancakes",
   "sandwich",
   "wrap",
   "salade",
@@ -1623,6 +1627,10 @@ const dishHeadSearchTerms = new Set([
   "pasta",
   "pates",
   "pâtes",
+  "crepe",
+  "crepes",
+  "pancake",
+  "pancakes",
   "sandwich",
   "wrap",
   "salade",
@@ -1650,9 +1658,10 @@ const dishPhrasePatterns = [
   /\bfish burger\b/i,
   /\bsmash burger\b/i,
   /\bchicken burger\b/i,
+  /\b(?:crepes?|pancakes?)\b/i,
   /\b(?:hot tenders?|crispy chicken|poulet croustillant)\s+burger\b/i,
-  /\b(?:smash|double|crispy|spicy|veggie|vegan|chicken|fish|filet o fish|hot tenders?|pulled|bbq|bacon|cheese|cheesy|poulet|boeuf|bœuf|beef|poisson|cabillaud|saumon|salmon|halloumi|falafel|shawarma|kebab)\s+(?:burger|sandwich|wrap)\b/i,
-  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|sandwich|wrap|salade|salad|omelette|quiche|gratin|risotto|ramen|curry|bowl|falafel|shawarma|kebab|brownie|cookies?|gateau|gâteau|cake)\b/i
+  /\b(?:smash|double|crispy|spicy|veggie|vegan|chicken|fish|filet o fish|hot tenders?|pulled|bbq|bacon|cheese|cheesy|poulet|boeuf|bœuf|beef|poisson|cabillaud|saumon|salmon|halloumi|falafel|shawarma|kebab|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|sandwich|wrap|crepes?|pancakes?)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|crepes?|pancakes?|sandwich|wrap|salade|salad|omelette|quiche|gratin|risotto|ramen|curry|bowl|falafel|shawarma|kebab|brownie|cookies?|gateau|gâteau|cake)\b/i
 ];
 
 function shouldAttemptFinalNormalization(input: {
@@ -2179,16 +2188,38 @@ async function finalizeImportedRecipe(
   };
 }
 
+export function resolveAcceptedRecipeCandidate(
+  recipe: RecipeImportResult,
+  context: Parameters<typeof strictRecipeFromContext>[0]
+) {
+  const sanitizedRecipe = sanitizeRecipeImport(recipe);
+  const strictRecipe = strictRecipeFromContext(context, sanitizedRecipe);
+
+  if (strictRecipe && shouldPreferRecipeCandidate(strictRecipe, sanitizedRecipe)) {
+    return sanitizedRecipe;
+  }
+
+  if (strictRecipe) {
+    return strictRecipe;
+  }
+
+  if (isLikelyValidRecipe(sanitizedRecipe)) {
+    return sanitizedRecipe;
+  }
+
+  return null;
+}
+
 function requireStrictRecipe(
   recipe: RecipeImportResult,
   context: Parameters<typeof strictRecipeFromContext>[0]
 ): RecipeImportResult {
-  const strictRecipe = strictRecipeFromContext(context, recipe);
-  if (!strictRecipe) {
+  const acceptedRecipe = resolveAcceptedRecipeCandidate(recipe, context);
+  if (!acceptedRecipe) {
     throw new RecipeImportNotFoodError();
   }
 
-  return strictRecipe;
+  return acceptedRecipe;
 }
 
 function transcriptionOptions(

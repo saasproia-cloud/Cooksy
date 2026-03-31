@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { bestSearchQuery } from "./importService.js";
+import { bestSearchQuery, resolveAcceptedRecipeCandidate } from "./importService.js";
 import type { RecipeImportResult } from "../types/recipe.js";
 
 function emptyRecipe(overrides: Partial<RecipeImportResult> = {}): RecipeImportResult {
@@ -99,4 +99,54 @@ test("bestSearchQuery keeps a specific dish phrase when only a flavored dish nam
   assert.match(query.toLowerCase(), /burger/);
   assert.match(query.toLowerCase(), /truffe|truffle/);
   assert.match(query.toLowerCase(), /recette/);
+});
+
+test("bestSearchQuery extracts a crepes query from transcript when the social caption is missing", () => {
+  const query = bestSearchQuery({
+    recipe: emptyRecipe(),
+    pageSummary: null,
+    socialContent: null,
+    sharedText: "Regarde cette video",
+    transcript: "Aujourd'hui on fait des crepes faciles avec farine, lait, oeufs et beurre pour le gouter."
+  });
+
+  assert.match(query.toLowerCase(), /crepes|pancakes?/);
+  assert.match(query.toLowerCase(), /recette/);
+});
+
+test("resolveAcceptedRecipeCandidate keeps a complete AI recipe for dishes not covered by heuristic templates", () => {
+  const acceptedRecipe = resolveAcceptedRecipeCandidate(
+    emptyRecipe({
+      title: "Gyozas au poulet",
+      sourceUrl: "https://www.tiktok.com/@cooksy/video/987654321",
+      ingredientDrafts: [
+        { amount: "24", unit: "pieces", name: "pates a gyozas", nutritionQuery: "gyoza wrappers" },
+        { amount: "300", unit: "g", name: "poulet hache", nutritionQuery: "ground chicken" },
+        { amount: "2", unit: "", name: "oignons nouveaux", nutritionQuery: "green onion" },
+        { amount: "2", unit: "c a soupe", name: "sauce soja", nutritionQuery: "soy sauce" },
+        { amount: "1", unit: "c a cafe", name: "gingembre", nutritionQuery: "fresh ginger" },
+        { amount: "1", unit: "c a cafe", name: "huile de sesame", nutritionQuery: "sesame oil" }
+      ],
+      stepDrafts: [
+        { detail: "Mélangez le poulet avec les oignons nouveaux, la sauce soja, le gingembre et l'huile de sésame." },
+        { detail: "Déposez une petite cuillère de farce au centre de chaque pâte puis repliez les gyozas en scellant bien les bords." },
+        { detail: "Faites dorer les gyozas dans une poêle chaude avec un filet d'huile, puis ajoutez un peu d'eau et couvrez pour terminer la cuisson à la vapeur." },
+        { detail: "Laissez l'eau s'évaporer, redonnez un peu de croustillant au dessous et servez aussitôt." }
+      ],
+      confidence: "high",
+      needsWebFallback: false,
+      searchQuery: "Gyozas au poulet"
+    }),
+    {
+      mode: "url",
+      sourceUrl: "https://www.tiktok.com/@cooksy/video/987654321",
+      transcript: "Aujourd'hui on fait des gyozas au poulet maison."
+    }
+  );
+
+  assert.ok(acceptedRecipe, "expected the validated AI recipe to be accepted");
+  assert.equal(acceptedRecipe?.title, "Gyozas au poulet");
+  assert.ok((acceptedRecipe?.ingredientDrafts.length ?? 0) >= 6);
+  assert.ok((acceptedRecipe?.stepDrafts.length ?? 0) >= 4);
+  assert.equal(acceptedRecipe?.needsWebFallback, false);
 });

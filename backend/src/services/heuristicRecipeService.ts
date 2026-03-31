@@ -23,6 +23,7 @@ type DishTemplateId =
   | "tacos"
   | "chicken_curry_pasta"
   | "pasta"
+  | "crepes"
   | "tiramisu"
   | "curry"
   | "generic";
@@ -48,6 +49,7 @@ type IngredientCatalogKey =
   | "tomato"
   | "cucumber"
   | "flour"
+  | "milk"
   | "paprika"
   | "cumin"
   | "garlic"
@@ -66,6 +68,7 @@ type IngredientCatalogKey =
   | "mascarpone"
   | "egg"
   | "sugar"
+  | "vanilla"
   | "coffee"
   | "ladyfinger"
   | "cocoa_powder"
@@ -217,6 +220,7 @@ function combinedContextRecipeText(input: NormalizerInput): string {
     input.socialDescription,
     input.socialPageText,
     input.socialSubtitles,
+    input.transcript,
     input.socialTitle,
     input.pageTitle,
     input.pageDescription,
@@ -353,7 +357,7 @@ function minimumIngredientCountForDish(dishName: string, currentCount: number): 
     return 4;
   }
 
-  if (/\b(?:burger|sandwich|wrap|pizza|pasta|curry|taco|tacos|naan|brownie|cookie|cake|tiramisu|risotto|ramen|shawarma|kebab|falafel|bowl)\b/.test(normalizedDish)) {
+  if (/\b(?:burger|sandwich|wrap|pizza|pasta|curry|taco|tacos|naan|brownie|cookie|cake|tiramisu|risotto|ramen|shawarma|kebab|falafel|bowl|crepes?|pancakes?)\b/.test(normalizedDish)) {
     return 5;
   }
 
@@ -731,12 +735,12 @@ function buildDishIntentCandidates(
     {
       text: input.socialSubtitles,
       source: "subtitles",
-      weight: 0.1
+      weight: 0.12
     },
     {
       text: input.transcript,
       source: "transcript",
-      weight: 0.08
+      weight: 0.18
     }
   ]);
 }
@@ -919,6 +923,17 @@ function inferIngredientsForDish(
         ingredientFromCatalog("pepper", { amount: "0.5", unit: "c a cafe" })
       );
       break;
+    case "crepes":
+      inferred.push(
+        ingredientFromCatalog("flour", { amount: "250", unit: "g" }),
+        ingredientFromCatalog("milk", { amount: "500", unit: "ml" }),
+        ingredientFromCatalog("egg", { amount: "3", unit: "oeufs" }),
+        ingredientFromCatalog("sugar", { amount: "40", unit: "g" }),
+        ingredientFromCatalog("butter", { amount: "30", unit: "g" }),
+        ingredientFromCatalog("vanilla", { amount: "1", unit: "c a cafe" }),
+        ingredientFromCatalog("salt", { amount: "1", unit: "pincee" })
+      );
+      break;
     case "tiramisu":
       inferred.push(
         ingredientFromCatalog("mascarpone", { amount: "250", unit: "g" }),
@@ -977,6 +992,8 @@ function buildDishStepTexts(
     case "chicken_curry_pasta":
     case "pasta":
       return pastaSteps(ingredients);
+    case "crepes":
+      return crepeSteps(ingredients);
     case "tiramisu":
       return tiramisuSteps(ingredients);
     case "curry":
@@ -1097,6 +1114,8 @@ function defaultDishMetadata(templateId: DishTemplateId): {
     case "chicken_curry_pasta":
     case "pasta":
       return { prepTimeText: "15", cookTimeText: "20", servingsText: "3" };
+    case "crepes":
+      return { prepTimeText: "10", cookTimeText: "20", servingsText: "4" };
     case "tiramisu":
       return { prepTimeText: "25", cookTimeText: "0", servingsText: "6" };
     case "curry":
@@ -1129,6 +1148,9 @@ function defaultDishMetadataForIntent(
   }
   if (/\bomelette\b/.test(normalizedDish)) {
     return { prepTimeText: "5", cookTimeText: "8", servingsText: "1" };
+  }
+  if (/\b(?:crepes?|pancakes?)\b/.test(normalizedDish)) {
+    return { prepTimeText: "10", cookTimeText: "20", servingsText: "4" };
   }
   if (/\b(?:brownie|cookie|cake)\b/.test(normalizedDish)) {
     return { prepTimeText: "15", cookTimeText: "25", servingsText: "6" };
@@ -1172,6 +1194,7 @@ function explicitIngredientSourceTexts(input: NormalizerInput): string[] {
     input.socialDescription,
     input.socialPageText,
     input.socialSubtitles,
+    input.transcript,
     input.socialTitle,
     input.pageTitle,
     input.pageDescription,
@@ -1559,6 +1582,22 @@ function currySteps(ingredients: RecipeIngredientDraft[]): string[] {
   ];
 }
 
+function crepeSteps(ingredients: RecipeIngredientDraft[]): string[] {
+  const flour = preferredIngredientName(ingredients, ["flour"], "farine");
+  const milk = preferredIngredientName(ingredients, ["milk"], "lait");
+  const eggs = preferredIngredientName(ingredients, ["egg"], "oeufs");
+  const sugar = preferredIngredientName(ingredients, ["sugar"], "sucre");
+  const butter = preferredIngredientName(ingredients, ["butter"], "beurre");
+  const vanilla = preferredIngredientName(ingredients, ["vanilla"], "vanille");
+
+  return [
+    `Fouettez la ${flour} avec les ${eggs}, le ${sugar} et une pincée de sel, puis versez progressivement le ${milk} pour obtenir une pâte lisse sans grumeaux.`,
+    `Ajoutez le ${butter} fondu et la ${vanilla}, mélangez encore, puis laissez reposer la pâte quelques minutes pour l'assouplir.`,
+    "Chauffez une poêle légèrement beurrée, versez une fine louche de pâte et inclinez la poêle pour répartir la préparation en couche régulière.",
+    "Faites cuire chaque crêpe jusqu'à ce que les bords se décollent, retournez-la, puis poursuivez la cuisson quelques secondes avant de répéter avec le reste de la pâte."
+  ];
+}
+
 function genericDishSteps(dishName: string, ingredients: RecipeIngredientDraft[]): string[] {
   const normalizedDish = normalizeDishDetectionText(dishName);
   if (/\b(?:sandwich|naan|toast)\b/.test(normalizedDish)) {
@@ -1575,6 +1614,9 @@ function genericDishSteps(dishName: string, ingredients: RecipeIngredientDraft[]
   }
   if (/\bomelette\b/.test(normalizedDish)) {
     return omeletteSteps(ingredients);
+  }
+  if (/\b(?:crepes?|pancakes?)\b/.test(normalizedDish)) {
+    return crepeSteps(ingredients);
   }
   if (/\b(?:brownie|cookie|cake)\b/.test(normalizedDish)) {
     return dessertSteps(dishName, ingredients);
@@ -1786,6 +1828,9 @@ function templateIdForDishName(value: string): DishTemplateId {
   }
   if (normalized.includes("pasta")) {
     return "pasta";
+  }
+  if (normalized.includes("crepe") || normalized.includes("pancake")) {
+    return "crepes";
   }
   if (normalized.includes("curry")) {
     return "curry";
@@ -2359,7 +2404,7 @@ function looksLikeMusicCredit(line: string): boolean {
 
 function containsIngredientKeyword(line: string): boolean {
   const normalized = normalizedDecorativeText(line);
-  return /\b(?:burger|naan|poulet|chicken|farine|flour|fromage|cheese|levure|yaourt|beurre|eau|sel|sucre|escalope|paprika|semoule|chapelure|panure|sauce|tortilla|tacos?|corn\s+flakes?|soja|soy)\b/.test(normalized);
+  return /\b(?:burger|naan|crepes?|pancakes?|poulet|chicken|farine|flour|lait|milk|oeufs?|eggs?|fromage|cheese|levure|yaourt|beurre|eau|sel|sucre|escalope|paprika|semoule|chapelure|panure|sauce|tortilla|tacos?|corn\s+flakes?|soja|soy)\b/.test(normalized);
 }
 
 function containsLikelyDishTerm(line: string): boolean {
@@ -2765,6 +2810,12 @@ const prioritizedDishPatterns: Array<{
     baseScore: 0.76
   },
   {
+    regex: /\b(?:crepes?|pancakes?)\b/i,
+    title: "Crêpes",
+    templateId: "crepes",
+    baseScore: 0.74
+  },
+  {
     regex: /\btiramisu\b/i,
     title: "Tiramisu",
     templateId: "tiramisu",
@@ -2795,11 +2846,11 @@ const prioritizedDishPatterns: Array<{
 const genericDishPhrasePatterns = [
   /\b(?:sandwich|wrap)\s+(?:naan|pita|bagel|focaccia|ciabatta|brioche)\b/i,
   /\b(?:naan|pita|bagel|focaccia|ciabatta|brioche)\s+(?:sandwich|wrap)\b/i,
-  /\b(?:truffle|truffe|smash|crispy|spicy|creamy|chicken|poulet|fish|poisson|beef|boeuf|bœuf|veggie|vegan|mushroom|champignon|thai|bbq|salmon|saumon|garlic|ail|hot)\s+(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab)\b/i,
-  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab)\s+(?:a\s+la|au|aux|de|du|des|with)\s+[a-z]+(?:\s+[a-z]+)?\b/i
+  /\b(?:truffle|truffe|smash|crispy|spicy|creamy|chicken|poulet|fish|poisson|beef|boeuf|bœuf|veggie|vegan|mushroom|champignon|thai|bbq|salmon|saumon|garlic|ail|hot|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?)\s+(?:a\s+la|au|aux|de|du|des|with)\s+[a-z]+(?:\s+[a-z]+)?\b/i
 ];
 
-const genericDishPattern = /\b(?:burger|tacos?|pasta|pizza|omelette|quiche|salad|salade|wrap|sandwich|toast|curry|brownies?|cookies?|cake|ramen|risotto|falafel|shawarma|kebab|bowl)\b/i;
+const genericDishPattern = /\b(?:burger|tacos?|pasta|pizza|omelette|quiche|salad|salade|wrap|sandwich|toast|curry|brownies?|cookies?|cake|ramen|risotto|falafel|shawarma|kebab|bowl|crepes?|pancakes?)\b/i;
 
 const genericDishWords = new Set([
   "burger",
@@ -2825,7 +2876,11 @@ const genericDishWords = new Set([
   "falafel",
   "shawarma",
   "kebab",
-  "bowl"
+  "bowl",
+  "crepe",
+  "crepes",
+  "pancake",
+  "pancakes"
 ]);
 
 const foodSignalPatterns = [
@@ -2839,6 +2894,7 @@ const foodSignalPatterns = [
   /\bsandwich\b/i,
   /\bwrap\b/i,
   /\b(?:salad|salade)\b/i,
+  /\b(?:crepes?|pancakes?)\b/i,
   /\bchicken\b/i,
   /\bbeef\b/i,
   /\bfish\b/i,
@@ -2856,6 +2912,7 @@ const likelyDishTitlePatterns = [
   /\bwrap\b/i,
   /\bsandwich\b/i,
   /\btoast\b/i,
+  /\b(?:crepes?|pancakes?)\b/i,
   /\bcurry\b/i,
   /\brisotto\b/i,
   /\bramen\b/i,
@@ -3034,6 +3091,14 @@ const ingredientCatalog: Array<{
     aliases: ["flour", "farine"]
   },
   {
+    key: "milk",
+    name: "lait",
+    nutritionQuery: "milk",
+    amount: "500",
+    unit: "ml",
+    aliases: ["milk", "lait"]
+  },
+  {
     key: "paprika",
     name: "paprika",
     nutritionQuery: "paprika",
@@ -3176,6 +3241,14 @@ const ingredientCatalog: Array<{
     amount: "80",
     unit: "g",
     aliases: ["sugar", "sucre"]
+  },
+  {
+    key: "vanilla",
+    name: "vanille",
+    nutritionQuery: "vanilla extract",
+    amount: "1",
+    unit: "c a cafe",
+    aliases: ["vanilla", "vanille", "vanilla extract", "sucre vanille", "sucre vanillé"]
   },
   {
     key: "coffee",

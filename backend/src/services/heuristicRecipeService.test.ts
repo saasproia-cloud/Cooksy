@@ -92,6 +92,24 @@ test("fallbackRecipeFromContext reconstructs a truffle burger from a dish name e
   assert.ok((recipe.confidenceScore ?? 0) >= 0.55);
 });
 
+test("fallbackRecipeFromContext reconstructs crepes from transcript-only audio cues", () => {
+  const recipe = fallbackRecipeFromContext({
+    mode: "url",
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/333333",
+    transcript: "Aujourd'hui on fait des crepes maison. Il faut de la farine, du lait, des oeufs, un peu de sucre, du beurre fondu et de la vanille."
+  });
+
+  assert.equal(recipe.title, "Crêpes");
+  assert.ok(recipe.ingredientDrafts.length >= 6, `expected >= 6 ingredients, got ${recipe.ingredientDrafts.length}`);
+  assert.ok(recipe.stepDrafts.length >= 4, `expected >= 4 steps, got ${recipe.stepDrafts.length}`);
+  assert.ok(recipe.ingredientDrafts.some((ingredient) => /farine|flour/i.test(ingredient.name)), "expected flour to be kept");
+  assert.ok(recipe.ingredientDrafts.some((ingredient) => /lait|milk/i.test(ingredient.name)), "expected milk to be kept");
+  assert.ok(recipe.ingredientDrafts.some((ingredient) => /oeuf|egg/i.test(ingredient.name)), "expected eggs to be kept");
+  assert.equal(recipe.flags?.usedExplicitIngredients, true);
+  assert.equal(recipe.flags?.generatedSteps, true);
+  assert.ok((recipe.confidenceScore ?? 0) >= 0.55);
+});
+
 test("fallbackRecipeFromContext keeps structured TikTok captions clean and complete", () => {
   const caption = [
     "LaCuisineDeKam + Suivre",
