@@ -41,6 +41,7 @@ private enum CooksyBackendEndpoint: String {
     case importURL = "/api/import/url"
     case importText = "/api/import/text"
     case importPhoto = "/api/import/photo"
+    case shoppingEnrich = "/api/shopping/enrich"
 }
 
 enum CooksyBackendService {
@@ -142,6 +143,36 @@ enum CooksyBackendService {
         var seed = envelope.recipe.asSeed(debug: debug)
         seed.imageData = seed.imageData ?? imageData
         return seed
+    }
+
+    static func enrichIngredientPhotos(
+        _ items: [IngredientPhotoEnrichmentRequestItem]
+    ) async throws -> [IngredientPhotoEnrichmentResponseItem] {
+        guard !items.isEmpty else { return [] }
+
+        let requestBody = ShoppingEnrichRequest(
+            items: items.map { item in
+                ShoppingEnrichRequest.Item(
+                    id: item.id,
+                    article: item.article,
+                    category: item.category
+                )
+            }
+        )
+
+        let response: ShoppingEnrichResponse = try await sendJSON(
+            endpoint: .shoppingEnrich,
+            requestBody: requestBody,
+            timeoutInterval: 20
+        )
+
+        return response.items.map { item in
+            IngredientPhotoEnrichmentResponseItem(
+                id: item.id,
+                imageURL: urlIfPresent(item.imageUrl ?? ""),
+                sourcePageURL: urlIfPresent(item.sourcePageUrl ?? "")
+            )
+        }
     }
 
     private static func sendJSON<Request: Encodable, Response: Decodable>(
@@ -349,6 +380,38 @@ private struct TextImportRequest: Encodable {
     let imageBase64: String?
     let previewMode: Bool?
     let sharedMode: Bool?
+}
+
+struct IngredientPhotoEnrichmentRequestItem: Hashable {
+    let id: String
+    let article: String
+    let category: String?
+}
+
+struct IngredientPhotoEnrichmentResponseItem: Hashable {
+    let id: String
+    let imageURL: URL?
+    let sourcePageURL: URL?
+}
+
+private struct ShoppingEnrichRequest: Encodable {
+    let items: [Item]
+
+    struct Item: Encodable {
+        let id: String
+        let article: String
+        let category: String?
+    }
+}
+
+private struct ShoppingEnrichResponse: Decodable {
+    let items: [Item]
+
+    struct Item: Decodable {
+        let id: String
+        let imageUrl: String?
+        let sourcePageUrl: String?
+    }
 }
 
 private struct RecipeImportEnvelope: Decodable {

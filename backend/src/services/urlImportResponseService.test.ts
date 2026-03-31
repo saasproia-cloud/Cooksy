@@ -184,3 +184,61 @@ test("buildURLImportResponse generates missing steps and nutrition when only ing
   assert.ok(response.data.nutrition.carbs > 0);
   assert.ok(response.data.nutrition.fat > 0);
 });
+
+test("buildURLImportResponse removes transcript junk from imported ingredients", async () => {
+  const recipe: RecipeImportResult = {
+    title: "Crêpes Pierre Hermé",
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/444555666",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "4", unit: "", name: "oeufs", nutritionQuery: "egg" },
+      { amount: "60", unit: "g", name: "sucre", nutritionQuery: "sugar" },
+      { amount: "1", unit: "", name: "pincée sel", nutritionQuery: "salt" },
+      { amount: "200", unit: "g", name: "farine", nutritionQuery: "flour" },
+      { amount: "500", unit: "ml", name: "lait", nutritionQuery: "milk" },
+      { amount: "", unit: "", name: "je vais l'ajouter en plusieurs fois", nutritionQuery: "" },
+      { amount: "", unit: "", name: "fois en tout.", nutritionQuery: "" },
+      { amount: "", unit: "", name: "c'est 1 toute petite louche.", nutritionQuery: "" },
+      { amount: "", unit: "", name: "Et ensuite", nutritionQuery: "" },
+      { amount: "", unit: "", name: "on a", nutritionQuery: "" },
+      { amount: "", unit: "", name: "C'est super simple à faire", nutritionQuery: "" },
+      { amount: "", unit: "", name: "c'est délicieux.", nutritionQuery: "" },
+      { amount: "", unit: "", name: "Crêpes Pierre Hermé", nutritionQuery: "" }
+    ],
+    stepDrafts: [],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "4",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "Crêpes",
+    inferredFromPhoto: false
+  };
+
+  const response = await buildURLImportResponse({
+    recipe,
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/444555666"
+  });
+
+  assert.equal(response.success, true);
+
+  if (!response.success) {
+    assert.fail("expected a success response");
+  }
+
+  const ingredientNames = response.data.ingredients.map((ingredient) => ingredient.name.toLowerCase());
+  assert.equal(
+    ingredientNames.some((name) =>
+      /ajouter en plusieurs fois|fois en tout|toute petite louche|et ensuite|on a|super simple|delicieux|pierre herme/.test(name)
+    ),
+    false
+  );
+  assert.ok(ingredientNames.includes("farine"));
+  assert.ok(ingredientNames.includes("lait"));
+  assert.ok(ingredientNames.includes("oeufs"));
+});

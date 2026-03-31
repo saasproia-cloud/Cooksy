@@ -60,7 +60,7 @@ export async function buildURLImportResponse(input: {
   try {
     const recipeWithNutrition = await ensureRecipeNutrition(input.recipe);
     const title = stableTitle(recipeWithNutrition.title);
-    const ingredients = normalizeIngredients(recipeWithNutrition.ingredientDrafts);
+    const ingredients = normalizeIngredients(recipeWithNutrition.ingredientDrafts, title);
     const steps = ensureCompleteSteps(recipeWithNutrition, title, ingredients);
     const nutrition = resolveNutrition(recipeWithNutrition);
 
@@ -129,15 +129,27 @@ function hasUsableNutrition(recipe: RecipeImportResult): boolean {
 }
 
 function normalizeIngredients(
-  ingredients: RecipeIngredientDraft[]
+  ingredients: RecipeIngredientDraft[],
+  title: string
 ): URLImportSuccessResponse["data"]["ingredients"] {
+  const seen = new Set<string>();
+
   return ingredients
     .map((ingredient) => ({
-      name: cleanIngredientText(ingredient.name),
+      name: normalizeIngredientName(ingredient.name),
       quantity: cleanIngredientText(ingredient.amount),
       unit: normalizeUnitLabel(ingredient.unit)
     }))
-    .filter((ingredient) => ingredient.name.length > 0);
+    .filter((ingredient) => isUsableIngredientName(ingredient.name, title))
+    .filter((ingredient) => {
+      const key = normalizeIngredientKey(ingredient.name);
+      if (!key || seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
 }
 
 function normalizeSteps(
@@ -217,6 +229,68 @@ function cleanIngredientText(value: string): string {
     .trim();
 }
 
+function normalizeIngredientName(value: string): string {
+  return cleanIngredientText(value)
+    .replace(/^\s*(?:[-•*]|\d+[\).:\-\s]+)\s*/u, "")
+    .replace(/^\s*(?:une?\s+)?\d+\s*(?:e|eme|ème|aine)\s+de\s+/i, "")
+    .replace(/\s*\((?:ici|comme ici|optional|facultatif|to taste)\)$/i, "")
+    .replace(/\b(?:to serve|for serving|pour servir)\b.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeIngredientKey(value: string): string {
+  return normalizeWhitespace(value)
+    .toLowerCase()
+    .replace(/[’']/g, "'")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isUsableIngredientName(value: string, title: string): boolean {
+  const cleaned = normalizeIngredientName(value);
+  if (!cleaned) {
+    return false;
+  }
+
+  const normalized = normalizeIngredientKey(cleaned);
+  const normalizedTitle = normalizeIngredientKey(title);
+  const wordCount = normalized.split(" ").filter(Boolean).length;
+
+  if (!normalized || wordCount < 1 || wordCount > 6) {
+    return false;
+  }
+
+  if (
+    normalizedTitle &&
+    normalizedTitle.length >= 8 &&
+    (normalized === normalizedTitle || normalized.includes(normalizedTitle))
+  ) {
+    return false;
+  }
+
+  if (
+    ingredientNarrativePattern.test(normalized) ||
+    ingredientBadStartPattern.test(normalized) ||
+    instructionVerbPattern.test(normalized)
+  ) {
+    return false;
+  }
+
+  if (/\b(?:je|j|tu|vous|on|nous|c|ca|ça)\b/.test(normalized)) {
+    return false;
+  }
+
+  if (ingredientFoodPattern.test(normalized)) {
+    return true;
+  }
+
+  return wordCount <= 4 && !/[.!?]/.test(cleaned);
+}
+
 function cleanStepDescription(value: string): string {
   const cleaned = normalizeWhitespace(value)
     .replace(/^\s*\d+\s*[.)-]?\s*/u, "")
@@ -266,6 +340,12 @@ function isUsableCookingInstruction(value: string): boolean {
   }
 
   if (/^(?:comme ca|voila|et voila)\b/.test(normalized)) {
+    return false;
+  }
+
+  if (
+    /\b(?:c est super simple|c est delicieux|en plusieurs fois|fois en tout|toute petite louche|on a)\b/.test(normalized)
+  ) {
     return false;
   }
 
@@ -425,6 +505,20 @@ function generatedStepsForRecipe(
   const greens = preferredIngredient(ingredients, [/\bsalade\b/i, /\blaitue\b/i, /\bcabbage\b/i, /\bchou\b/i], "garniture");
   const sauce = preferredIngredient(ingredients, [/\bsauce\b/i, /\bcreme\b/i, /\bcrème\b/i, /\byaourt\b/i], "sauce");
   const aromatic = preferredIngredient(ingredients, [/\boignon\b/i, /\bail\b/i, /\btomate\b/i, /\bchampignon\b/i], "aromates");
+  const flour = preferredIngredient(ingredients, [/\bfarine\b/i, /\bflour\b/i], "farine");
+  const milk = preferredIngredient(ingredients, [/\blait\b/i, /\bmilk\b/i], "lait");
+  const eggs = preferredIngredient(ingredients, [/\boeufs?\b/i, /\bœufs?\b/i, /\beggs?\b/i], "oeufs");
+  const butter = preferredIngredient(ingredients, [/\bbeurre\b/i, /\bbutter\b/i], "beurre");
+  const sugar = preferredIngredient(ingredients, [/\bsucre\b/i, /\bsugar\b/i, /\bvanille\b/i, /\bvanilla\b/i], "sucre");
+
+  if (/\b(?:crepes?|crêpes?|pancakes?)\b/.test(normalizedTitle)) {
+    return [
+      `Mélangez le ${flour} avec le ${sugar}, puis incorporez progressivement les ${eggs} et le ${milk} jusqu'à obtenir une pâte lisse.`,
+      `Ajoutez le ${butter} fondu, mélangez une dernière fois et laissez reposer la pâte quelques minutes pour l'assouplir.`,
+      "Chauffez une poêle légèrement beurrée, versez une petite louche de pâte puis inclinez la poêle pour bien la répartir.",
+      "Faites cuire chaque crêpe jusqu'à ce qu'elle soit dorée des deux côtés, puis répétez avec le reste de la pâte avant de servir."
+    ];
+  }
 
   if (/\b(?:burger|sandwich|naan|toast)\b/.test(normalizedTitle)) {
     return [
@@ -501,3 +595,6 @@ function preferredIngredient(
 }
 
 const instructionVerbPattern = /\b(?:preparez|assaisonnez|faites|faites cuire|chauffez|cuisez|ajoutez|melangez|mélangez|versez|disposez|repartissez|répartissez|montez|assemblez|rabattez|roulez|etalez|étalez|rechauffez|réchauffez|toastez|fouettez|incorporez|laissez|servez|garnissez|saisissez|rectifiez|poursuivez|dressez|enfournez|coupez|emincez|émincez|detaillez|détaillez)\b/;
+const ingredientNarrativePattern = /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a|regarde|video)\b/;
+const ingredientBadStartPattern = /^(?:et|ensuite|puis|alors|voila|voilà|du coup|on a|c est)\b/;
+const ingredientFoodPattern = /\b(?:oeufs?|œufs?|eggs?|farine|flour|sucre|sugar|sel|lait|milk|beurre|butter|vanille|vanilla|rhum|fleur|orange|cheddar|oignon|onion|tomate|tomato|poulet|chicken|salade|lettuce|sauce|yaourt|yogurt|citron|lemon|huile|oil|chocolat|chocolate|creme|crème|cream|fromage|cheese|riz|rice|pates?|pâtes?|pasta|levure|yeast|eau|water|miel|honey|sirop|syrup|pain|bun|boeuf|bœuf|beef|poisson|fish|saumon|salmon|thon|tuna|crevette|shrimp|avocat|avocado|concombre|cucumber|carotte|carrot|champignon|mushroom)\b/;

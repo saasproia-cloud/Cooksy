@@ -2167,7 +2167,7 @@ async function finalizeImportedRecipe(
     skipNutrition?: boolean;
   }
 ) {
-  const sanitizedRecipe = sanitizeRecipeImport(recipe);
+  const sanitizedRecipe = ensureCookableRecipeStructure(recipe);
   if (options?.skipNutrition) {
     const metadataRecipe = await enrichRecipePresentationMetadata(sanitizedRecipe);
     return {
@@ -2179,13 +2179,46 @@ async function finalizeImportedRecipe(
   }
   const nutritionResult = await enrichRecipeNutrition(sanitizedRecipe);
   const metadataRecipe = await enrichRecipePresentationMetadata(
-    sanitizeRecipeImport(nutritionResult.recipe)
+    ensureCookableRecipeStructure(nutritionResult.recipe)
   );
 
   return {
     ...nutritionResult,
     recipe: metadataRecipe
   };
+}
+
+export function ensureCookableRecipeStructure(recipe: RecipeImportResult): RecipeImportResult {
+  const sanitizedRecipe = sanitizeRecipeImport(recipe);
+  const title = stableGeneratedRecipeTitle(sanitizedRecipe);
+  const requiredStepCount = minimumGeneratedStepCount(title);
+  const explicitSteps = dedupeGeneratedStepDrafts(sanitizedRecipe.stepDrafts);
+
+  if (!sanitizedRecipe.ingredientDrafts.length || explicitSteps.length >= requiredStepCount) {
+    return sanitizeRecipeImport({
+      ...sanitizedRecipe,
+      title
+    });
+  }
+
+  const generatedSteps = generateCookableStepDrafts(title, sanitizedRecipe.ingredientDrafts);
+  const mergedSteps = dedupeGeneratedStepDrafts([
+    ...explicitSteps,
+    ...generatedSteps
+  ]);
+  const nextSteps = (mergedSteps.length >= requiredStepCount ? mergedSteps : generatedSteps)
+    .slice(0, Math.max(requiredStepCount, 6));
+  const flags = normalizeRecipeImportFlags(sanitizedRecipe.flags);
+
+  return sanitizeRecipeImport({
+    ...sanitizedRecipe,
+    title,
+    stepDrafts: nextSteps,
+    flags: {
+      ...flags,
+      generatedSteps: flags.generatedSteps || nextSteps.length > explicitSteps.length
+    }
+  });
 }
 
 export function resolveAcceptedRecipeCandidate(
@@ -2499,4 +2532,144 @@ function normalizationTimeoutForProfile(
   }
 
   return desiredMs ?? 60_000;
+}
+
+function stableGeneratedRecipeTitle(recipe: RecipeImportResult): string {
+  const title = recipe.title.trim() || recipe.searchQuery.trim();
+  return title || "Recette importée";
+}
+
+function minimumGeneratedStepCount(title: string): number {
+  const normalizedTitle = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (/\b(?:omelette|toast|croque|quesadilla|tartine)\b/.test(normalizedTitle)) {
+    return 2;
+  }
+
+  return 4;
+}
+
+function dedupeGeneratedStepDrafts(stepDrafts: Array<{ detail: string }>): Array<{ detail: string }> {
+  const seen = new Set<string>();
+  const result: Array<{ detail: string }> = [];
+
+  for (const stepDraft of stepDrafts) {
+    const detail = stepDraft.detail.trim();
+    if (!detail) {
+      continue;
+    }
+
+    const key = detail
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push({ detail });
+  }
+
+  return result;
+}
+
+function generateCookableStepDrafts(
+  title: string,
+  ingredients: RecipeImportResult["ingredientDrafts"]
+): Array<{ detail: string }> {
+  const normalizedTitle = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const protein = preferredGeneratedIngredient(ingredients, [/\bpoulet\b/i, /\bboeuf\b/i, /\bburger\b/i, /\bviande\b/i, /\bpoisson\b/i], "garniture principale");
+  const bread = preferredGeneratedIngredient(ingredients, [/\bpain\b/i, /\bbun\b/i, /\bnaan\b/i, /\bwrap\b/i, /\btortilla\b/i], "support");
+  const greens = preferredGeneratedIngredient(ingredients, [/\bsalade\b/i, /\blaitue\b/i, /\bcabbage\b/i, /\bchou\b/i], "garniture");
+  const sauce = preferredGeneratedIngredient(ingredients, [/\bsauce\b/i, /\bcreme\b/i, /\bcrème\b/i, /\byaourt\b/i], "sauce");
+  const aromatic = preferredGeneratedIngredient(ingredients, [/\boignon\b/i, /\bail\b/i, /\btomate\b/i, /\bchampignon\b/i], "aromates");
+  const flour = preferredGeneratedIngredient(ingredients, [/\bfarine\b/i, /\bflour\b/i], "farine");
+  const milk = preferredGeneratedIngredient(ingredients, [/\blait\b/i, /\bmilk\b/i], "lait");
+  const eggs = preferredGeneratedIngredient(ingredients, [/\boeufs?\b/i, /\bœufs?\b/i, /\beggs?\b/i], "oeufs");
+  const butter = preferredGeneratedIngredient(ingredients, [/\bbeurre\b/i, /\bbutter\b/i], "beurre");
+  const sugar = preferredGeneratedIngredient(ingredients, [/\bsucre\b/i, /\bsugar\b/i, /\bvanille\b/i, /\bvanilla\b/i], "sucre");
+
+  if (/\b(?:crepes?|crêpes?|pancakes?)\b/.test(normalizedTitle)) {
+    return [
+      { detail: `Mélangez le ${flour} avec le ${sugar}, puis incorporez progressivement les ${eggs} et le ${milk} jusqu'à obtenir une pâte lisse.` },
+      { detail: `Ajoutez le ${butter} fondu, mélangez une dernière fois et laissez reposer la pâte quelques minutes pour l'assouplir.` },
+      { detail: "Chauffez une poêle légèrement beurrée, versez une petite louche de pâte puis inclinez la poêle pour bien la répartir." },
+      { detail: "Faites cuire chaque crêpe jusqu'à ce qu'elle soit dorée des deux côtés, puis répétez avec le reste de la pâte avant de servir." }
+    ];
+  }
+
+  if (/\b(?:burger|sandwich|naan|toast)\b/.test(normalizedTitle)) {
+    return [
+      { detail: `Préparez les garnitures en éminçant le ${aromatic} et en assaisonnant le ${protein}.` },
+      { detail: `Faites cuire le ${protein} dans une poêle chaude jusqu'à ce qu'il soit bien doré et cuit à cœur.` },
+      { detail: `Toastez le ${bread} puis préparez la garniture avec la ${greens} et la ${sauce}.` },
+      { detail: `Montez le ${title.toLocaleLowerCase()} avec le ${bread}, le ${protein}, les garnitures et la sauce, puis servez aussitôt.` }
+    ];
+  }
+
+  if (/\bwrap\b/.test(normalizedTitle)) {
+    return [
+      { detail: `Assaisonnez le ${protein} puis faites-le cuire jusqu'à ce qu'il soit bien doré.` },
+      { detail: `Réchauffez le ${bread} quelques secondes pour l'assouplir sans le dessécher.` },
+      { detail: `Disposez la ${greens}, le ${protein}, le ${aromatic} et la ${sauce} au centre du ${bread}.` },
+      { detail: `Rabattez les côtés, roulez le ${title.toLocaleLowerCase()} bien serré et servez immédiatement.` }
+    ];
+  }
+
+  if (/\b(?:pasta|pates?|pâtes?|curry|risotto)\b/.test(normalizedTitle)) {
+    return [
+      { detail: `Préparez tous les ingrédients en coupant le ${aromatic} et en assaisonnant le ${protein}.` },
+      { detail: `Faites revenir le ${aromatic} avec un peu de matière grasse, puis ajoutez le ${protein} et faites-le cuire.` },
+      { detail: "Ajoutez l'élément principal de la recette, mélangez bien et laissez mijoter jusqu'à obtenir une texture liée." },
+      { detail: `Rectifiez l'assaisonnement, dressez le ${title.toLocaleLowerCase()} bien chaud et servez sans attendre.` }
+    ];
+  }
+
+  if (/\b(?:salade|salad|bowl)\b/.test(normalizedTitle)) {
+    return [
+      { detail: `Lavez et préparez les légumes, puis détaillez le ${aromatic} si nécessaire.` },
+      { detail: `Faites cuire le ${protein} jusqu'à obtenir une belle coloration, puis laissez-le tiédir légèrement.` },
+      { detail: `Assemblez les ingrédients dans un saladier avec la ${greens} et la ${sauce}.` },
+      { detail: `Mélangez délicatement, rectifiez l'assaisonnement et servez le ${title.toLocaleLowerCase()}.` }
+    ];
+  }
+
+  if (/\b(?:cake|gateau|gâteau|brownie|cookie|dessert|tiramisu)\b/.test(normalizedTitle)) {
+    return [
+      { detail: "Préparez tous les ingrédients et préchauffez le four ou le matériel nécessaire selon la recette." },
+      { detail: "Mélangez les ingrédients secs, puis incorporez progressivement les ingrédients humides jusqu'à obtenir une pâte homogène." },
+      { detail: `Versez la préparation dans le moule ou le plat adapté, puis faites cuire jusqu'à ce que le ${title.toLocaleLowerCase()} soit pris.` },
+      { detail: "Laissez tiédir quelques minutes avant de découper ou de dresser, puis servez." }
+    ];
+  }
+
+  return [
+    { detail: `Préparez les ingrédients du ${title.toLocaleLowerCase()} en détaillant le ${aromatic} et en assaisonnant la garniture principale.` },
+    { detail: "Faites cuire les éléments principaux dans une poêle chaude jusqu'à obtenir une cuisson régulière et une bonne coloration." },
+    { detail: "Ajoutez les garnitures et mélangez jusqu'à obtenir une préparation bien liée et équilibrée." },
+    { detail: `Rectifiez l'assaisonnement, dressez le ${title.toLocaleLowerCase()} et servez immédiatement.` }
+  ];
+}
+
+function preferredGeneratedIngredient(
+  ingredients: RecipeImportResult["ingredientDrafts"],
+  patterns: RegExp[],
+  fallback: string
+): string {
+  const match = ingredients.find((ingredient) =>
+    patterns.some((pattern) => pattern.test(ingredient.name))
+  );
+
+  return match?.name || fallback;
 }

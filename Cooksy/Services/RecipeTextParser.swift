@@ -99,7 +99,11 @@ enum RecipeTextParser {
                 }
             }
 
-            if cleanedTitle(line) == title || isLikelyRecipeTitle(line) {
+            if cleanedTitle(line) == title {
+                continue
+            }
+
+            if currentSection == .header, isLikelyRecipeTitle(line) {
                 continue
             }
 
@@ -313,7 +317,6 @@ enum RecipeTextParser {
         guard !cleaned.isEmpty else { return false }
         guard !isLikelyNoise(cleaned) else { return false }
         guard !isIngredientSubsectionHeader(cleaned) else { return false }
-        guard !isLikelyRecipeTitle(cleaned) else { return false }
         guard !looksLikeMusicCredit(cleaned) else { return false }
 
         let normalized = normalizedPhrase(cleaned)

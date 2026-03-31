@@ -318,6 +318,10 @@ struct RecipePresentationContentCard: View {
     let steps: [RecipeStep]
     let onCookStepByStep: () -> Void
 
+    private var ingredientPhotoTaskKey: String {
+        ingredients.map(\.name).joined(separator: "|")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
@@ -414,6 +418,9 @@ struct RecipePresentationContentCard: View {
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
         .shadow(color: CooksyTheme.softShadow, radius: 12, y: 6)
+        .task(id: ingredientPhotoTaskKey) {
+            await IngredientPhotoStore.shared.preload(for: ingredients.map(\.name))
+        }
     }
 
     private func tabTitle(for tab: RecipePresentationTab) -> String {
@@ -733,10 +740,7 @@ private struct RecipePresentationEmptyState: View {
 
 struct IngredientIconBadge: View {
     let ingredientName: String
-
-    private var resolution: IngredientVisualResolution {
-        IngredientVisualCatalog.resolution(for: ingredientName)
-    }
+    @State private var image: UIImage?
 
     var body: some View {
         ZStack {
@@ -744,28 +748,67 @@ struct IngredientIconBadge: View {
                 .fill(Color.white)
                 .frame(width: 42, height: 42)
 
-            iconView
-                .frame(width: 24, height: 24)
+            imageView
+                .frame(width: 42, height: 42)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
+        .task(id: ingredientName) {
+            image = await IngredientPhotoStore.shared.image(for: ingredientName)
+        }
     }
 
     @ViewBuilder
-    private var iconView: some View {
-        if let assetName = resolution.assetName,
-           let image = UIImage(named: assetName) {
+    private var imageView: some View {
+        if let image {
             Image(uiImage: image)
                 .resizable()
                 .interpolation(.high)
-                .scaledToFit()
+                .scaledToFill()
         } else {
-            Image("HeaderLogo")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
+            IngredientPhotoPlaceholder(ingredientName: ingredientName)
+        }
+    }
+}
+
+private struct IngredientPhotoPlaceholder: View {
+    let ingredientName: String
+
+    private var initial: String {
+        IngredientPhotoLookupBuilder.lookup(for: ingredientName)
+            .article
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix(1)
+            .uppercased()
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(hex: 0xFFF2E1),
+                    Color(hex: 0xF4D6B1)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(Color.white.opacity(0.32))
+                .frame(width: 22, height: 22)
+                .offset(x: -7, y: -6)
+
+            Circle()
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 16, height: 16)
+                .offset(x: 10, y: 8)
+
+            Text(initial.isEmpty ? "?" : initial)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText.opacity(0.8))
         }
     }
 }

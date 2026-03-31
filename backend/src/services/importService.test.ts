@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { bestSearchQuery, resolveAcceptedRecipeCandidate } from "./importService.js";
+import { bestSearchQuery, ensureCookableRecipeStructure, resolveAcceptedRecipeCandidate } from "./importService.js";
 import type { RecipeImportResult } from "../types/recipe.js";
 
 function emptyRecipe(overrides: Partial<RecipeImportResult> = {}): RecipeImportResult {
@@ -149,4 +149,32 @@ test("resolveAcceptedRecipeCandidate keeps a complete AI recipe for dishes not c
   assert.ok((acceptedRecipe?.ingredientDrafts.length ?? 0) >= 6);
   assert.ok((acceptedRecipe?.stepDrafts.length ?? 0) >= 4);
   assert.equal(acceptedRecipe?.needsWebFallback, false);
+});
+
+test("ensureCookableRecipeStructure expands thin crepes instructions into a cookable set of steps", () => {
+  const completedRecipe = ensureCookableRecipeStructure(
+    emptyRecipe({
+      title: "Crêpes",
+      ingredientDrafts: [
+        { amount: "250", unit: "g", name: "farine", nutritionQuery: "flour" },
+        { amount: "500", unit: "ml", name: "lait", nutritionQuery: "milk" },
+        { amount: "4", unit: "", name: "oeufs", nutritionQuery: "egg" },
+        { amount: "30", unit: "g", name: "beurre", nutritionQuery: "butter" },
+        { amount: "40", unit: "g", name: "sucre", nutritionQuery: "sugar" }
+      ],
+      stepDrafts: [
+        { detail: "Ajoutez le beurre fondu." },
+        { detail: "Chauffez une poêle légèrement beurrée." }
+      ],
+      confidence: "medium",
+      needsWebFallback: false,
+      searchQuery: "Crêpes recette"
+    })
+  );
+
+  assert.ok(completedRecipe.stepDrafts.length >= 4);
+  assert.equal(
+    completedRecipe.stepDrafts.some((step) => /en plusieurs fois|fois en tout|toute petite louche/i.test(step.detail)),
+    false
+  );
 });

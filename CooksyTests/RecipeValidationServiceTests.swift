@@ -13,12 +13,14 @@ final class RecipeValidationServiceTests: XCTestCase {
             "250 g pasta",
             "2 tbsp butter",
             "2 cloves garlic",
-            "50 g parmesan"
+            "50 g parmesan",
+            "1 tbsp olive oil"
           ],
           "recipeInstructions": [
             { "@type": "HowToStep", "text": "Bring a large pot of salted water to a boil and cook the pasta until al dente." },
             { "@type": "HowToStep", "text": "Melt the butter in a skillet until golden and stir in the garlic." },
-            { "@type": "HowToStep", "text": "Add the drained pasta, toss with parmesan, then serve immediately." }
+            { "@type": "HowToStep", "text": "Add the drained pasta with a splash of olive oil, then toss until glossy." },
+            { "@type": "HowToStep", "text": "Fold in the parmesan, season to taste, then serve immediately." }
           ]
         }
         """
@@ -36,8 +38,8 @@ final class RecipeValidationServiceTests: XCTestCase {
         let assessment = RecipeValidationService.assess(imported, sourceKind: .url)
 
         XCTAssertEqual(imported.normalizedTitle, "Brown Butter Pasta")
-        XCTAssertEqual(imported.normalizedIngredients.count, 4)
-        XCTAssertEqual(imported.normalizedSteps.count, 3)
+        XCTAssertEqual(imported.normalizedIngredients.count, 5)
+        XCTAssertEqual(imported.normalizedSteps.count, 4)
         XCTAssertFalse(assessment.validation.isRejected)
         XCTAssertTrue(assessment.validation.canSave)
     }
@@ -182,6 +184,21 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertTrue(resolution.usesLogoFallback)
     }
 
+    func testIngredientPhotoLookupBuilderNormalizesIngredientQueriesForRealPhotos() {
+        let lookup = IngredientPhotoLookupBuilder.lookup(for: "300 g de crème fraîche épaisse")
+
+        XCTAssertEqual(lookup.article, "creme fraiche epaisse")
+        XCTAssertEqual(lookup.category, "cream")
+        XCTAssertEqual(lookup.fallbackArticle, "cream")
+    }
+
+    func testIngredientPhotoLookupBuilderStripsMeasurementNoiseFromSimpleIngredients() {
+        let lookup = IngredientPhotoLookupBuilder.lookup(for: "2 citrons")
+
+        XCTAssertEqual(lookup.article, "citron")
+        XCTAssertEqual(lookup.category, "lemon")
+    }
+
     func testRecipeEditorSeedShortensVerboseImportedTitleForDisplayAndSave() {
         let seed = RecipeEditorSeed(
             title: "ANIMAL FRIES CAJUN Les Animal Fries d’un fast food qu’on a pas ici, mais avec plus de muscles et moins de gras"
@@ -210,7 +227,7 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertNil(assessment.validation.reviewNotice)
     }
 
-    func testTrustedBackendRecipeAvoidsIncompleteBlocker() {
+    func testThinTrustedBackendRecipeStillNeedsEditingBeforeSave() {
         let seed = RecipeEditorSeed(
             title: "Burger a la truffe",
             ingredientDrafts: [
@@ -237,8 +254,8 @@ final class RecipeValidationServiceTests: XCTestCase {
         let assessment = RecipeValidationService.assess(seed, sourceKind: .url)
 
         XCTAssertFalse(assessment.validation.isRejected)
-        XCTAssertTrue(assessment.validation.canSave)
-        XCTAssertNotEqual(assessment.validation.reviewNotice, "Import incomplet. Modifiez la recette pour l'enregistrer.")
+        XCTAssertFalse(assessment.validation.canSave)
+        XCTAssertEqual(assessment.validation.reviewNotice, "Import incomplet. Modifiez la recette pour l'enregistrer.")
     }
 
     func testMergedImportedIngredientsAreSplitBeforeDisplayAndSave() {
@@ -383,6 +400,43 @@ final class RecipeValidationServiceTests: XCTestCase {
                 step.detail.localizedCaseInsensitiveContains("et après voilà") ||
                 step.detail.localizedCaseInsensitiveContains("comme ça")
         })
+        XCTAssertTrue(assessment.validation.canSave)
+    }
+
+    func testTranscriptJunkAndTitleEchoAreDroppedFromImportedIngredients() {
+        let seed = RecipeEditorSeed(
+            title: "Crêpes Pierre Hermé",
+            ingredientDrafts: [
+                IngredientDraft(amount: "4", unit: "", name: "oeufs"),
+                IngredientDraft(amount: "60", unit: "g", name: "sucre"),
+                IngredientDraft(amount: "200", unit: "g", name: "farine"),
+                IngredientDraft(amount: "500", unit: "ml", name: "lait"),
+                IngredientDraft(amount: "30", unit: "g", name: "beurre"),
+                IngredientDraft(name: "je vais l'ajouter en plusieurs fois"),
+                IngredientDraft(name: "fois en tout."),
+                IngredientDraft(name: "c'est 1 toute petite louche."),
+                IngredientDraft(name: "Et ensuite"),
+                IngredientDraft(name: "on a"),
+                IngredientDraft(name: "C'est super simple à faire"),
+                IngredientDraft(name: "c'est délicieux."),
+                IngredientDraft(name: "Crêpes Pierre Hermé")
+            ],
+            stepDrafts: [
+                StepDraft(detail: "Mélangez la farine avec les oeufs et le lait."),
+                StepDraft(detail: "Ajoutez le beurre fondu et laissez reposer la pâte."),
+                StepDraft(detail: "Chauffez une poêle légèrement beurrée."),
+                StepDraft(detail: "Faites cuire les crêpes des deux côtés puis servez.")
+            ],
+            caloriesText: "330 kcal",
+            proteinText: "9.8 g",
+            carbsText: "53.3 g",
+            fatText: "8.1 g"
+        )
+
+        let assessment = RecipeValidationService.assess(seed, sourceKind: .url)
+        let names = assessment.seed.normalizedIngredients.map(\.name)
+
+        XCTAssertEqual(names, ["oeufs", "sucre", "farine", "lait", "beurre"])
         XCTAssertTrue(assessment.validation.canSave)
     }
 

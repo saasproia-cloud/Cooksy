@@ -10,7 +10,6 @@ struct ImportedRecipeReviewView: View {
     private let store: RecipeStore
     private let onSaved: ((Recipe.ID) -> Void)?
     @StateObject private var viewModel: ImportedRecipeReviewViewModel
-    @State private var showsBookPicker = false
     @State private var showsEditor = false
     @State private var showsReportAlert = false
     @State private var showsPlanSheet = false
@@ -55,7 +54,9 @@ struct ImportedRecipeReviewView: View {
                         )
                     }
 
-                    reviewNutritionSection
+                    if viewModel.showsNutrition {
+                        reviewNutritionSection
+                    }
                     reviewContentSection
                 }
                 .padding(.horizontal, 16)
@@ -66,16 +67,6 @@ struct ImportedRecipeReviewView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadRemoteImageIfNeeded()
-        }
-        .sheet(isPresented: $showsBookPicker) {
-            ImportBookPickerSheet(
-                books: viewModel.books,
-                selectedBookID: viewModel.selectedBookID,
-                onSelect: { bookID in
-                    viewModel.selectBook(bookID)
-                    showsBookPicker = false
-                }
-            )
         }
         .sheet(isPresented: $showsPlanSheet) {
             ImportRecipePlanSelectionSheet { day in
@@ -343,9 +334,9 @@ struct ImportedRecipeReviewView: View {
 
             HStack(spacing: 0) {
                 ImportedQuickActionButton(
-                    title: "Livres",
-                    systemImage: "bookmark",
-                    action: { showsBookPicker = true }
+                    title: "Modifier",
+                    systemImage: "square.and.pencil",
+                    action: { showsEditor = true }
                 )
 
                 Divider()
@@ -584,58 +575,26 @@ struct ImportedRecipeReviewView: View {
                     )
                 }
 
-                HStack(spacing: 12) {
-                    Button(action: { showsBookPicker = true }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "bookmark")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                Button(action: primaryAction) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(CooksyTheme.accentGradient)
+                            .frame(height: 52)
 
-                            Text(viewModel.selectedBookLabel)
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                                .lineLimit(1)
-
-                            Spacer(minLength: 0)
-
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(height: 50)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white.opacity(0.92))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(CooksyTheme.stroke, lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: saveRecipe) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(viewModel.canSave ? CooksyTheme.accentGradient : LinearGradient(colors: [CooksyTheme.stroke, CooksyTheme.stroke], startPoint: .leading, endPoint: .trailing))
-                                .frame(height: 50)
-
-                            if viewModel.isSaving {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text(viewModel.canSave ? "Enregistrer" : "Modifier avant d'enregistrer")
-                                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 12)
-                            }
+                        if viewModel.isSaving {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text(viewModel.primaryActionTitle)
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 12)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isSaving || !viewModel.canSave)
                 }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isSaving)
 
                 HStack {
                     Button(action: { showsReportAlert = true }) {
@@ -649,13 +608,6 @@ struct ImportedRecipeReviewView: View {
                     .buttonStyle(.plain)
 
                     Spacer(minLength: 0)
-
-                    if !viewModel.canSave {
-                        Text("Complétez la recette avant l’enregistrement.")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .multilineTextAlignment(.trailing)
-                    }
                 }
             }
             .padding(12)
@@ -852,6 +804,14 @@ struct ImportedRecipeReviewView: View {
         }
     }
 
+    private func primaryAction() {
+        if viewModel.canSave {
+            saveRecipe()
+        } else {
+            showsEditor = true
+        }
+    }
+
     private func sectionEyebrow(_ title: String) -> some View {
         Text(title.uppercased())
             .font(.system(size: 13, weight: .black, design: .rounded))
@@ -953,20 +913,20 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         sourceURL != nil || noteText != nil
     }
 
-    var selectedBookLabel: String {
-        guard let book = books.first(where: { $0.id == selectedBookID }) else {
-            return "Sélectionnez un livre"
-        }
-
-        return book.kind == .uncategorized ? "Non catégorisé" : book.title
-    }
-
     var canSave: Bool {
         validation.canSave
     }
 
+    var primaryActionTitle: String {
+        canSave ? "Enregistrer la recette" : "Modifier la recette"
+    }
+
     var reviewNotice: String? {
         validation.reviewNotice
+    }
+
+    var showsNutrition: Bool {
+        canSave
     }
 
     var baseServings: Int {
@@ -1006,11 +966,13 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     }
 
     var totalCaloriesLabel: String? {
-        RecipeNutritionDisplayBuilder.totalCaloriesLabel(for: previewRecipe)
+        guard showsNutrition else { return nil }
+        return RecipeNutritionDisplayBuilder.totalCaloriesLabel(for: previewRecipe)
     }
 
     var nutritionDisplay: RecipeNutritionDisplay? {
-        RecipeNutritionDisplayBuilder.displayNutrition(
+        guard showsNutrition else { return nil }
+        return RecipeNutritionDisplayBuilder.displayNutrition(
             for: previewRecipe,
             selectedServings: currentServings
         )
@@ -1027,7 +989,8 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     }
 
     var nutritionIsEstimated: Bool {
-        RecipeNutritionDisplayBuilder.isEstimated(for: previewRecipe)
+        guard showsNutrition else { return false }
+        return RecipeNutritionDisplayBuilder.isEstimated(for: previewRecipe)
     }
 
     var nutrition: RecipeNutrition? {
@@ -1064,10 +1027,6 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
 
     var instructions: [RecipeStep] {
         previewRecipe.steps
-    }
-
-    func selectBook(_ bookID: RecipeBook.ID) {
-        selectedBookID = bookID
     }
 
     func changeServings(by delta: Int) {

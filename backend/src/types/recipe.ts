@@ -392,13 +392,14 @@ export function shouldFallbackToSearch(recipe: RecipeImportResult): boolean {
 
 export function importMissingParts(recipe: RecipeImportResult): ImportDebugMissing[] {
   const missing: ImportDebugMissing[] = [];
-  const hasCompactRecipe = hasCompactCompleteStructure(recipe);
+  const minimumIngredientCount = minimumIngredientCountForRecipeTitle(recipe.title);
+  const minimumStepCount = minimumStepCountForRecipeTitle(recipe.title);
 
-  if (recipe.ingredientDrafts.length < 3 && !hasCompactRecipe) {
+  if (recipe.ingredientDrafts.length < minimumIngredientCount) {
     missing.push("ingredients");
   }
 
-  if (recipe.stepDrafts.length < 2) {
+  if (recipe.stepDrafts.length < minimumStepCount) {
     missing.push("steps");
   }
 
@@ -408,19 +409,13 @@ export function importMissingParts(recipe: RecipeImportResult): ImportDebugMissi
 function hasThinRecipeStructure(
   recipe: Pick<RecipeImportResult, "title" | "ingredientDrafts" | "stepDrafts" | "confidence">
 ): boolean {
-  if (hasCompactCompleteStructure(recipe)) {
-    return recipe.confidence === "low" &&
-      recipe.ingredientDrafts.length < 4 &&
-      recipe.stepDrafts.length < 3;
-  }
+  const minimumIngredientCount = minimumIngredientCountForRecipeTitle(recipe.title);
+  const minimumStepCount = minimumStepCountForRecipeTitle(recipe.title);
+  const ingredientSlack = recipe.confidence === "high" ? 1 : 0;
+  const stepSlack = recipe.confidence === "high" ? 1 : 0;
 
-  return recipe.stepDrafts.length < 2 ||
-    (recipe.ingredientDrafts.length < 4 && recipe.confidence !== "high") ||
-    (
-      recipe.ingredientDrafts.length < 5 &&
-      recipe.stepDrafts.length < 4 &&
-      recipe.confidence === "low"
-    );
+  return recipe.ingredientDrafts.length + ingredientSlack < minimumIngredientCount ||
+    recipe.stepDrafts.length + stepSlack < minimumStepCount;
 }
 
 function hasCompactCompleteStructure(
@@ -430,7 +425,8 @@ function hasCompactCompleteStructure(
   if (
     normalizedTitle.length <= 2 ||
     hasSuspiciousRecipeTitle(normalizedTitle) ||
-    recipe.stepDrafts.length < 2
+    !isCompactSimpleRecipeTitle(normalizedTitle) ||
+    recipe.stepDrafts.length < minimumStepCountForRecipeTitle(normalizedTitle)
   ) {
     return false;
   }
@@ -439,7 +435,7 @@ function hasCompactCompleteStructure(
     .filter((ingredient) => isLikelyMajorIngredient(ingredient.name))
     .length;
 
-  return substantialIngredientCount >= 2;
+  return substantialIngredientCount >= minimumIngredientCountForRecipeTitle(normalizedTitle);
 }
 
 export function isLikelyValidRecipe(recipe: RecipeImportResult): boolean {
@@ -565,7 +561,7 @@ function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngre
       name
     );
 
-    if (!isPlausibleIngredientName(name) || containsSocialNoise(name)) {
+    if (!isPlausibleIngredientName(name) || containsSocialNoise(name) || containsNarrativeIngredientNoise(name)) {
       continue;
     }
 
@@ -605,6 +601,10 @@ function stripIngredientNarrativeFragments(value: string): string {
     .replace(/^(?:j['’]?ai\s+utilis[eé]|i\s+used)\s+/i, "")
     .replace(/^(?:j['’]?utilise|utilis[eé]e?s?)\s+/i, "")
     .replace(/^(?:comme\s+ici|ici)\s+/i, "")
+    .replace(/\b(?:je vais|on va|tu vas|vous allez)\b.*$/i, "")
+    .replace(/\b(?:en plusieurs fois|fois en tout|toute petite louche)\b.*$/i, "")
+    .replace(/\b(?:c['’]?est\s+super\s+simple(?:\s+a\s+faire)?|c['’]?est\s+d[eé]licieux)\b.*$/i, "")
+    .replace(/^(?:et ensuite|ensuite|puis|alors|du coup|on a)\b.*$/i, "")
     .replace(/\bque j['’]?ai\b.*$/i, "")
     .replace(/\b(?:j['’]?ai\s+coup[eé]|j['’]?ai\s+d[eé]coup[eé]|i\s+cut)\b.*$/i, "")
     .replace(/\s{2,}/g, " ")
@@ -910,7 +910,7 @@ function isPlausibleIngredientName(name: string): boolean {
     return false;
   }
 
-  if (containsArticleNoise(name) || containsSocialNoise(name)) {
+  if (containsArticleNoise(name) || containsSocialNoise(name) || containsNarrativeIngredientNoise(name)) {
     return false;
   }
 
@@ -930,7 +930,7 @@ function isPlausibleIngredientName(name: string): boolean {
 }
 
 function isPlausibleCookingStep(detail: string): boolean {
-  if (!detail || containsArticleNoise(detail) || containsSocialNoise(detail)) {
+  if (!detail || containsArticleNoise(detail) || containsSocialNoise(detail) || containsNarrativeStepNoise(detail)) {
     return false;
   }
 
@@ -972,6 +972,10 @@ function looksLikeIncompleteStepFragment(value: string): boolean {
   const normalized = normalizeLookup(value);
   if (!normalized) {
     return false;
+  }
+
+  if (containsNarrativeStepNoise(normalized)) {
+    return true;
   }
 
   if (containsCookingVerb(normalized)) {
@@ -1094,6 +1098,59 @@ function containsSocialNoise(value: string): boolean {
 
 function containsCookingVerb(value: string): boolean {
   return cookingVerbPatterns.some((pattern) => pattern.test(value));
+}
+
+function containsNarrativeIngredientNoise(value: string): boolean {
+  const normalized = normalizeLookup(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a)\b/.test(normalized) ||
+    /^(?:et|ensuite|puis|alors|du coup|on a|voila|voilà)\b/.test(normalized);
+}
+
+function containsNarrativeStepNoise(value: string): boolean {
+  const normalized = normalizeLookup(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return /\b(?:c est super simple|c est delicieux|bon appetit|en plusieurs fois|fois en tout|toute petite louche)\b/.test(normalized) ||
+    /^(?:et ensuite|ensuite|puis|alors|du coup|on a|voila|voilà|comme ca|comme ça)\b/.test(normalized);
+}
+
+function isCompactSimpleRecipeTitle(title: string): boolean {
+  const normalized = normalizeLookup(title);
+  return /\b(?:omelette|toast|croque|quesadilla|tartine)\b/.test(normalized);
+}
+
+function minimumIngredientCountForRecipeTitle(title: string): number {
+  const normalized = normalizeLookup(title);
+
+  if (isCompactSimpleRecipeTitle(normalized)) {
+    return 2;
+  }
+
+  if (/\b(?:salade|salad|bowl)\b/.test(normalized)) {
+    return 4;
+  }
+
+  return 5;
+}
+
+function minimumStepCountForRecipeTitle(title: string): number {
+  const normalized = normalizeLookup(title);
+
+  if (isCompactSimpleRecipeTitle(normalized)) {
+    return 2;
+  }
+
+  if (/\b(?:salade|salad|bowl)\b/.test(normalized)) {
+    return 3;
+  }
+
+  return 4;
 }
 
 function isLikelyMajorIngredient(name: string): boolean {
