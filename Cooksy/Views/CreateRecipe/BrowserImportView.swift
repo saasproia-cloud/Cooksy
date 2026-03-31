@@ -40,6 +40,13 @@ struct BrowserImportView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+
+            if viewModel.isImporting {
+                RecipeImportLoadingView(
+                    source: .webPage,
+                    title: "Analyse Cooksy"
+                )
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {

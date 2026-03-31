@@ -4,6 +4,9 @@ struct Recipe: Identifiable, Codable, Hashable {
     let id: UUID
     var title: String
     var sourceURL: URL?
+    var creatorHandle: String?
+    var externalRating: Double?
+    var externalRatingCount: Int?
     var heroImageURL: URL?
     var heroStyle: HeroStyle
     var details: RecipeDetails
@@ -19,6 +22,9 @@ struct Recipe: Identifiable, Codable, Hashable {
         id: UUID = UUID(),
         title: String,
         sourceURL: URL? = nil,
+        creatorHandle: String? = nil,
+        externalRating: Double? = nil,
+        externalRatingCount: Int? = nil,
         heroImageURL: URL? = nil,
         heroStyle: HeroStyle = .warmCocoa,
         details: RecipeDetails = RecipeDetails(),
@@ -33,6 +39,9 @@ struct Recipe: Identifiable, Codable, Hashable {
         self.id = id
         self.title = title
         self.sourceURL = sourceURL
+        self.creatorHandle = creatorHandle
+        self.externalRating = externalRating
+        self.externalRatingCount = externalRatingCount
         self.heroImageURL = heroImageURL
         self.heroStyle = heroStyle
         self.details = details

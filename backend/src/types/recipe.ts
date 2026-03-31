@@ -23,6 +23,9 @@ export const recipeImportFlagsSchema = z.object({
 export const recipeImportSchema = z.object({
   title: z.string().default(""),
   sourceUrl: z.string().default(""),
+  creatorHandle: z.string().optional(),
+  externalRating: z.number().min(0).max(5).optional(),
+  externalRatingCount: z.number().int().positive().optional(),
   remoteImageUrl: z.string().default(""),
   ingredientDrafts: z.array(recipeIngredientSchema).default([]),
   stepDrafts: z.array(recipeStepSchema).default([]),
@@ -221,6 +224,9 @@ export function sanitizeRecipeImport(input: RecipeImportResult): RecipeImportRes
     ...input,
     title,
     sourceUrl: normalizeUrl(input.sourceUrl),
+    creatorHandle: normalizeCreatorHandle(input.creatorHandle, input.sourceUrl),
+    externalRating: normalizeRatingValue(input.externalRating),
+    externalRatingCount: normalizeRatingCount(input.externalRatingCount),
     remoteImageUrl: normalizeUrl(input.remoteImageUrl),
     ingredientDrafts,
     stepDrafts,
@@ -238,6 +244,68 @@ export function sanitizeRecipeImport(input: RecipeImportResult): RecipeImportRes
     searchQuery: clean(input.searchQuery),
     flags
   };
+}
+
+function normalizeCreatorHandle(value?: string, sourceUrl?: string): string | undefined {
+  const trimmed = clean(value);
+  if (trimmed) {
+    const sanitized = (trimmed.startsWith("@") ? trimmed : `@${trimmed}`)
+      .replace(/[^@A-Za-z0-9._]/g, "");
+    return sanitized.length > 1 ? sanitized : undefined;
+  }
+
+  const parsedFromSource = extractCreatorHandleFromUrl(sourceUrl);
+  return parsedFromSource ? normalizeCreatorHandle(parsedFromSource) : undefined;
+}
+
+function normalizeRatingValue(value?: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  if (value < 0 || value > 5) {
+    return undefined;
+  }
+
+  return Math.round(value * 10) / 10;
+}
+
+function normalizeRatingCount(value?: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  const rounded = Math.round(value);
+  return rounded > 0 ? rounded : undefined;
+}
+
+function extractCreatorHandleFromUrl(sourceUrl?: string): string | undefined {
+  const normalized = normalizeUrl(sourceUrl);
+  if (!normalized) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(normalized);
+    const host = url.host.toLowerCase();
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+
+    if (host.includes("tiktok")) {
+      return pathSegments.find((segment) => segment.startsWith("@"));
+    }
+
+    if (host.includes("instagram")) {
+      const candidate = pathSegments[0];
+      if (!candidate || ["reel", "p", "tv", "stories", "explore"].includes(candidate.toLowerCase())) {
+        return undefined;
+      }
+      return `@${candidate}`;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
 }
 
 export function recipeCookabilitySignals(

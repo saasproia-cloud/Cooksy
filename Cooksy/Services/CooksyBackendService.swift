@@ -406,6 +406,9 @@ private struct URLImportEnvelope: Decodable {
 private struct BackendRecipeSeed: Decodable {
     let title: String
     let sourceUrl: String
+    let creatorHandle: String?
+    let externalRating: Double?
+    let externalRatingCount: Int?
     let remoteImageUrl: String
     let ingredientDrafts: [BackendIngredientDraft]
     let stepDrafts: [BackendStepDraft]
@@ -422,6 +425,9 @@ private struct BackendRecipeSeed: Decodable {
         RecipeEditorSeed(
             title: title,
             sourceURL: urlIfPresent(sourceUrl),
+            creatorHandle: nonEmpty(creatorHandle),
+            externalRating: externalRating,
+            externalRatingCount: externalRatingCount,
             ingredientDrafts: ingredientDrafts.map { $0.asDraft() },
             stepDrafts: stepDrafts.map { $0.asDraft() },
             notesText: notesText,
@@ -445,11 +451,17 @@ private struct BackendStableRecipeSeed: Decodable {
     let nutrition: BackendStableNutrition
     let image: String
     let sourceUrl: String
+    let creatorHandle: String?
+    let externalRating: Double?
+    let externalRatingCount: Int?
 
     func asSeed() -> RecipeEditorSeed {
         RecipeEditorSeed(
             title: title,
             sourceURL: urlIfPresent(sourceUrl),
+            creatorHandle: nonEmpty(creatorHandle),
+            externalRating: externalRating,
+            externalRatingCount: externalRatingCount,
             ingredientDrafts: ingredients.map { $0.asDraft() },
             stepDrafts: steps.map { $0.asDraft() },
             notesText: "",

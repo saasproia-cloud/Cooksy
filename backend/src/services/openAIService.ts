@@ -42,6 +42,7 @@ const recipeJsonSchema = {
   properties: {
     title: { type: "string" },
     sourceUrl: { type: "string" },
+    creatorHandle: { type: "string" },
     remoteImageUrl: { type: "string" },
     ingredientDrafts: {
       type: "array",
@@ -118,7 +119,7 @@ export async function normalizeRecipeFromContext(
   requireProvider("openAI");
   const imageDataUrl = await resolveNormalizationImageDataUrl(input, options?.timeoutMs);
 
-  return requestStructuredRecipeFromOpenAI({
+  const normalizedRecipe = await requestStructuredRecipeFromOpenAI({
     userPrompt: buildNormalizationPrompt(input),
     imageDataUrl,
     timeoutMs: options?.timeoutMs,
@@ -130,6 +131,7 @@ export async function normalizeRecipeFromContext(
       "Si le contenu n'est clairement pas alimentaire, ne fabrique pas de recette: renvoie un résultat vide, confidence='low' et aucun ingrédient ni aucune étape exploitables.",
       "Dès qu'un plat crédible est identifié, n'échoue jamais tôt: reconstruis une recette exploitable autour de ce plat.",
       "Le titre doit contenir uniquement le nom court de la recette, sans liste d'ingrédients, sans hashtags, sans URL et sans texte social.",
+      "Si l'auteur social est connu, renseigne creatorHandle au format @nom.",
       "Normalise les ingrédients en amount / unit / name.",
       "Chaque objet ingredientDraft doit représenter un seul ingrédient. N'écris jamais plusieurs ingrédients dans name, même avec '/', ',', '+', '&', 'et' ou '...'.",
       "Chaque ingrédient doit aussi contenir nutritionQuery, une requête USDA courte en anglais comme 'olive oil' ou 'chicken breast'.",
@@ -163,6 +165,11 @@ export async function normalizeRecipeFromContext(
       "N'utilise pas needsWebFallback comme échappatoire à un contenu culinaire incomplet: livre d'abord une vraie recette exploitable."
     ]
   });
+
+  return sanitizeRecipeImport({
+    ...normalizedRecipe,
+    creatorHandle: normalizedRecipe.creatorHandle || input.socialAuthor
+  });
 }
 
 export async function reviewRecipeCookability(
@@ -179,7 +186,7 @@ export async function reviewRecipeCookability(
   const sanitizedDraft = sanitizeRecipeImport(input.draft);
   const imageDataUrl = await resolveNormalizationImageDataUrl(input.context, options?.timeoutMs);
 
-  return requestStructuredRecipeFromOpenAI({
+  const reviewedRecipe = await requestStructuredRecipeFromOpenAI({
     userPrompt: buildCookabilityReviewPrompt(sanitizedDraft, input.context),
     imageDataUrl,
     timeoutMs: options?.timeoutMs,
@@ -190,6 +197,7 @@ export async function reviewRecipeCookability(
       "Commence par valider le plat détecté: si le titre n'est pas un vrai plat mais que le contexte culinaire en révèle un, remplace le titre par le nom du plat.",
       "Si le contexte n'est clairement pas alimentaire, renvoie un résultat vide et n'essaie pas de sauver artificiellement une recette.",
       "Le titre doit rester court, naturel et limité au nom du plat.",
+      "Conserve creatorHandle quand un auteur social crédible est disponible.",
       "Ne garde que des ingrédients réellement utiles pour cuisiner le plat.",
       "Chaque objet ingredientDraft doit représenter un seul ingrédient. Si tu vois 'emmental/cornichon', 'sauce + salade' ou toute liste dans un seul name, sépare-les en plusieurs objets.",
       "Si la recette a moins de 3 ingrédients valides ou moins de 2 étapes valides, abandonne cette extraction faible et reconstruis une recette complète autour du plat détecté.",
@@ -206,6 +214,11 @@ export async function reviewRecipeCookability(
       "Ne laisse jamais une recette alimentaire sans nutrition: estime toujours calories, protéines, glucides et lipides à partir de la version finale.",
       "Vérifie aussi que calories, protéines, glucides et lipides restent cohérents entre eux; si les macros ne collent pas raisonnablement avec les calories, corrige-les au lieu de vider la nutrition."
     ]
+  });
+
+  return sanitizeRecipeImport({
+    ...reviewedRecipe,
+    creatorHandle: reviewedRecipe.creatorHandle || sanitizedDraft.creatorHandle || input.context.socialAuthor
   });
 }
 

@@ -6,6 +6,7 @@ import {
 } from "./openAIService.js";
 import { fetchFallbackPages } from "./searchFallbackService.js";
 import { resolveSocialContent } from "./socialContentService.js";
+import { enrichRecipePresentationMetadata } from "./recipeMetadataService.js";
 import {
   fallbackRecipeFromContext,
   isOpenAIUnavailable,
@@ -1056,10 +1057,13 @@ function buildUrlNormalizationContext(input: {
 function recipeFromContext(
   context: ReturnType<typeof buildUrlNormalizationContext>
 ): RecipeImportResult {
-  return preferStructuredRecipe(
-    fallbackRecipeFromContext(context),
-    structuredRecipeFromBlocks(context.pageStructuredData ?? [])
-  );
+  return sanitizeRecipeImport({
+    ...preferStructuredRecipe(
+      fallbackRecipeFromContext(context),
+      structuredRecipeFromBlocks(context.pageStructuredData ?? [])
+    ),
+    creatorHandle: context.socialAuthor
+  });
 }
 
 function preferredPageValue(
@@ -2156,18 +2160,22 @@ async function finalizeImportedRecipe(
 ) {
   const sanitizedRecipe = sanitizeRecipeImport(recipe);
   if (options?.skipNutrition) {
+    const metadataRecipe = await enrichRecipePresentationMetadata(sanitizedRecipe);
     return {
-      recipe: sanitizedRecipe,
+      recipe: metadataRecipe,
       usedUsda: false,
       nutritionCoverage: 0,
       matchedIngredients: 0
     };
   }
   const nutritionResult = await enrichRecipeNutrition(sanitizedRecipe);
+  const metadataRecipe = await enrichRecipePresentationMetadata(
+    sanitizeRecipeImport(nutritionResult.recipe)
+  );
 
   return {
     ...nutritionResult,
-    recipe: sanitizeRecipeImport(nutritionResult.recipe)
+    recipe: metadataRecipe
   };
 }
 

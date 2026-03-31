@@ -13,16 +13,7 @@ final class RecipeDetailViewModel: ObservableObject {
         case healthier
     }
 
-    struct DisplayIngredient: Identifiable, Hashable {
-        let id: RecipeIngredient.ID
-        let emoji: String?
-        let quantityText: String?
-        let name: String
-
-        var fullLine: String {
-            [quantityText, name].compactMap { $0?.nilIfEmpty }.joined(separator: " ")
-        }
-    }
+    typealias DisplayIngredient = RecipeIngredientPresentation
 
     @Published private(set) var recipe: Recipe?
     @Published private(set) var books: [RecipeBook] = []
@@ -73,25 +64,34 @@ final class RecipeDetailViewModel: ObservableObject {
     }
 
     var sourceButtonTitle: String? {
-        guard let host = sourceURL?.host(percentEncoded: false)?.lowercased() else { return nil }
-        if host.contains("tiktok") { return "Ouvrez TikTok" }
-        if host.contains("instagram") { return "Ouvrez Instagram" }
-        if host.contains("youtube") { return "Ouvrez YouTube" }
-        if host.contains("cooksy.app"), sourceURL?.path(percentEncoded: false).contains("/demo/") == true {
-            return "Voir la source demo"
-        }
-        return "Ouvrez la source"
+        RecipePresentationFormatter.sourceButtonTitle(for: sourceURL)
     }
 
     var sourceLabel: String? {
-        guard let host = sourceURL?.host(percentEncoded: false)?.lowercased() else { return nil }
-        if host.contains("tiktok") { return "TikTok" }
-        if host.contains("instagram") { return "Instagram" }
-        if host.contains("youtube") { return "YouTube" }
-        if host.contains("pinterest") { return "Pinterest" }
-        return host
-            .replacingOccurrences(of: "www.", with: "")
-            .capitalized
+        RecipePresentationFormatter.sourceLabel(for: sourceURL)
+    }
+
+    var sourceHostLabel: String {
+        RecipePresentationFormatter.sourceHostLabel(for: sourceURL)
+    }
+
+    var creatorHandle: String? {
+        RecipePresentationFormatter.creatorHandle(
+            explicitHandle: recipe?.creatorHandle,
+            sourceURL: sourceURL
+        )
+    }
+
+    var ratingValue: Double? {
+        recipe?.externalRating
+    }
+
+    var ratingCountLabel: String? {
+        RecipePresentationFormatter.ratingCountText(for: recipe?.externalRatingCount)
+    }
+
+    var difficultyLabel: String {
+        RecipePresentationFormatter.difficultyLabel(for: recipe)
     }
 
     var ingredientCount: Int {
@@ -106,6 +106,15 @@ final class RecipeDetailViewModel: ObservableObject {
         currentBook?.kind == .uncategorized ? "Non catégorisé" : (currentBook?.title ?? "Non catégorisé")
     }
 
+    var baseServings: Int {
+        guard let recipe else { return 1 }
+        return max(1, RecipeQuantityScaler.baseServings(from: recipe))
+    }
+
+    var servingsLabel: String {
+        RecipePresentationFormatter.servingsLabel(for: baseServings)
+    }
+
     var prepTimeLabel: String? {
         guard let minutes = recipe?.details.prepTimeMinutes, minutes > 0 else { return nil }
         return "\(minutes) min prep"
@@ -117,31 +126,55 @@ final class RecipeDetailViewModel: ObservableObject {
     }
 
     var totalTimeLabel: String? {
-        let total = (recipe?.details.prepTimeMinutes ?? 0) + (recipe?.details.cookTimeMinutes ?? 0)
-        guard total > 0 else { return nil }
-        return "\(total) min total"
+        RecipePresentationFormatter.totalTimeLabel(
+            prepMinutes: recipe?.details.prepTimeMinutes,
+            cookMinutes: recipe?.details.cookTimeMinutes
+        )
+    }
+
+    var summaryText: String {
+        RecipePresentationFormatter.summaryText(
+            noteText: noteText,
+            title: title,
+            totalTimeLabel: totalTimeLabel,
+            baseServings: baseServings
+        )
+    }
+
+    var totalCaloriesLabel: String? {
+        guard let recipe else { return nil }
+        return RecipeNutritionDisplayBuilder.totalCaloriesLabel(for: recipe)
+    }
+
+    var nutritionDisplay: RecipeNutritionDisplay? {
+        guard let recipe else { return nil }
+        return RecipeNutritionDisplayBuilder.displayNutrition(
+            for: recipe,
+            selectedServings: currentServings
+        )
     }
 
     var displayedNutrition: RecipeNutrition? {
-        if let stored = recipe?.nutrition {
-            return stored
-        }
-
-        return estimatedNutrition?.nutrition
+        guard let nutritionDisplay else { return nil }
+        return RecipeNutrition(
+            calories: nutritionDisplay.caloriesText,
+            protein: nutritionDisplay.proteinText,
+            carbs: nutritionDisplay.carbsText,
+            fat: nutritionDisplay.fatText
+        )
     }
 
     var nutritionIsEstimated: Bool {
-        recipe?.nutrition == nil && estimatedNutrition != nil
+        guard let recipe else { return false }
+        return RecipeNutritionDisplayBuilder.isEstimated(for: recipe)
     }
 
-    var displayedIngredients: [DisplayIngredient] {
+    var displayedIngredients: [RecipeIngredientPresentation] {
         guard let recipe else { return [] }
 
-        let baseServings = RecipeQuantityScaler.baseServings(from: recipe)
         return recipe.ingredients.map { ingredient in
-            return DisplayIngredient(
+            return RecipeIngredientPresentation(
                 id: ingredient.id,
-                emoji: IngredientVisualCatalog.specificEmoji(for: ingredient.name),
                 quantityText: RecipeQuantityScaler.scaledQuantityText(
                     for: ingredient,
                     baseServings: baseServings,
@@ -157,7 +190,7 @@ final class RecipeDetailViewModel: ObservableObject {
     }
 
     var hasNutrition: Bool {
-        displayedNutrition != nil
+        nutritionDisplay != nil
     }
 
     var nutrition: RecipeNutrition? {
@@ -323,7 +356,7 @@ final class RecipeDetailViewModel: ObservableObject {
         guard let recipe else { return }
 
         if !hasInitializedServings {
-            currentServings = RecipeQuantityScaler.baseServings(from: recipe)
+            currentServings = 1
             hasInitializedServings = true
         }
 
@@ -357,12 +390,6 @@ final class RecipeDetailViewModel: ObservableObject {
             heroImage = UIImage(data: data)
         }
     }
-
-    private var estimatedNutrition: RecipeNutritionEstimate? {
-        guard let recipe else { return nil }
-        return RecipeNutritionEstimator.estimate(recipe: recipe, forPortions: max(currentServings, 1))
-    }
-
     private func healthierSuggestions(for recipe: Recipe) -> [String] {
         var suggestions: [String] = []
         let names = recipe.ingredients.map { $0.name.localizedLowercase }

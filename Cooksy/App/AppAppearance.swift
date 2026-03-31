@@ -6,20 +6,28 @@ enum AppAppearance {
     static func configure() {
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithTransparentBackground()
-        tabBarAppearance.backgroundColor = UIColor(hex: 0xFFF8F0, alpha: 0.98)
-        tabBarAppearance.shadowColor = UIColor(hex: 0xE6D4BF)
+        tabBarAppearance.backgroundColor = UIColor(hex: 0xFFFDF8, alpha: 0.98)
+        tabBarAppearance.shadowColor = UIColor(hex: 0xE8DCCD)
 
         let normalAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor(hex: 0x7A6554)
+            .foregroundColor: UIColor(hex: 0x8A796C)
         ]
         let selectedAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: UIColor(hex: 0xEA662A)
         ]
 
-        tabBarAppearance.stackedLayoutAppearance.normal.iconColor = UIColor(hex: 0x7A6554)
-        tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = normalAttributes
-        tabBarAppearance.stackedLayoutAppearance.selected.iconColor = UIColor(hex: 0xEA662A)
-        tabBarAppearance.stackedLayoutAppearance.selected.titleTextAttributes = selectedAttributes
+        let appearances = [
+            tabBarAppearance.stackedLayoutAppearance,
+            tabBarAppearance.inlineLayoutAppearance,
+            tabBarAppearance.compactInlineLayoutAppearance
+        ]
+
+        for itemAppearance in appearances {
+            itemAppearance.normal.iconColor = UIColor(hex: 0x8A796C)
+            itemAppearance.normal.titleTextAttributes = normalAttributes
+            itemAppearance.selected.iconColor = UIColor(hex: 0xEA662A)
+            itemAppearance.selected.titleTextAttributes = selectedAttributes
+        }
 
         UITabBar.appearance().standardAppearance = tabBarAppearance
         UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance

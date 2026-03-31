@@ -55,6 +55,8 @@
 		A20000000000000000000002 /* RecipeImportFailureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* RecipeImportFailureView.swift */; };
 		A20000000000000000000003 /* RecipeValidationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* RecipeValidationServiceTests.swift */; };
 		A20000000000000000000004 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* XCTest.framework */; };
+		A31C42014123456789ABC001 /* RecipePresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31C42014123456789ABC101 /* RecipePresentationSupport.swift */; };
+		A31C42024123456789ABC001 /* RecipePresentationComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31C42024123456789ABC101 /* RecipePresentationComponents.swift */; };
 		B59D8AF82D964A6D8D92D2BC /* RecipeWebImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E76937A97BDE51B26E1F365F /* Foundation.framework */; };
@@ -137,6 +139,8 @@
 		A20000000000000000000013 /* RecipeValidationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeValidationServiceTests.swift; sourceTree = "<group>"; };
 		A20000000000000000000014 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A20000000000000000000015 /* CooksyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CooksyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A31C42014123456789ABC101 /* RecipePresentationSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipePresentationSupport.swift; sourceTree = "<group>"; };
+		A31C42024123456789ABC101 /* RecipePresentationComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipePresentationComponents.swift; sourceTree = "<group>"; };
 		C031CB0EB64DA601375638B9 /* CooksyApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyApp.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
 		DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
@@ -221,6 +225,8 @@
 				DDFE043E909AA15F5CDFAE1B /* BrandHeaderView.swift */,
 				F402E2B31A2FB4C0776646C4 /* CooksyLogoMark.swift */,
 				3FB4CA7CE5D942CD8FC2E1A0 /* RecipeImportFlowHost.swift */,
+				A31C42014123456789ABC101 /* RecipePresentationSupport.swift */,
+				A31C42024123456789ABC101 /* RecipePresentationComponents.swift */,
 				5A4B9C10D2E34F56A7B8C901 /* SystemImagePicker.swift */,
 			);
 			path = Shared;
@@ -568,6 +574,8 @@
 				222C62212B8D663AE8B103D1 /* BrandHeaderView.swift in Sources */,
 				2462381D320B4D6D5400AFC6 /* CooksyLogoMark.swift in Sources */,
 				3FB4CA7DE5D942CD8FC2E1A0 /* RecipeImportFlowHost.swift in Sources */,
+				A31C42014123456789ABC001 /* RecipePresentationSupport.swift in Sources */,
+				A31C42024123456789ABC001 /* RecipePresentationComponents.swift in Sources */,
 				5A4B9C11D2E34F56A7B8C901 /* SystemImagePicker.swift in Sources */,
 				5C71BCE1FBF06DF48D21F74D /* RecipeOCRService.swift in Sources */,
 				5998D31F786C2C63BBDACE34 /* RecipeImportPipeline.swift in Sources */,

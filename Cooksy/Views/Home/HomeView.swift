@@ -6,6 +6,7 @@ struct HomeView: View {
     private let openRecipesTab: () -> Void
     private let openPlanTab: () -> Void
     private let openImportSheet: () -> Void
+    private let openProfileTab: () -> Void
 
     @StateObject private var viewModel: HomeViewModel
 
@@ -14,12 +15,14 @@ struct HomeView: View {
         sharedLinkInbox: SharedLinkInbox,
         openRecipesTab: @escaping () -> Void = {},
         openPlanTab: @escaping () -> Void = {},
-        openImportSheet: @escaping () -> Void = {}
+        openImportSheet: @escaping () -> Void = {},
+        openProfileTab: @escaping () -> Void = {}
     ) {
         self.store = store
         self.openRecipesTab = openRecipesTab
         self.openPlanTab = openPlanTab
         self.openImportSheet = openImportSheet
+        self.openProfileTab = openProfileTab
         _viewModel = StateObject(
             wrappedValue: HomeViewModel(store: store, sharedLinkInbox: sharedLinkInbox)
         )
@@ -27,19 +30,20 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            CooksyTheme.ambientGradient
+            Color(hex: 0xFCF9F4)
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    HomeWordmarkHeader()
-                    editorialHero
-                    snapshotSection
-                    libraryBridgeSection
+                VStack(alignment: .leading, spacing: 22) {
+                    topBar
+                    welcomeBlock
+                    importGuideCard
+                    recentImportsSection
+                    trendingTodaySection
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 116)
+                .padding(.top, 10)
+                .padding(.bottom, 120)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -48,333 +52,434 @@ struct HomeView: View {
         }
     }
 
-    private var editorialHero: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(CooksyTheme.elevatedSurface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(CooksyTheme.heroGlowGradient.opacity(0.82))
-                        .blur(radius: 14)
-                        .padding(20)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(CooksyTheme.stroke, lineWidth: 1)
-                )
-                .shadow(color: CooksyTheme.shadow, radius: 16, y: 9)
+    private var topBar: some View {
+        HStack(spacing: 14) {
+            Image("HeaderLogo")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 34, height: 34)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("AUJOURD'HUI")
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .tracking(1.8)
-                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            Spacer()
 
-                        Text(viewModel.welcomeHeadline)
-                            .font(.system(size: 27, weight: .regular, design: .serif))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.82)
-
-                        Text(viewModel.pendingImport == nil ? "Plan, recettes et import sous la main." : "Un import vous attend.")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .lineLimit(2)
-                    }
-                }
-
-                heroStatLine
-
-                HStack(spacing: 12) {
-                    HomePrimaryActionButton(
-                        title: viewModel.pendingImport == nil ? "Importer une recette" : "Reprendre l’import"
-                    ) {
-                        openImportSheet()
-                    }
-
-                    HomeSecondaryActionButton(
-                        title: "Ouvrir le plan"
-                    ) {
-                        openPlanTab()
-                    }
-                }
-
-                Button(action: openRecipesTab) {
-                    HStack(spacing: 8) {
-                        Text("Ouvrir les recettes")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundStyle(CooksyTheme.primaryText)
-                }
-                .buttonStyle(.plain)
+            HomeCircleIconButton(systemName: "bell") {
+                openProfileTab()
             }
-            .padding(20)
+
+            Button(action: openProfileTab) {
+                HomeAvatarBadge(text: viewModel.profileBadgeText)
+            }
+            .buttonStyle(.plain)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private var heroStatLine: some View {
-        HStack(spacing: 10) {
-            heroStatColumn(title: "Recettes", value: "\(viewModel.totalRecipeCount)")
-            heroStatColumn(title: "Livres", value: "\(viewModel.displayedBookCount)")
-            heroStatColumn(title: "Plan", value: "\(viewModel.weekPlannedCount)")
-        }
-    }
+    private var welcomeBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(viewModel.greetingLine)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
 
-    private func heroStatColumn(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .black, design: .rounded))
-                .tracking(1.2)
-                .foregroundStyle(CooksyTheme.secondaryText)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CooksyTheme.sparkleYellow)
+            }
 
-            Text(value)
-                .font(.system(size: 21, weight: .bold, design: .rounded))
+            Text(viewModel.homeHeadline)
+                .font(.system(size: 35, weight: .bold, design: .serif))
+                .tracking(-0.8)
                 .foregroundStyle(CooksyTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(CooksyTheme.surface.opacity(0.96))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(CooksyTheme.stroke.opacity(0.9), lineWidth: 1)
-        )
-    }
-
-    private var snapshotSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("L'ESSENTIEL")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(1.6)
-                        .foregroundStyle(CooksyTheme.secondaryText)
-
-                    Text("Tout tenir sur un écran")
-                        .font(.system(size: 24, weight: .regular, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
-
-                Spacer(minLength: 0)
-
-                Button(action: openRecipesTab) {
-                    Text("Recettes")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
-                .buttonStyle(.plain)
-            }
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 12, alignment: .top),
-                    GridItem(.flexible(), spacing: 12, alignment: .top)
-                ],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                planSnapshotCard
-                recipeSnapshotCard
-            }
+                .lineSpacing(-2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var planSnapshotCard: some View {
-        Button(action: openPlanTab) {
-            VStack(alignment: .leading, spacing: 12) {
-                snapshotEyebrow(
-                    title: "PLAN"
-                )
+    private var importGuideCard: some View {
+        Button(action: openImportSheet) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(Color(hex: 0xFFF2E4))
+                    .frame(width: 40, height: 40)
+                    .overlay {
+                        Image(systemName: viewModel.pendingImport == nil ? "square.and.arrow.down" : "arrow.trianglehead.clockwise")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    }
 
-                if let meal = viewModel.upcomingMeals.first {
-                    Text(meal.recipe.title)
-                        .font(.system(size: 21, weight: .regular, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.84)
-
-                    Text("\(meal.dayLabel) • \(meal.mealLabel)")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(viewModel.importGuideTitle)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                        .lineLimit(2)
-
-                    Spacer(minLength: 0)
-
-                    Text("\(viewModel.weekPlannedCount) repas cette semaine")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                } else {
-                    Text("Semaine vide")
-                        .font(.system(size: 21, weight: .regular, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)
+                        .lineLimit(1)
 
-                    Text("Ajoutez un repas pour démarrer.")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                    Text(viewModel.importGuideSubtitle)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
-                        .lineLimit(2)
-
-                    Spacer(minLength: 0)
-
-                    Text("Ouvrir le plan")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                        .lineLimit(1)
                 }
+
+                Spacer(minLength: 8)
+
+                Text("Try it")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(CooksyTheme.accentGradient)
+                    )
             }
-            .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
-            .padding(16)
-            .background(homePanelBackground)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white.opacity(0.98))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.05), radius: 14, y: 8)
         }
         .buttonStyle(.plain)
     }
 
-    private var recipeSnapshotCard: some View {
-        Group {
-            if let featuredRecipe = viewModel.featuredRecipe {
-                NavigationLink {
-                    RecipeDetailView(store: store, recipeID: featuredRecipe.id)
-                } label: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        snapshotEyebrow(
-                            title: "RECETTE"
-                        )
-
-                        RecipeThumbnail(recipe: featuredRecipe)
-                            .frame(height: 78)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                        Text(featuredRecipe.title)
-                            .font(.system(size: 21, weight: .regular, design: .serif))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.82)
-
-                        Text("\(featuredRecipe.ingredients.count) ingrédients • \(featuredRecipe.steps.count) étapes")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
-                    .padding(16)
-                    .background(homePanelBackground)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button(action: openImportSheet) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        snapshotEyebrow(
-                            title: "RECETTE"
-                        )
-
-                        Text("Aucune recette")
-                            .font(.system(size: 21, weight: .regular, design: .serif))
-                            .foregroundStyle(CooksyTheme.primaryText)
-
-                        Text("Importez-en une pour remplir l’accueil.")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .lineLimit(2)
-
-                        Spacer(minLength: 0)
-
-                        Text("Importer")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
-                    .padding(16)
-                    .background(homePanelBackground)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var libraryBridgeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("LIVRES")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(1.6)
-                        .foregroundStyle(CooksyTheme.secondaryText)
-
-                    Text("Vos rangements")
-                        .font(.system(size: 22, weight: .regular, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
+    private var recentImportsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent Imports")
+                    .font(.system(size: 24, weight: .bold, design: .serif))
+                    .foregroundStyle(CooksyTheme.primaryText)
 
                 Spacer(minLength: 0)
 
                 Button(action: openRecipesTab) {
-                    Text("Voir tout")
+                    Text("See all")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
+                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
                 }
                 .buttonStyle(.plain)
             }
 
-            if viewModel.highlightedBooks.isEmpty {
-                Button(action: openRecipesTab) {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Créer un premier livre")
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .foregroundStyle(CooksyTheme.primaryText)
-
-                            Text("Vos recettes seront rangées ici.")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                        }
-
-                        Spacer(minLength: 0)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(viewModel.recentImportCards) { card in
+                        recentImportDestination(for: card)
                     }
-                    .padding(14)
-                    .background(homePanelBackground)
                 }
-                .buttonStyle(.plain)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(viewModel.highlightedBooks) { book in
-                            Button(action: openRecipesTab) {
-                                CompactBookBridgeChip(
-                                    book: book,
-                                    recipes: store.recipes(in: book)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.trailing, 4)
+                .padding(.vertical, 2)
+                .padding(.trailing, 4)
+            }
+        }
+    }
+
+    private var trendingTodaySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Trending Today")
+                    .font(.system(size: 24, weight: .bold, design: .serif))
+                    .foregroundStyle(CooksyTheme.primaryText)
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 11, weight: .bold))
+
+                    Text("Hot")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(CooksyTheme.ctaOrange)
+            }
+
+            VStack(spacing: 10) {
+                ForEach(viewModel.trendingTodayItems) { item in
+                    trendingDestination(for: item)
                 }
             }
         }
     }
 
-    private func snapshotEyebrow(title: String) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .black, design: .rounded))
-            .tracking(1.4)
-            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+    @ViewBuilder
+    private func recentImportDestination(for card: HomeViewModel.RecentImportCard) -> some View {
+        if let recipeID = card.destinationRecipeID {
+            NavigationLink {
+                RecipeDetailView(store: store, recipeID: recipeID)
+            } label: {
+                HomeRecentImportCardView(card: card)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button(action: openImportSheet) {
+                HomeRecentImportCardView(card: card)
+            }
+            .buttonStyle(.plain)
+        }
     }
 
-    private var homePanelBackground: some View {
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(CooksyTheme.elevatedSurface)
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
+    @ViewBuilder
+    private func trendingDestination(for item: HomeViewModel.TrendingRecipe) -> some View {
+        if let recipeID = item.destinationRecipeID {
+            NavigationLink {
+                RecipeDetailView(store: store, recipeID: recipeID)
+            } label: {
+                HomeTrendingRecipeRow(item: item)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button(action: openImportSheet) {
+                HomeTrendingRecipeRow(item: item)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct HomeCircleIconButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(CooksyTheme.secondaryText)
+                .frame(width: 34, height: 34)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.98))
+                )
+                .overlay(
+                    Circle()
+                        .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct HomeAvatarBadge: View {
+    let text: String
+
+    var body: some View {
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: [Color(hex: 0xD9B596), Color(hex: 0xB77850)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             )
+            .frame(width: 34, height: 34)
+            .overlay {
+                Text(text)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+    }
+}
+
+private struct HomeRecentImportCardView: View {
+    let card: HomeViewModel.RecentImportCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                HomeArtworkSurface(artwork: card.artwork, emojiSize: 42)
+                    .frame(width: 208, height: 118)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                HStack(alignment: .top) {
+                    Text(card.sourceLabel)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 9)
+                        .frame(height: 22)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.black.opacity(0.45))
+                        )
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 8, weight: .bold))
+
+                        Text(card.ratingLabel)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.black.opacity(0.45))
+                    )
+                }
+                .padding(10)
+            }
+
+            Text(card.title)
+                .font(.system(size: 15, weight: .semibold, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.84)
+
+            HStack(spacing: 10) {
+                HomeMetaLabel(systemName: "clock", text: card.durationLabel)
+                HomeMetaLabel(systemName: "flame.fill", text: card.caloriesLabel)
+            }
+        }
+        .frame(width: 208, alignment: .leading)
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.98))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.05), radius: 16, y: 8)
+    }
+}
+
+private struct HomeTrendingRecipeRow: View {
+    let item: HomeViewModel.TrendingRecipe
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("\(item.rank)")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                .frame(width: 16)
+
+            HomeArtworkSurface(artwork: item.artwork, emojiSize: 18)
+                .frame(width: 50, height: 50)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(1)
+
+                HStack(spacing: 5) {
+                    Text(item.handle)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                        .lineLimit(1)
+
+                    Text("•")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(CooksyTheme.stroke)
+
+                    Text(item.durationLabel)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 4) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 9, weight: .bold))
+
+                Text(item.ratingLabel)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.98))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.04), radius: 14, y: 8)
+    }
+}
+
+private struct HomeMetaLabel: View {
+    let systemName: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemName)
+                .font(.system(size: 9, weight: .bold))
+
+            Text(text)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .lineLimit(1)
+        }
+        .foregroundStyle(CooksyTheme.secondaryText)
+    }
+}
+
+private struct HomeArtworkSurface: View {
+    let artwork: HomeViewModel.Artwork
+    let emojiSize: CGFloat
+
+    var body: some View {
+        Group {
+            switch artwork {
+            case .recipe(let recipe):
+                if recipe.heroImageURL == nil,
+                   let previewSeed = DemoRecipeMatcherService.match(sharedText: recipe.title),
+                   let imageData = previewSeed.imageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    RecipeThumbnail(recipe: recipe)
+                }
+            case .demo(let scenario):
+                ZStack {
+                    LinearGradient(
+                        colors: [
+                            Color(hex: scenario.hero.topColorHex),
+                            Color(hex: scenario.hero.bottomColorHex)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+
+                    Circle()
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 92, height: 92)
+                        .offset(x: 38, y: -28)
+
+                    Circle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 74, height: 74)
+                        .offset(x: -34, y: 30)
+
+                    Text(scenario.hero.emoji)
+                        .font(.system(size: emojiSize))
+                }
+            }
+        }
+        .clipped()
     }
 }
 

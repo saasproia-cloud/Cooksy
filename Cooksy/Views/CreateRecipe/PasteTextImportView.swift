@@ -33,30 +33,9 @@ struct PasteTextImportView: View {
             }
 
             if isImporting {
-                Color.black.opacity(0.16)
-                    .ignoresSafeArea()
-
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .tint(CooksyTheme.ctaOrange)
-                        .scaleEffect(1.15)
-
-                    Text("Analyse en cours")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-
-                    Text("Cooksy structure votre recette et prépare les ingrédients, l'image et les étapes.")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 30)
-                .frame(maxWidth: 320)
-                .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(Color.white)
-                        .shadow(color: Color.black.opacity(0.12), radius: 22, y: 12)
+                RecipeImportLoadingView(
+                    source: .text,
+                    title: "Analyse de l'import"
                 )
             }
         }

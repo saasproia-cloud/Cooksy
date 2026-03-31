@@ -29,6 +29,9 @@ const apiSuccessSchema = z.object({
   success: z.literal(true),
   data: z.object({
     title: z.string(),
+    creatorHandle: z.string().optional(),
+    externalRating: z.number().min(0).max(5).optional(),
+    externalRatingCount: z.number().int().positive().optional(),
     ingredients: z.array(apiIngredientSchema).min(1),
     steps: z.array(apiStepSchema).min(1),
     nutrition: apiNutritionSchema,
@@ -69,6 +72,9 @@ export async function buildURLImportResponse(input: {
       success: true,
       data: {
         title,
+        creatorHandle: recipeWithNutrition.creatorHandle || undefined,
+        externalRating: recipeWithNutrition.externalRating,
+        externalRatingCount: recipeWithNutrition.externalRatingCount,
         ingredients,
         steps,
         nutrition,

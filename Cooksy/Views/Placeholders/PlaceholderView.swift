@@ -63,8 +63,14 @@ struct QuickImportSheetView: View {
 
     private let options: [QuickImportOption] = [
         QuickImportOption(
+            kind: .createFromScratch,
+            title: "Depuis\nzéro",
+            systemImage: "pencil",
+            accentColor: CooksyTheme.ctaOrange
+        ),
+        QuickImportOption(
             kind: .browser,
-            title: "Navigateur",
+            title: "Site\nweb",
             systemImage: "safari",
             accentColor: CooksyTheme.ctaOrange
         ),
@@ -76,7 +82,7 @@ struct QuickImportSheetView: View {
         ),
         QuickImportOption(
             kind: .pasteText,
-            title: "Coller\ndu texte",
+            title: "Texte\ncollé",
             systemImage: "text.alignleft",
             accentColor: CooksyTheme.ctaOrange
         )
@@ -90,7 +96,13 @@ struct QuickImportSheetView: View {
                     .foregroundStyle(CooksyTheme.primaryText)
                     .padding(.top, 8)
 
-                HStack(spacing: 14) {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 14),
+                        GridItem(.flexible(), spacing: 14)
+                    ],
+                    spacing: 14
+                ) {
                     ForEach(options) { option in
                         QuickImportOptionCard(
                             option: option,
@@ -98,47 +110,12 @@ struct QuickImportSheetView: View {
                         )
                     }
                 }
-
-                HStack(spacing: 14) {
-                    Rectangle()
-                        .fill(CooksyTheme.stroke.opacity(0.9))
-                        .frame(height: 1)
-
-                    Text("ou")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-
-                    Rectangle()
-                        .fill(CooksyTheme.stroke.opacity(0.9))
-                        .frame(height: 1)
-                }
-
-                Button(action: onCreateFromScratch) {
-                    HStack(spacing: 14) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 18, weight: .semibold))
-                        Text("Écrire à partir de zéro")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(CooksyTheme.elevatedSurface)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(CooksyTheme.stroke.opacity(0.65), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
             .background(CooksyTheme.background)
         }
-        .presentationDetents([.height(365)])
+        .presentationDetents([.height(430)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(CooksyTheme.background)
@@ -146,6 +123,8 @@ struct QuickImportSheetView: View {
 
     private func action(for kind: QuickImportOption.Kind) -> () -> Void {
         switch kind {
+        case .createFromScratch:
+            return onCreateFromScratch
         case .browser:
             return onBrowserImport
         case .camera:
@@ -158,6 +137,7 @@ struct QuickImportSheetView: View {
 
 private struct QuickImportOption: Identifiable {
     enum Kind {
+        case createFromScratch
         case browser
         case camera
         case pasteText
@@ -194,7 +174,7 @@ private struct QuickImportOptionCard: View {
                     .minimumScaleFactor(0.9)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 152)
+            .frame(height: 146)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(CooksyTheme.warmCard)

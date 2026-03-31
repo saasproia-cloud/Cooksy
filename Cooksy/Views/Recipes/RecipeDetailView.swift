@@ -3,6 +3,7 @@ import UIKit
 
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     private let store: RecipeStore
 
@@ -19,6 +20,7 @@ struct RecipeDetailView: View {
     @State private var selectedPhotoSource: RecipePhotoSource?
     @State private var showsPhotoOptions = false
     @State private var notice: RecipeDetailNotice?
+    @State private var selectedContentTab: RecipePresentationTab = .ingredients
 
     init(store: RecipeStore, recipeID: Recipe.ID) {
         self.store = store
@@ -26,44 +28,25 @@ struct RecipeDetailView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            CooksyTheme.ambientGradient
+        ZStack {
+            Color(hex: 0xFCF9F4)
                 .ignoresSafeArea()
 
             if let recipe = viewModel.recipe {
                 ScrollView(.vertical, showsIndicators: false) {
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(
-                                key: RecipeScrollOffsetKey.self,
-                                value: proxy.frame(in: .named("recipeScroll")).minY
-                            )
-                    }
-                    .frame(height: 0)
-
-                    VStack(spacing: 16) {
-                        heroShowcase(recipe: recipe)
-                        quickActionsPanel
-
-                        if recipe.sourceURL != nil || viewModel.noteText != nil {
-                            contextPanel
-                        }
-
-                        ingredientsPanel
-                        instructionsPanel
-                        nutritionPanel
+                    VStack(spacing: 14) {
+                        detailHeroSection(recipe: recipe)
+                        detailSummarySection
+                        detailNutritionSection
+                        detailContentSection
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 148)
+                    .padding(.top, 12)
+                    .padding(.bottom, 120)
                 }
-                .coordinateSpace(name: "recipeScroll")
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onPreferenceChange(RecipeScrollOffsetKey.self) { value in
-            scrollOffset = max(0, -value)
-        }
         .onChange(of: viewModel.recipe == nil) { _, hasNoRecipe in
             if hasNoRecipe {
                 dismiss()
@@ -149,13 +132,94 @@ struct RecipeDetailView: View {
         .alert(item: $notice) { notice in
             Alert(title: Text("Cooksy"), message: Text(notice.message), dismissButton: .default(Text("OK")))
         }
-        .overlay(alignment: .bottomTrailing) {
-            if viewModel.recipe != nil {
-                assistantLauncher
-                    .padding(.trailing, 18)
-                    .padding(.bottom, 24)
+    }
+
+    private func detailHeroSection(recipe: Recipe) -> some View {
+        RecipePresentationHeroCard(
+            heroImage: viewModel.heroImage,
+            heroStyle: recipe.heroStyle,
+            creatorHandle: viewModel.creatorHandle,
+            ratingValue: viewModel.ratingValue,
+            ratingCountText: viewModel.ratingCountLabel,
+            difficultyLabel: viewModel.difficultyLabel
+        ) {
+            RecipePresentationActionIconButton(systemImage: "chevron.left") {
+                dismiss()
+            }
+        } trailingActions: {
+            HStack(spacing: 8) {
+                RecipePresentationActionIconButton(systemImage: "square.and.arrow.up") {
+                    showsShareSheet = true
+                }
+
+                Menu {
+                    Button("Modifier") {
+                        showsEditRecipe = true
+                    }
+
+                    Button("Ajouter au plan") {
+                        showsPlanSheet = true
+                    }
+
+                    Button("Déplacer dans un livre") {
+                        showsBookSheet = true
+                    }
+
+                    Button("Changer la photo") {
+                        showsPhotoOptions = true
+                    }
+
+                    Button("Supprimer la recette", role: .destructive) {
+                        showsDeleteConfirmation = true
+                    }
+                } label: {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: 38, height: 38)
+                        .overlay {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                        }
+                }
+                .buttonStyle(.plain)
             }
         }
+    }
+
+    private var detailSummarySection: some View {
+        RecipePresentationSummaryCard(
+            title: viewModel.title,
+            summaryText: viewModel.summaryText,
+            totalTimeLabel: viewModel.totalTimeLabel,
+            totalCaloriesLabel: viewModel.totalCaloriesLabel,
+            servingsLabel: viewModel.servingsLabel,
+            sourceButtonTitle: viewModel.sourceButtonTitle,
+            sourceHostLabel: viewModel.sourceHostLabel,
+            sourceAction: viewModel.sourceURL.map { sourceURL in
+                { openURL(sourceURL) }
+            }
+        )
+    }
+
+    private var detailNutritionSection: some View {
+        RecipePresentationNutritionCard(
+            nutrition: viewModel.nutritionDisplay,
+            isEstimated: viewModel.nutritionIsEstimated,
+            currentServings: viewModel.currentServings,
+            baseServings: viewModel.baseServings,
+            onDecrease: { viewModel.changeServings(by: -1) },
+            onIncrease: { viewModel.changeServings(by: 1) }
+        )
+    }
+
+    private var detailContentSection: some View {
+        RecipePresentationContentCard(
+            selectedTab: $selectedContentTab,
+            ingredients: viewModel.displayedIngredients,
+            steps: viewModel.instructions,
+            onCookStepByStep: { showsStepByStep = true }
+        )
     }
 
     private func heroShowcase(recipe: Recipe) -> some View {
@@ -858,26 +922,7 @@ struct RecipeDetailView: View {
 
     @ViewBuilder
     private func ingredientGlyph(for ingredient: RecipeDetailViewModel.DisplayIngredient) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white)
-                .frame(width: 38, height: 38)
-
-            if let emoji = ingredient.emoji {
-                Text(emoji)
-                    .font(.system(size: 20))
-            } else {
-                Image("HeaderLogo")
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-            }
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
+        IngredientIconBadge(ingredientName: ingredient.name)
     }
 
     private func stepRow(index: Int, step: RecipeStep, isLast: Bool) -> some View {

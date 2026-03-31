@@ -47,6 +47,9 @@ struct RecipeImportDebugInfo: Codable, Hashable {
 struct RecipeEditorSeed: Codable, Hashable {
     var title: String
     var sourceURL: URL?
+    var creatorHandle: String?
+    var externalRating: Double?
+    var externalRatingCount: Int?
     var ingredientDrafts: [IngredientDraft]
     var stepDrafts: [StepDraft]
     var notesText: String
@@ -64,6 +67,9 @@ struct RecipeEditorSeed: Codable, Hashable {
     init(
         title: String = "",
         sourceURL: URL? = nil,
+        creatorHandle: String? = nil,
+        externalRating: Double? = nil,
+        externalRatingCount: Int? = nil,
         ingredientDrafts: [IngredientDraft] = [],
         stepDrafts: [StepDraft] = [],
         notesText: String = "",
@@ -80,6 +86,9 @@ struct RecipeEditorSeed: Codable, Hashable {
     ) {
         self.title = title
         self.sourceURL = sourceURL
+        self.creatorHandle = creatorHandle
+        self.externalRating = externalRating
+        self.externalRatingCount = externalRatingCount
         self.ingredientDrafts = ingredientDrafts
         self.stepDrafts = stepDrafts
         self.notesText = notesText
@@ -99,6 +108,9 @@ struct RecipeEditorSeed: Codable, Hashable {
         self.init(
             title: recipe.title,
             sourceURL: recipe.sourceURL,
+            creatorHandle: recipe.creatorHandle,
+            externalRating: recipe.externalRating,
+            externalRatingCount: recipe.externalRatingCount,
             ingredientDrafts: recipe.ingredients.map {
                 IngredientDraft(amount: $0.amount ?? "", unit: $0.unit ?? "", name: $0.name)
             },
@@ -184,6 +196,9 @@ struct RecipeEditorSeed: Codable, Hashable {
             id: id,
             title: normalizedTitle,
             sourceURL: sourceURL,
+            creatorHandle: creatorHandle,
+            externalRating: externalRating,
+            externalRatingCount: externalRatingCount,
             heroImageURL: imageURL,
             heroStyle: imageURL == nil ? .warmCocoa : .ocean,
             details: details,

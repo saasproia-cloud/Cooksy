@@ -3,43 +3,49 @@ import Foundation
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    struct UpcomingMealPreview: Identifiable, Hashable {
-        let entry: MealPlanEntry
-        let recipe: Recipe
-        let dayLabel: String
-
-        var id: MealPlanEntry.ID { entry.id }
-
-        var mealLabel: String {
-            entry.resolvedMealKind.homeTitle
-        }
+    enum Artwork: Hashable {
+        case recipe(Recipe)
+        case demo(DemoRecipeScenario)
     }
 
-    @Published private(set) var books: [RecipeBook] = []
-    @Published private(set) var recipes: [Recipe] = []
-    @Published private(set) var mealPlanEntries: [MealPlanEntry] = []
-    @Published private(set) var pendingImport: SharedImportDraft?
+    struct RecentImportCard: Identifiable, Hashable {
+        let id: String
+        let title: String
+        let sourceLabel: String
+        let durationLabel: String
+        let caloriesLabel: String
+        let ratingLabel: String
+        let artwork: Artwork
+        let destinationRecipeID: Recipe.ID?
+    }
 
-    private let store: RecipeStore
+    struct TrendingRecipe: Identifiable, Hashable {
+        let id: String
+        let rank: Int
+        let title: String
+        let handle: String
+        let durationLabel: String
+        let ratingLabel: String
+        let artwork: Artwork
+        let destinationRecipeID: Recipe.ID?
+    }
+
+    @Published private(set) var recipes: [Recipe] = []
+    @Published private(set) var pendingImport: SharedImportDraft?
+    @Published private(set) var dayRefreshDate: Date = .now
+
     private let sharedLinkInbox: SharedLinkInbox
     private let calendar: Calendar
     private var cancellables = Set<AnyCancellable>()
+    private var midnightRefreshTimer: Timer?
 
     init(
         store: RecipeStore,
         sharedLinkInbox: SharedLinkInbox,
-        calendar: Calendar = .cooksyFrenchHome
+        calendar: Calendar = .cooksyHomeCalendar
     ) {
-        self.store = store
         self.sharedLinkInbox = sharedLinkInbox
         self.calendar = calendar
-
-        store.$books
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] books in
-                self?.books = books
-            }
-            .store(in: &cancellables)
 
         store.$recipes
             .receive(on: DispatchQueue.main)
@@ -48,202 +54,242 @@ final class HomeViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        store.$mealPlanEntries
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] entries in
-                self?.mealPlanEntries = entries
-            }
-            .store(in: &cancellables)
-
         refreshPendingImport()
+        scheduleMidnightRefresh()
     }
 
-    var totalRecipeCount: Int {
-        recipes.count
-    }
-
-    var displayedBookCount: Int {
-        (uncategorizedBook == nil ? 0 : 1) + customBooks.count
-    }
-
-    var uncategorizedBook: RecipeBook? {
-        books.first(where: { $0.kind == .uncategorized })
-    }
-
-    var customBooks: [RecipeBook] {
-        books
-            .filter { $0.kind == .collection }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    var highlightedBooks: [RecipeBook] {
-        Array(([uncategorizedBook].compactMap { $0 } + customBooks).prefix(4))
-    }
-
-    var featuredRecipe: Recipe? {
-        recentRecipes.first
-    }
-
-    var recentRecipes: [Recipe] {
-        Array(recipes.prefix(4))
-    }
-
-    var currentDateLabel: String {
-        Self.headerDateFormatter.string(from: .now).capitalized
-    }
-
-    var headerSubtitle: String {
-        if let pendingImport {
-            return "Lien partagé prêt depuis \(pendingImport.hostLabel)."
+    var greetingLine: String {
+        switch calendar.component(.hour, from: dayRefreshDate) {
+        case 5..<12:
+            return "Good morning"
+        case 12..<18:
+            return "Good afternoon"
+        default:
+            return "Good evening"
         }
-
-        if totalRecipeCount == 0 {
-            return "Importez votre première recette pour lancer votre carnet."
-        }
-
-        return "\(currentDateLabel) • \(totalRecipeCount) recette\(totalRecipeCount > 1 ? "s" : "") prête\(totalRecipeCount > 1 ? "s" : "")"
     }
 
-    var welcomeHeadline: String {
-        if totalRecipeCount == 0 {
-            return "Un vrai accueil pour cuisiner sans se perdre."
-        }
-
-        if !upcomingMeals.isEmpty {
-            return "Votre semaine culinaire est déjà en mouvement."
-        }
-
-        return "Tout votre univers recette, sans écran fourre-tout."
+    var homeHeadline: String {
+        "What are we cooking today, Alex?"
     }
 
-    var welcomeCopy: String {
-        if pendingImport != nil {
-            return "Le prochain import vous attend déjà. Vous pouvez le relire, l’enregistrer puis revenir ici pour continuer votre semaine."
-        }
-
-        if totalRecipeCount == 0 {
-            return "Commencez par une recette TikTok, Instagram ou un lien web. Ensuite Cooksy vous ramène au plan, aux recettes récentes et à vos livres en un seul coup d’œil."
-        }
-
-        return "L’accueil doit donner envie de cuisiner vite: une relance claire, le plan de la semaine, vos dernières recettes et un passage simple vers la bibliothèque."
+    var profileBadgeText: String {
+        "A"
     }
 
-    var weekPlannedCount: Int {
-        let weekStart = calendar.startOfWeek(for: .now)
-        let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
-
-        return mealPlanEntries.filter { entry in
-            let day = calendar.startOfDay(for: entry.dayDate)
-            return day >= weekStart && day <= weekEnd
-        }.count
+    var importGuideTitle: String {
+        "Guide d'importation..."
     }
 
-    var libraryBridgeCaption: String {
-        if displayedBookCount == 0 {
-            return "Créez votre premier livre pour ranger vos recettes comme un vrai carnet."
-        }
-
-        return "\(displayedBookCount) livre\(displayedBookCount > 1 ? "s" : "") • touchez un livre pour rejoindre l’onglet Recettes."
+    var importGuideSubtitle: String {
+        "TikTok - Instagram - Any link"
     }
 
-    var upcomingMeals: [UpcomingMealPreview] {
-        let recipesByID = Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0) })
-        let today = calendar.startOfDay(for: .now)
+    var recentImportCards: [RecentImportCard] {
+        let liveCards = Array(sortedRecipes.prefix(6)).map { makeRecentImportCard(for: $0) }
+        let minimumVisibleCards = 4
+        let fillerCount = max(0, minimumVisibleCards - liveCards.count)
+        let fillerCards = rotatedScenarios(prefixCount: fillerCount).enumerated().map { makeDemoRecentImportCard($0) }
+        return Array((liveCards + fillerCards).prefix(6))
+    }
 
-        return mealPlanEntries
-            .filter { calendar.startOfDay(for: $0.dayDate) >= today }
-            .sorted { lhs, rhs in
-                let lhsDay = calendar.startOfDay(for: lhs.dayDate)
-                let rhsDay = calendar.startOfDay(for: rhs.dayDate)
-
-                if lhsDay == rhsDay {
-                    return lhs.resolvedMealKind.homeSortOrder < rhs.resolvedMealKind.homeSortOrder
-                }
-
-                return lhsDay < rhsDay
-            }
-            .compactMap { entry -> UpcomingMealPreview? in
-                guard let recipe = recipesByID[entry.recipeID] else { return nil }
-                return UpcomingMealPreview(
-                    entry: entry,
-                    recipe: recipe,
-                    dayLabel: dayLabel(for: entry.dayDate)
+    var trendingTodayItems: [TrendingRecipe] {
+        rotatedScenarios(prefixCount: 3)
+            .enumerated()
+            .map { index, scenario in
+                TrendingRecipe(
+                    id: "trending-\(daySeed)-\(scenario.id)",
+                    rank: index + 1,
+                    title: scenario.title,
+                    handle: Self.trendingHandles[(stableNumber(for: scenario.id) + daySeed + index) % Self.trendingHandles.count],
+                    durationLabel: "\(scenario.prepMinutes + scenario.cookMinutes)m",
+                    ratingLabel: ratingLabel(for: scenario.id, base: 4.7, range: 3),
+                    artwork: .demo(scenario),
+                    destinationRecipeID: nil
                 )
             }
-            .prefix(3)
-            .map { $0 }
     }
 
     func refreshPendingImport() {
         pendingImport = sharedLinkInbox.peek()
+        refreshDailyContentIfNeeded()
     }
 
-    private func dayLabel(for date: Date) -> String {
-        let normalizedDate = calendar.startOfDay(for: date)
+    private var sortedRecipes: [Recipe] {
+        recipes.sorted { lhs, rhs in
+            if lhs.createdAt == rhs.createdAt {
+                return lhs.updatedAt > rhs.updatedAt
+            }
 
-        if calendar.isDateInToday(normalizedDate) {
-            return "Aujourd’hui"
+            return lhs.createdAt > rhs.createdAt
         }
-
-        if calendar.isDateInTomorrow(normalizedDate) {
-            return "Demain"
-        }
-
-        return Self.shortDayFormatter.string(from: normalizedDate).capitalized
     }
 
-    private static let headerDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = "EEEE d MMMM"
-        return formatter
-    }()
+    private var daySeed: Int {
+        calendar.ordinality(of: .day, in: .era, for: dayRefreshDate) ?? 0
+    }
 
-    private static let shortDayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = "EEE d MMM"
-        return formatter
-    }()
+    private func makeRecentImportCard(for recipe: Recipe) -> RecentImportCard {
+        RecentImportCard(
+            id: "recent-\(recipe.id.uuidString)",
+            title: recipe.title,
+            sourceLabel: sourceLabel(for: recipe),
+            durationLabel: durationLabel(for: recipe),
+            caloriesLabel: caloriesLabel(for: recipe),
+            ratingLabel: ratingLabel(for: recipe.id.uuidString, base: 4.6, range: 4),
+            artwork: .recipe(recipe),
+            destinationRecipeID: recipe.id
+        )
+    }
+
+    private func makeDemoRecentImportCard(
+        _ pair: EnumeratedSequence<[DemoRecipeScenario]>.Element
+    ) -> RecentImportCard {
+        let sourceLabel = Self.demoSourceLabels[(pair.offset + daySeed) % Self.demoSourceLabels.count]
+
+        return RecentImportCard(
+            id: "recent-demo-\(pair.element.id)",
+            title: pair.element.title,
+            sourceLabel: sourceLabel,
+            durationLabel: "\(pair.element.prepMinutes + pair.element.cookMinutes)m",
+            caloriesLabel: "\(420 + (stableNumber(for: pair.element.id) % 5) * 55) kcal",
+            ratingLabel: ratingLabel(for: pair.element.id, base: 4.6, range: 4),
+            artwork: .demo(pair.element),
+            destinationRecipeID: nil
+        )
+    }
+
+    private func rotatedScenarios(prefixCount: Int) -> [DemoRecipeScenario] {
+        guard !DemoRecipeCatalog.scenarios.isEmpty else { return [] }
+
+        let scenarios = DemoRecipeCatalog.scenarios
+        let offset = daySeed % scenarios.count
+        let rotated = Array(scenarios[offset...]) + Array(scenarios[..<offset])
+        return Array(rotated.prefix(prefixCount))
+    }
+
+    private func sourceLabel(for recipe: Recipe) -> String {
+        guard let host = recipe.sourceURL?.host(percentEncoded: false)?.lowercased() else {
+            return "Cooksy"
+        }
+
+        if host.contains("tiktok") {
+            return "TikTok"
+        }
+
+        if host.contains("instagram") {
+            return "Instagram"
+        }
+
+        if host.contains("youtube") || host.contains("youtu.be") {
+            return "YouTube"
+        }
+
+        if host.contains("pinterest") || host.contains("pin.it") {
+            return "Pinterest"
+        }
+
+        return "Web"
+    }
+
+    private func durationLabel(for recipe: Recipe) -> String {
+        let prep = recipe.details.prepTimeMinutes ?? 0
+        let cook = recipe.details.cookTimeMinutes ?? 0
+        let total = prep + cook
+
+        if total > 0 {
+            return "\(total)m"
+        }
+
+        if prep > 0 {
+            return "\(prep)m"
+        }
+
+        if cook > 0 {
+            return "\(cook)m"
+        }
+
+        return "\(20 + (stableNumber(for: recipe.id.uuidString) % 4) * 5)m"
+    }
+
+    private func caloriesLabel(for recipe: Recipe) -> String {
+        if let calories = recipe.nutrition?.calories?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !calories.isEmpty {
+            if calories.localizedCaseInsensitiveContains("kcal") {
+                return calories
+            }
+
+            return "\(calories) kcal"
+        }
+
+        return "\(320 + (stableNumber(for: recipe.id.uuidString) % 6) * 60) kcal"
+    }
+
+    private func ratingLabel(for key: String, base: Double, range: Int) -> String {
+        let stepCount = max(range, 1)
+        let rating = base + Double(stableNumber(for: key) % stepCount) * 0.1
+        return String(format: "%.1f", rating)
+    }
+
+    private func stableNumber(for value: String) -> Int {
+        value.unicodeScalars.reduce(0) { partialResult, scalar in
+            partialResult + Int(scalar.value)
+        }
+    }
+
+    private func refreshDailyContentIfNeeded(referenceDate: Date = .now) {
+        guard !calendar.isDate(dayRefreshDate, inSameDayAs: referenceDate) else { return }
+        dayRefreshDate = referenceDate
+        scheduleMidnightRefresh(referenceDate: referenceDate)
+    }
+
+    private func scheduleMidnightRefresh(referenceDate: Date = .now) {
+        midnightRefreshTimer?.invalidate()
+
+        let nextMidnight = calendar.nextDate(
+            after: referenceDate,
+            matching: DateComponents(hour: 0, minute: 0, second: 0),
+            matchingPolicy: .nextTime
+        ) ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: referenceDate)) ?? referenceDate.addingTimeInterval(86_400)
+
+        let interval = max(nextMidnight.timeIntervalSince(referenceDate), 1)
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.dayRefreshDate = .now
+                self.scheduleMidnightRefresh()
+            }
+        }
+
+        midnightRefreshTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private static let demoSourceLabels = [
+        "TikTok",
+        "Instagram",
+        "TikTok",
+        "Instagram",
+        "Pinterest",
+        "YouTube"
+    ]
+
+    private static let trendingHandles = [
+        "@brunchbae",
+        "@miguelcooks",
+        "@sweetmatcha_",
+        "@ramennotes",
+        "@pastadiary",
+        "@toastatelier",
+        "@cookwithlina",
+        "@dailydishclub"
+    ]
 }
 
 private extension Calendar {
-    static var cooksyFrenchHome: Calendar {
+    static var cooksyHomeCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "fr_FR")
-        calendar.firstWeekday = 2
+        calendar.locale = Locale(identifier: "en_US_POSIX")
         return calendar
-    }
-
-    func startOfWeek(for date: Date) -> Date {
-        if let interval = dateInterval(of: .weekOfYear, for: date) {
-            return startOfDay(for: interval.start)
-        }
-
-        return startOfDay(for: date)
-    }
-}
-
-private extension MealPlanEntry.MealKind {
-    var homeTitle: String {
-        switch self {
-        case .breakfast:
-            return "Petit déjeuner"
-        case .lunch:
-            return "Déjeuner"
-        case .dinner:
-            return "Dîner"
-        }
-    }
-
-    var homeSortOrder: Int {
-        switch self {
-        case .breakfast:
-            return 0
-        case .lunch:
-            return 1
-        case .dinner:
-            return 2
-        }
     }
 }

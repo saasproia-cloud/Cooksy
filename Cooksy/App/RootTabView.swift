@@ -44,11 +44,12 @@ struct RootTabView: View {
                         sharedLinkInbox: sharedLinkInbox,
                         openRecipesTab: { selection = .recipes },
                         openPlanTab: { selection = .plan },
-                        openImportSheet: { showsQuickImportSheet = true }
+                        openImportSheet: { showsQuickImportSheet = true },
+                        openProfileTab: { selection = .more }
                     )
                 }
                 .tabItem {
-                    Label("Accueil", systemImage: "house.fill")
+                    Label("Home", systemImage: "house.fill")
                 }
                 .tag(AppTab.home)
 
@@ -56,7 +57,7 @@ struct RootTabView: View {
                     MealPlanView(store: recipeStore)
                 }
                 .tabItem {
-                    Label("Plan", systemImage: "calendar")
+                    Label("Planner", systemImage: "calendar")
                 }
                 .tag(AppTab.plan)
 
@@ -68,28 +69,28 @@ struct RootTabView: View {
                     )
                 }
                 .tabItem {
-                    Label("Recettes", systemImage: "bookmark.fill")
+                    Label("Library", systemImage: "book.closed")
                 }
                 .tag(AppTab.recipes)
 
                 NavigationStack {
                     PlaceholderView(
-                        title: "Plus",
-                        message: "Cette section accueillera les reglages, l'aide et les integrations.",
-                        systemImage: "line.3.horizontal"
+                        title: "Profile",
+                        message: "Your account, settings and saved routines will live here soon.",
+                        systemImage: "person.crop.circle"
                     )
                 }
                 .tabItem {
-                    Label("Plus", systemImage: "line.3.horizontal")
+                    Label("Profile", systemImage: "person")
                 }
                 .tag(AppTab.more)
             }
 
-            if selection == .recipes {
-                FloatingImportButton {
+            if !isProcessingSharedImport && !showsLaunchSplash && !showsPostSplashHero {
+                RootQuickImportButton {
                     showsQuickImportSheet = true
                 }
-                .padding(.bottom, 16)
+                .padding(.bottom, 18)
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -518,174 +519,248 @@ private struct SavedImportedRecipeRoute: Identifiable {
     var id: Recipe.ID { recipeID }
 }
 
-private struct FloatingImportButton: View {
+private struct RootQuickImportButton: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .bold))
-
-                Text("Importer")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .frame(height: 56)
-            .background(
-                Capsule(style: .continuous)
+            ZStack {
+                Circle()
                     .fill(CooksyTheme.accentGradient)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
-            )
+                    .frame(width: 62, height: 62)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                    )
+
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+            }
             .shadow(color: CooksyTheme.ctaOrange.opacity(0.3), radius: 18, y: 10)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Importer une recette")
     }
 }
 
 private struct RootSharedImportOverlay: View {
     let hostLabel: String
     let isVideoImport: Bool
-    @State private var pulses = false
+
+    @State private var activeStepIndex = 0
+    @State private var activeMessageIndex = 0
+    @State private var orbPulse = false
+    @State private var orbSpin = false
 
     var body: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    CooksyTheme.background.opacity(0.68),
-                    CooksyTheme.primaryAccentSoft.opacity(0.42)
+                    CooksyTheme.background.opacity(0.72),
+                    CooksyTheme.primaryAccentSoft.opacity(0.38)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-                .ignoresSafeArea()
+            .ignoresSafeArea()
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+            VStack(alignment: .leading, spacing: 14) {
+                headerRow
+                heroRow
+                progressBar
+                stepList
+                previewSection
+            }
+            .padding(20)
+            .frame(maxWidth: 344)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white, CooksyTheme.elevatedSurface],
+                            colors: [Color.white.opacity(0.98), CooksyTheme.elevatedSurface],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 30, style: .continuous)
-                            .stroke(CooksyTheme.stroke.opacity(0.75), lineWidth: 1.2)
-                    )
-                    .shadow(color: CooksyTheme.shadow, radius: 26, y: 14)
-
-                Circle()
-                    .fill(CooksyTheme.secondaryAccentSoft.opacity(0.9))
-                    .frame(width: 170, height: 170)
-                    .blur(radius: 4)
-                    .offset(x: 112, y: -104)
-
-                Circle()
-                    .fill(CooksyTheme.primaryAccentSoft.opacity(0.88))
-                    .frame(width: 132, height: 132)
-                    .blur(radius: 3)
-                    .offset(x: -116, y: 120)
-
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(spacing: 10) {
-                        overlayPill(
-                            text: isVideoImport ? "Import video" : "Import partage",
-                            textColor: CooksyTheme.ctaOrangeDark,
-                            fill: CooksyTheme.blush.opacity(0.92)
-                        )
-
-                        if let trimmedHost = trimmedHostLabel {
-                            overlayPill(
-                                text: trimmedHost,
-                                textColor: CooksyTheme.brandBlueDark,
-                                fill: CooksyTheme.softCloud.opacity(0.92)
-                            )
-                        }
-                    }
-
-                    HStack(alignment: .center, spacing: 18) {
-                        loadingOrb
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(isVideoImport ? "Cooksy reconstruit votre video" : "Cooksy prepare votre recette")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Text(importMessage)
-                                .font(.system(size: 15, weight: .medium, design: .rounded))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-
-                    VStack(spacing: 10) {
-                        ForEach(Array(stepItems.enumerated()), id: \.offset) { _, step in
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(step.tint.opacity(0.14))
-                                        .frame(width: 34, height: 34)
-
-                                    Image(systemName: step.icon)
-                                        .font(.system(size: 15, weight: .bold))
-                                        .foregroundStyle(step.tint)
-                                }
-
-                                Text(step.title)
-                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(CooksyTheme.primaryText)
-
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.horizontal, 14)
-                            .frame(height: 48)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.white.opacity(0.88))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(CooksyTheme.stroke.opacity(0.55), lineWidth: 1)
-                                    )
-                            )
-                        }
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 26)
-            }
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(CooksyTheme.stroke.opacity(0.78), lineWidth: 1)
+            )
+            .shadow(color: CooksyTheme.shadow, radius: 28, y: 14)
             .padding(.horizontal, 24)
-            .frame(maxWidth: 372)
+        }
+        .task {
+            await runProgressLoop()
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.45).repeatForever(autoreverses: true)) {
-                pulses = true
+            withAnimation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) {
+                orbPulse = true
+            }
+
+            withAnimation(.linear(duration: 4.2).repeatForever(autoreverses: false)) {
+                orbSpin = true
             }
         }
     }
 
-    private var importMessage: String {
-        guard let trimmedHost = trimmedHostLabel else {
-            return isVideoImport
-                ? "Nous lisons la video, recuperons les bons indices et recomposons les ingredients et les etapes."
-                : "Nous analysons le partage et rassemblons les ingredients, l'image et les etapes."
-        }
+    private var headerRow: some View {
+        HStack(spacing: 8) {
+            overlayPill(
+                text: isVideoImport ? "Import vidéo" : "Import partagé",
+                textColor: CooksyTheme.ctaOrangeDark,
+                fill: CooksyTheme.blush.opacity(0.92)
+            )
 
-        if isVideoImport {
-            return "Nous recuperons la video depuis \(trimmedHost) et reconstruisons une recette claire pour vous."
-        }
+            if let trimmedHost = trimmedHostLabel {
+                overlayPill(
+                    text: trimmedHost,
+                    textColor: CooksyTheme.brandBlueDark,
+                    fill: CooksyTheme.softCloud.opacity(0.92)
+                )
+            }
 
-        return "Nous analysons le partage depuis \(trimmedHost) et reconstruisons la recette pour vous."
+            Spacer(minLength: 0)
+
+            Text("\(min(activeStepIndex + 1, progressSteps.count))/\(progressSteps.count)")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(CooksyTheme.surface)
+                )
+        }
+    }
+
+    private var heroRow: some View {
+        HStack(alignment: .center, spacing: 16) {
+            loadingOrb
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isVideoImport ? "Cooksy finalise votre vidéo" : "Cooksy prépare votre recette")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(currentMessage)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .lineSpacing(2)
+                    .contentTransition(.opacity)
+            }
+        }
+    }
+
+    private var progressBar: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.stroke.opacity(0.52))
+
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.accentGradient)
+                    .frame(width: max(26, proxy.size.width * progressValue))
+            }
+        }
+        .frame(height: 8)
+    }
+
+    private var stepList: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(progressSteps.enumerated()), id: \.offset) { index, step in
+                HStack(spacing: 12) {
+                    RootSharedImportStepIcon(state: stepState(for: index), tint: step.tint)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.title)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+
+                        Text(stepStatusText(for: index))
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(stepRowBackground(for: index))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(stepRowBorder(for: index), lineWidth: 1)
+                )
+            }
+        }
+    }
+
+    private var previewSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Aperçu en préparation")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+
+                Spacer(minLength: 0)
+
+                Text("Recette propre")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            }
+
+            HStack(alignment: .top, spacing: 12) {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(CooksyTheme.warmCard.opacity(0.55))
+                    .frame(width: 78, height: 78)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    skeletonLine(width: 128, height: 12)
+                    skeletonLine(width: 96, height: 10)
+
+                    HStack(spacing: 8) {
+                        skeletonCapsule(width: 56)
+                        skeletonCapsule(width: 66)
+                        skeletonCapsule(width: 48)
+                    }
+
+                    skeletonLine(width: 152, height: 9)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(CooksyTheme.surface.opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
     }
 
     private var trimmedHostLabel: String? {
         let trimmedHost = hostLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedHost.isEmpty ? nil : trimmedHost
+    }
+
+    private var currentMessage: String {
+        let step = progressSteps[min(activeStepIndex, progressSteps.count - 1)]
+        let messageIndex = min(activeMessageIndex, step.messages.count - 1)
+        return step.messages[messageIndex]
+    }
+
+    private var progressValue: Double {
+        let completed = Double(min(activeStepIndex, max(progressSteps.count - 1, 0)))
+        let partial = activeStepIndex < progressSteps.count - 1
+            ? Double(activeMessageIndex + 1) / Double(max(progressSteps[activeStepIndex].messages.count, 1))
+            : 1
+        return min((completed + partial) / Double(max(progressSteps.count, 1)), 1)
     }
 
     private var loadingOrb: some View {
@@ -700,55 +775,269 @@ private struct RootSharedImportOverlay: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 104, height: 104)
+                .frame(width: 88, height: 88)
 
             Circle()
-                .stroke(Color.white.opacity(0.22), lineWidth: 12)
-                .frame(width: 104, height: 104)
-                .scaleEffect(pulses ? 1.08 : 0.92)
-                .opacity(pulses ? 0.2 : 0.56)
+                .trim(from: 0.08, to: 0.76)
+                .stroke(
+                    Color.white.opacity(0.85),
+                    style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                )
+                .frame(width: 98, height: 98)
+                .rotationEffect(.degrees(orbSpin ? 360 : 0))
+                .opacity(0.92)
 
             Circle()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 74, height: 74)
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 62, height: 62)
+                .scaleEffect(orbPulse ? 1.06 : 0.92)
 
             Image(systemName: isVideoImport ? "play.rectangle.fill" : "sparkles")
-                .font(.system(size: 31, weight: .bold))
+                .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(.white)
-
-            ProgressView()
-                .tint(.white)
-                .scaleEffect(1.02)
-                .offset(y: 56)
         }
     }
 
-    private var stepItems: [(icon: String, title: String, tint: Color)] {
+    private var progressSteps: [RootSharedImportProgressStep] {
         if isVideoImport {
             return [
-                ("play.rectangle.fill", "Lecture de la video partagee", CooksyTheme.brandBlueDark),
-                ("sparkles", "Extraction des ingredients et des gestes", CooksyTheme.ctaOrangeDark),
-                ("list.bullet.rectangle.fill", "Preparation de la fiche recette", Color(hex: 0x5C7A46))
+                RootSharedImportProgressStep(
+                    title: "Analyse de la vidéo",
+                    tint: CooksyTheme.brandBlueDark,
+                    messages: [
+                        "Lecture de la vidéo partagée…",
+                        "Détection du plat principal…",
+                        "Nettoyage du contexte TikTok…"
+                    ]
+                ),
+                RootSharedImportProgressStep(
+                    title: "Extraction des ingrédients",
+                    tint: CooksyTheme.ctaOrangeDark,
+                    messages: [
+                        "Extraction des ingrédients utiles…",
+                        "Nettoyage des quantités détectées…"
+                    ]
+                ),
+                RootSharedImportProgressStep(
+                    title: "Génération de la recette",
+                    tint: Color(hex: 0x5C7A46),
+                    messages: [
+                        "Préparation des étapes Cooksy…",
+                        "Organisation de la fiche recette…"
+                    ]
+                ),
+                RootSharedImportProgressStep(
+                    title: "Calcul nutritionnel",
+                    tint: Color(hex: 0x8C73D8),
+                    messages: [
+                        "Calcul des macros et des calories…",
+                        "Vérification finale avant ouverture…"
+                    ]
+                )
             ]
         }
 
         return [
-            ("link", "Lecture du partage", CooksyTheme.brandBlueDark),
-            ("doc.text.fill", "Analyse du contenu", CooksyTheme.ctaOrangeDark),
-            ("square.and.arrow.down.fill", "Preparation dans Cooksy", Color(hex: 0x5C7A46))
+            RootSharedImportProgressStep(
+                title: "Analyse du partage",
+                tint: CooksyTheme.brandBlueDark,
+                messages: [
+                    "Lecture du lien partagé…",
+                    "Détection du plat et du contexte…"
+                ]
+            ),
+            RootSharedImportProgressStep(
+                title: "Extraction des ingrédients",
+                tint: CooksyTheme.ctaOrangeDark,
+                messages: [
+                    "Nettoyage des ingrédients importés…",
+                    "Préparation des quantités utiles…"
+                ]
+            ),
+            RootSharedImportProgressStep(
+                title: "Génération de la recette",
+                tint: Color(hex: 0x5C7A46),
+                messages: [
+                    "Reconstruction de la recette…",
+                    "Préparation des étapes Cooksy…"
+                ]
+            ),
+            RootSharedImportProgressStep(
+                title: "Calcul nutritionnel",
+                tint: Color(hex: 0x8C73D8),
+                messages: [
+                    "Estimation des macros…",
+                    "Finalisation de l’import…"
+                ]
+            )
         ]
+    }
+
+    private func stepState(for index: Int) -> RootSharedImportStepState {
+        if index < activeStepIndex {
+            return .completed
+        }
+        if index == activeStepIndex {
+            return .active
+        }
+        return .pending
+    }
+
+    private func stepStatusText(for index: Int) -> String {
+        switch stepState(for: index) {
+        case .completed:
+            return "Terminé"
+        case .active:
+            return "En cours"
+        case .pending:
+            return "En attente"
+        }
+    }
+
+    private func stepRowBackground(for index: Int) -> Color {
+        switch stepState(for: index) {
+        case .completed:
+            return CooksyTheme.softCloud.opacity(0.46)
+        case .active:
+            return CooksyTheme.blush.opacity(0.72)
+        case .pending:
+            return Color.white.opacity(0.76)
+        }
+    }
+
+    private func stepRowBorder(for index: Int) -> Color {
+        switch stepState(for: index) {
+        case .completed:
+            return CooksyTheme.brandBlue.opacity(0.22)
+        case .active:
+            return CooksyTheme.ctaOrange.opacity(0.22)
+        case .pending:
+            return CooksyTheme.stroke.opacity(0.92)
+        }
     }
 
     private func overlayPill(text: String, textColor: Color, fill: Color) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .font(.system(size: 11, weight: .bold, design: .rounded))
             .foregroundStyle(textColor)
-            .padding(.horizontal, 12)
-            .frame(height: 30)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
             .background(
                 Capsule(style: .continuous)
                     .fill(fill)
             )
+    }
+
+    private func skeletonLine(width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+            .fill(Color.white.opacity(0.76))
+            .frame(width: width, height: height)
+    }
+
+    private func skeletonCapsule(width: CGFloat) -> some View {
+        Capsule(style: .continuous)
+            .fill(Color.white.opacity(0.76))
+            .frame(width: width, height: 22)
+    }
+
+    private func runProgressLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1.1))
+            guard !Task.isCancelled else { break }
+
+            await MainActor.run {
+                let messages = progressSteps[activeStepIndex].messages
+                if activeMessageIndex < messages.count - 1 {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        activeMessageIndex += 1
+                    }
+                } else if activeStepIndex < progressSteps.count - 1 {
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
+                        activeStepIndex += 1
+                        activeMessageIndex = 0
+                    }
+                } else {
+                    activeMessageIndex = (activeMessageIndex + 1) % messages.count
+                }
+            }
+        }
+    }
+}
+
+private enum RootSharedImportStepState: Equatable {
+    case completed
+    case active
+    case pending
+}
+
+private struct RootSharedImportProgressStep {
+    let title: String
+    let tint: Color
+    let messages: [String]
+}
+
+private struct RootSharedImportStepIcon: View {
+    let state: RootSharedImportStepState
+    let tint: Color
+
+    @State private var spin = false
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            switch state {
+            case .completed:
+                Circle()
+                    .fill(tint)
+                    .frame(width: 28, height: 28)
+
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+
+            case .active:
+                Circle()
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 28, height: 28)
+                    .scaleEffect(pulse ? 1.08 : 0.92)
+
+                Circle()
+                    .trim(from: 0.08, to: 0.72)
+                    .stroke(
+                        tint,
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                    )
+                    .frame(width: 28, height: 28)
+                    .rotationEffect(.degrees(spin ? 360 : 0))
+
+            case .pending:
+                Circle()
+                    .stroke(CooksyTheme.stroke, lineWidth: 2)
+                    .frame(width: 28, height: 28)
+            }
+        }
+        .onAppear {
+            refreshAnimations()
+        }
+        .onChange(of: state) { _, _ in
+            refreshAnimations()
+        }
+    }
+
+    private func refreshAnimations() {
+        guard state == .active else {
+            spin = false
+            pulse = false
+            return
+        }
+
+        withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+            spin = true
+        }
+
+        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            pulse = true
+        }
     }
 }
 
