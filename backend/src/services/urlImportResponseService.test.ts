@@ -242,3 +242,57 @@ test("buildURLImportResponse removes transcript junk from imported ingredients",
   assert.ok(ingredientNames.includes("lait"));
   assert.ok(ingredientNames.includes("oeufs"));
 });
+
+test("buildURLImportResponse expands a naan sandwich import into a fuller multi-step recipe", async () => {
+  const recipe: RecipeImportResult = {
+    title: "Sandwich Naan",
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/777888999",
+    remoteImageUrl: "",
+    ingredientDrafts: [
+      { amount: "300", unit: "g", name: "farine", nutritionQuery: "flour" },
+      { amount: "6", unit: "g", name: "levure deshydratee", nutritionQuery: "dry yeast" },
+      { amount: "125", unit: "g", name: "yaourt nature", nutritionQuery: "plain yogurt" },
+      { amount: "60", unit: "ml", name: "eau tiede", nutritionQuery: "water" },
+      { amount: "30", unit: "g", name: "beurre mou", nutritionQuery: "butter" },
+      { amount: "320", unit: "g", name: "blanc de poulet", nutritionQuery: "chicken breast" },
+      { amount: "2", unit: "", name: "flatbread", nutritionQuery: "flatbread" },
+      { amount: "2", unit: "tranches", name: "cheddar", nutritionQuery: "cheddar cheese" },
+      { amount: "1", unit: "", name: "oignon", nutritionQuery: "onion" },
+      { amount: "60", unit: "g", name: "salade", nutritionQuery: "lettuce" },
+      { amount: "2", unit: "cas", name: "sauce yaourt", nutritionQuery: "yogurt sauce" }
+    ],
+    stepDrafts: [
+      { detail: "Preparez les garnitures en emincant l'oignon et en assaisonnant le poulet." },
+      { detail: "Faites cuire le poulet dans une poele chaude jusqu'a ce qu'il soit bien dore." },
+      { detail: "Toastez le flatbread puis preparez la garniture avec la salade et la sauce." },
+      { detail: "Montez le sandwich naan avec le flatbread, le poulet et les garnitures." }
+    ],
+    notesText: "",
+    prepTimeText: "",
+    cookTimeText: "",
+    servingsText: "2",
+    caloriesText: "",
+    proteinText: "",
+    carbsText: "",
+    fatText: "",
+    confidence: "medium",
+    needsWebFallback: false,
+    searchQuery: "Sandwich Naan recette",
+    inferredFromPhoto: false
+  };
+
+  const response = await buildURLImportResponse({
+    recipe,
+    sourceUrl: "https://www.tiktok.com/@cooksy/video/777888999"
+  });
+
+  assert.equal(response.success, true);
+
+  if (!response.success) {
+    assert.fail("expected a success response");
+  }
+
+  assert.ok(response.data.steps.length >= 6);
+  assert.ok(response.data.steps.some((step) => /levure|pate|pâte|naan/i.test(step.description)));
+  assert.ok(response.data.steps.some((step) => /poulet|sauce|salade/i.test(step.description)));
+});

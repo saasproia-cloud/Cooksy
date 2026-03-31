@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
-import { sanitizeRecipeImport, type RecipeImportResult, type RecipeIngredientDraft } from "../types/recipe.js";
+import {
+  hasCookabilityGaps,
+  sanitizeRecipeImport,
+  type RecipeImportResult,
+  type RecipeIngredientDraft
+} from "../types/recipe.js";
 import { normalizeWhitespace } from "../utils/text.js";
 
 const URL_IMPORT_FAILURE_MESSAGE = "Impossible de générer la recette";
@@ -171,22 +176,28 @@ function ensureCompleteSteps(
   ingredients: URLImportSuccessResponse["data"]["ingredients"]
 ): URLImportSuccessResponse["data"]["steps"] {
   const explicitSteps = normalizeSteps(recipe);
-  if (explicitSteps.length >= 4) {
+  const requiredStepCount = minimumGeneratedStepCount(title, ingredients);
+  const needsCookabilityUpgrade = hasCookabilityGaps({
+    ingredientDrafts: recipe.ingredientDrafts,
+    stepDrafts: explicitSteps.map((step) => ({ detail: step.description }))
+  });
+
+  if (explicitSteps.length >= requiredStepCount && !needsCookabilityUpgrade) {
     return explicitSteps;
   }
 
   const rebuiltSteps = dedupeStepDescriptions([
-    ...explicitSteps.map((step) => step.description),
-    ...generatedStepsForRecipe(title, ingredients)
+    ...generatedStepsForRecipe(title, ingredients),
+    ...explicitSteps.map((step) => step.description)
   ])
     .filter((description) => isUsableCookingInstruction(description))
-    .slice(0, 6)
+    .slice(0, 8)
     .map((description, index) => ({
       stepNumber: index + 1,
       description
     }));
 
-  if (rebuiltSteps.length >= 4) {
+  if (rebuiltSteps.length >= requiredStepCount) {
     return rebuiltSteps;
   }
 
@@ -500,8 +511,9 @@ function generatedStepsForRecipe(
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+  const ingredientSignals = generatedIngredientSignals(ingredients);
   const protein = preferredIngredient(ingredients, [/\bpoulet\b/i, /\bboeuf\b/i, /\bburger\b/i, /\bviande\b/i, /\bpoisson\b/i], "garniture principale");
-  const bread = preferredIngredient(ingredients, [/\bpain\b/i, /\bbun\b/i, /\bnaan\b/i, /\bwrap\b/i, /\btortilla\b/i], "support");
+  const bread = preferredIngredient(ingredients, [/\bpain\b/i, /\bbun\b/i, /\bnaan\b/i, /\bwrap\b/i, /\btortilla\b/i, /\bflatbread\b/i], "support");
   const greens = preferredIngredient(ingredients, [/\bsalade\b/i, /\blaitue\b/i, /\bcabbage\b/i, /\bchou\b/i], "garniture");
   const sauce = preferredIngredient(ingredients, [/\bsauce\b/i, /\bcreme\b/i, /\bcrème\b/i, /\byaourt\b/i], "sauce");
   const aromatic = preferredIngredient(ingredients, [/\boignon\b/i, /\bail\b/i, /\btomate\b/i, /\bchampignon\b/i], "aromates");
@@ -510,13 +522,30 @@ function generatedStepsForRecipe(
   const eggs = preferredIngredient(ingredients, [/\boeufs?\b/i, /\bœufs?\b/i, /\beggs?\b/i], "oeufs");
   const butter = preferredIngredient(ingredients, [/\bbeurre\b/i, /\bbutter\b/i], "beurre");
   const sugar = preferredIngredient(ingredients, [/\bsucre\b/i, /\bsugar\b/i, /\bvanille\b/i, /\bvanilla\b/i], "sucre");
+  const yeast = preferredIngredient(ingredients, [/\blevure\b/i, /\byeast\b/i], "levure");
+  const water = preferredIngredient(ingredients, [/\beau\b/i, /\bwater\b/i], "eau tiède");
+  const yogurt = preferredIngredient(ingredients, [/\byaourt\b/i, /\byogurt\b/i, /\bfromage blanc\b/i], "yaourt");
+  const cheese = preferredIngredient(ingredients, [/\bfromage\b/i, /\bcheddar\b/i, /\bmozzarella\b/i, /\bparmesan\b/i], "fromage");
 
   if (/\b(?:crepes?|crêpes?|pancakes?)\b/.test(normalizedTitle)) {
     return [
-      `Mélangez le ${flour} avec le ${sugar}, puis incorporez progressivement les ${eggs} et le ${milk} jusqu'à obtenir une pâte lisse.`,
-      `Ajoutez le ${butter} fondu, mélangez une dernière fois et laissez reposer la pâte quelques minutes pour l'assouplir.`,
-      "Chauffez une poêle légèrement beurrée, versez une petite louche de pâte puis inclinez la poêle pour bien la répartir.",
-      "Faites cuire chaque crêpe jusqu'à ce qu'elle soit dorée des deux côtés, puis répétez avec le reste de la pâte avant de servir."
+      `Versez le ${flour} et le ${sugar} dans un saladier, puis formez un puits au centre.`,
+      `Incorporez les ${eggs}, puis fouettez en versant progressivement le ${milk} pour obtenir une pâte bien lisse.`,
+      `Ajoutez le ${butter} fondu, mélangez une dernière fois et laissez reposer la pâte quelques minutes.`,
+      "Chauffez une poêle légèrement beurrée, versez une louche de pâte et répartissez-la en une couche fine.",
+      "Faites cuire la crêpe jusqu'à ce que les bords se décollent, retournez-la, puis répétez avec le reste de la pâte avant de servir."
+    ];
+  }
+
+  if (/\b(?:burger|sandwich|naan|toast)\b/.test(normalizedTitle) && ingredientSignals.hasBreadDoughBase && ingredientSignals.hasProtein) {
+    return [
+      `Diluez la ${yeast} dans la ${water} avec un peu de ${sugar}, puis laissez mousser quelques minutes.`,
+      `Mélangez le ${flour} avec l'assaisonnement, ajoutez le ${yogurt} et la levure diluée, puis pétrissez jusqu'à obtenir une pâte souple.`,
+      `Incorporez le ${butter}, couvrez la pâte et laissez-la reposer jusqu'à ce qu'elle gonfle légèrement.`,
+      "Divisez la pâte en portions, étalez-les en disques puis faites cuire les naans dans une poêle bien chaude jusqu'à ce qu'ils soient dorés par endroits.",
+      `Préparez la garniture en éminçant le ${aromatic}, en lavant la ${greens} et en assaisonnant le ${protein}.`,
+      `Faites cuire le ${protein} jusqu'à ce qu'il soit bien doré et cuit à cœur, puis ajoutez éventuellement le ${cheese} pour le faire fondre légèrement.`,
+      `Garnissez chaque ${bread} ou naan avec la ${sauce}, la ${greens}, le ${protein} et les autres garnitures, puis servez aussitôt.`
     ];
   }
 
@@ -524,7 +553,8 @@ function generatedStepsForRecipe(
     return [
       `Préparez les garnitures en éminçant le ${aromatic} et en assaisonnant le ${protein}.`,
       `Faites cuire le ${protein} dans une poêle chaude jusqu'à ce qu'il soit bien doré et cuit à cœur.`,
-      `Toastez le ${bread} puis préparez la garniture avec la ${greens} et la ${sauce}.`,
+      `Préparez les accompagnements en lavant la ${greens}, en ajoutant la ${sauce} et en gardant le ${bread} prêt à être garni.`,
+      `Réchauffez ou toastez le ${bread} pour lui redonner du moelleux et un peu de croustillant.`,
       `Montez le ${title.toLocaleLowerCase()} avec le ${bread}, le ${protein}, les garnitures et la sauce, puis servez aussitôt.`
     ];
   }
@@ -532,6 +562,7 @@ function generatedStepsForRecipe(
   if (/\bwrap\b/.test(normalizedTitle)) {
     return [
       `Assaisonnez le ${protein} puis faites-le cuire jusqu'à ce qu'il soit bien doré.`,
+      `Préparez la garniture en éminçant le ${aromatic} et en gardant la ${greens} et la ${sauce} à portée de main.`,
       `Réchauffez le ${bread} quelques secondes pour l'assouplir sans le dessécher.`,
       `Disposez la ${greens}, le ${protein}, le ${aromatic} et la ${sauce} au centre du ${bread}.`,
       `Rabattez les côtés, roulez le ${title.toLocaleLowerCase()} bien serré et servez immédiatement.`
@@ -568,9 +599,10 @@ function generatedStepsForRecipe(
   if (/\b(?:cake|gateau|gâteau|brownie|cookie|dessert|tiramisu)\b/.test(normalizedTitle)) {
     return [
       "Préparez tous les ingrédients et préchauffez le four ou le matériel nécessaire selon la recette.",
-      "Mélangez les ingrédients secs, puis incorporez progressivement les ingrédients humides jusqu'à obtenir une pâte homogène.",
+      "Mélangez les ingrédients secs dans un premier récipient et les ingrédients humides dans un second.",
+      "Réunissez les deux préparations sans trop travailler la pâte afin de conserver une texture homogène.",
       `Versez la préparation dans le moule ou le plat adapté, puis faites cuire jusqu'à ce que le ${title.toLocaleLowerCase()} soit pris.`,
-      "Laissez tiédir quelques minutes avant de découper ou de dresser, puis servez."
+      "Laissez tiédir quelques minutes avant de démouler, découper ou dresser, puis servez."
     ];
   }
 
@@ -592,6 +624,61 @@ function preferredIngredient(
   );
 
   return match?.name || fallback;
+}
+
+function minimumGeneratedStepCount(
+  title: string,
+  ingredients: URLImportSuccessResponse["data"]["ingredients"]
+): number {
+  const normalizedTitle = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const ingredientSignals = generatedIngredientSignals(ingredients);
+
+  if (/\b(?:omelette|toast|croque|quesadilla|tartine)\b/.test(normalizedTitle)) {
+    return 2;
+  }
+
+  if (/\b(?:crepes?|crêpes?|pancakes?)\b/.test(normalizedTitle)) {
+    return 5;
+  }
+
+  if (/\b(?:burger|sandwich|naan|wrap|taco)\b/.test(normalizedTitle)) {
+    if (ingredientSignals.hasBreadDoughBase && ingredientSignals.hasProtein) {
+      return 7;
+    }
+
+    if (ingredientSignals.hasProtein || ingredientSignals.hasAssemblyFillings) {
+      return 5;
+    }
+  }
+
+  if (/\b(?:cake|gateau|gâteau|brownie|cookie|dessert|tiramisu)\b/.test(normalizedTitle)) {
+    return 5;
+  }
+
+  return 4;
+}
+
+function generatedIngredientSignals(
+  ingredients: URLImportSuccessResponse["data"]["ingredients"]
+): {
+  hasBreadDoughBase: boolean;
+  hasProtein: boolean;
+  hasAssemblyFillings: boolean;
+} {
+  const hasFlour = ingredients.some((ingredient) => /\bfarine\b|\bflour\b/i.test(ingredient.name));
+  const hasLeavening = ingredients.some((ingredient) => /\blevure\b|\byeast\b|\bbaking powder\b|\blevure chimique\b/i.test(ingredient.name));
+  const hasDairyOrWater = ingredients.some((ingredient) => /\byaourt\b|\byogurt\b|\blait\b|\bmilk\b|\beau\b|\bwater\b/i.test(ingredient.name));
+  const hasProtein = ingredients.some((ingredient) => /\bpoulet\b|\bchicken\b|\bboeuf\b|\bburger\b|\bviande\b|\bpoisson\b|\bfish\b|\bsaumon\b|\btofu\b/i.test(ingredient.name));
+  const hasAssemblyFillings = ingredients.some((ingredient) => /\bsalade\b|\blettuce\b|\boignon\b|\bonion\b|\bfromage\b|\bcheddar\b|\bsauce\b|\btomate\b/i.test(ingredient.name));
+
+  return {
+    hasBreadDoughBase: hasFlour && hasLeavening && hasDairyOrWater,
+    hasProtein,
+    hasAssemblyFillings
+  };
 }
 
 const instructionVerbPattern = /\b(?:preparez|assaisonnez|faites|faites cuire|chauffez|cuisez|ajoutez|melangez|mélangez|versez|disposez|repartissez|répartissez|montez|assemblez|rabattez|roulez|etalez|étalez|rechauffez|réchauffez|toastez|fouettez|incorporez|laissez|servez|garnissez|saisissez|rectifiez|poursuivez|dressez|enfournez|coupez|emincez|émincez|detaillez|détaillez)\b/;

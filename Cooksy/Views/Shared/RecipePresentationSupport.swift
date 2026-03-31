@@ -2,10 +2,15 @@ import Foundation
 import UIKit
 
 enum RecipePresentationTab: String, CaseIterable, Identifiable {
-    case ingredients = "Ingredients"
-    case steps = "Steps"
+    case ingredients = "Ingrédients"
+    case steps = "Étapes"
 
     var id: String { rawValue }
+}
+
+enum RecipePresentationDensity {
+    case regular
+    case compact
 }
 
 struct RecipeIngredientPresentation: Identifiable, Hashable {
@@ -74,14 +79,14 @@ struct IngredientVisualResolution: Hashable {
 enum RecipePresentationFormatter {
     static func sourceButtonTitle(for sourceURL: URL?) -> String? {
         guard let host = sourceURL?.host(percentEncoded: false)?.lowercased() else { return nil }
-        if host.contains("tiktok") { return "Ouvrez TikTok" }
-        if host.contains("instagram") { return "Ouvrez Instagram" }
-        if host.contains("youtube") { return "Ouvrez YouTube" }
-        if host.contains("pinterest") { return "Ouvrez Pinterest" }
+        if host.contains("tiktok") { return "Ouvrir TikTok" }
+        if host.contains("instagram") { return "Ouvrir Instagram" }
+        if host.contains("youtube") { return "Ouvrir YouTube" }
+        if host.contains("pinterest") { return "Ouvrir Pinterest" }
         if host.contains("cooksy.app"), sourceURL?.path(percentEncoded: false).contains("/demo/") == true {
-            return "Voir la source demo"
+            return "Voir la démo source"
         }
-        return "Ouvrez la source"
+        return "Ouvrir la source"
     }
 
     static func sourceLabel(for sourceURL: URL?) -> String? {
@@ -143,15 +148,15 @@ enum RecipePresentationFormatter {
     }
 
     static func servingsLabel(for servings: Int) -> String {
-        servings > 1 ? "\(servings) servings" : "1 serving"
+        servings > 1 ? "\(servings) portions" : "1 portion"
     }
 
     static func selectedServingsLabel(for servings: Int) -> String {
-        servings > 1 ? "\(servings) people" : "1 person"
+        servings > 1 ? "\(servings) personnes" : "1 personne"
     }
 
     static func baseServingsCaption(for servings: Int) -> String {
-        "Base recipe: \(servings > 1 ? "\(servings) servings" : "1 serving")"
+        "Recette de base : \(servings > 1 ? "\(servings) portions" : "1 portion")"
     }
 
     static func summaryText(noteText: String?, title: String, totalTimeLabel: String?, baseServings: Int) -> String {
@@ -160,28 +165,28 @@ enum RecipePresentationFormatter {
         }
 
         if let totalTimeLabel {
-            return "\(title) ready in about \(totalTimeLabel.lowercased()) for \(servingsLabel(for: baseServings).lowercased())."
+            return "\(title) prêt en environ \(totalTimeLabel.lowercased()) pour \(servingsLabel(for: baseServings).lowercased())."
         }
 
-        return "\(title) organised for \(servingsLabel(for: baseServings).lowercased()) with clear ingredients and steps."
+        return "\(title) structuré avec des ingrédients clairs et des étapes prêtes à cuisiner pour \(servingsLabel(for: baseServings).lowercased())."
     }
 
     static func difficultyLabel(for recipe: Recipe?) -> String {
-        guard let recipe else { return "Medium" }
+        guard let recipe else { return "Intermédiaire" }
 
         let totalTime = (recipe.details.prepTimeMinutes ?? 0) + (recipe.details.cookTimeMinutes ?? 0)
         let ingredientCount = recipe.ingredients.count
         let stepCount = recipe.steps.count
 
         if totalTime >= 45 || ingredientCount >= 10 || stepCount >= 7 {
-            return "Hard"
+            return "Difficile"
         }
 
         if totalTime <= 20 && ingredientCount <= 6 && stepCount <= 4 {
-            return "Easy"
+            return "Facile"
         }
 
-        return "Medium"
+        return "Intermédiaire"
     }
 
     static func parseNumber(from text: String?) -> Double? {
@@ -345,6 +350,7 @@ actor IngredientPhotoStore {
     private let imageSession: URLSession
     private let imageCache = NSCache<NSString, UIImage>()
     private var resolvedURLs: [String: URL?] = [:]
+    private var attemptedKeys = Set<String>()
 
     init() {
         let configuration = URLSessionConfiguration.default
@@ -387,7 +393,7 @@ actor IngredientPhotoStore {
         let uniqueLookups = Dictionary(grouping: lookups, by: \.cacheKey)
             .compactMap { _, values in values.first }
 
-        let unresolved = uniqueLookups.filter { resolvedURLs[$0.cacheKey] == nil }
+        let unresolved = uniqueLookups.filter { !attemptedKeys.contains($0.cacheKey) }
         if !unresolved.isEmpty {
             await fetchResolvedURLs(for: unresolved)
         }
@@ -398,6 +404,10 @@ actor IngredientPhotoStore {
     }
 
     private func fetchResolvedURLs(for lookups: [IngredientPhotoLookup]) async {
+        for lookup in lookups {
+            attemptedKeys.insert(lookup.cacheKey)
+        }
+
         let requestItems = lookups.map { lookup in
             IngredientPhotoEnrichmentRequestItem(
                 id: lookup.cacheKey,
@@ -438,7 +448,6 @@ actor IngredientPhotoStore {
                 }
             }
         }
-
     }
 
     private func loadImage(from url: URL) async -> UIImage? {

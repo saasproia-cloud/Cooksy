@@ -42,9 +42,9 @@ struct ImportedRecipeReviewView: View {
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    reviewHeroSection
-                    reviewSummarySection
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    reviewTopBar
+                    reviewHeaderSection
 
                     if let importNotice = viewModel.importNotice {
                         inlineMessageCard(
@@ -60,13 +60,14 @@ struct ImportedRecipeReviewView: View {
                     reviewContentSection
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 176)
+                .padding(.top, 8)
+                .padding(.bottom, 132)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadRemoteImageIfNeeded()
+            await IngredientPhotoStore.shared.preload(for: viewModel.displayedIngredients.map(\.name))
         }
         .sheet(isPresented: $showsPlanSheet) {
             ImportRecipePlanSelectionSheet { day in
@@ -171,7 +172,8 @@ struct ImportedRecipeReviewView: View {
             currentServings: viewModel.currentServings,
             baseServings: viewModel.baseServings,
             onDecrease: { viewModel.changeServings(by: -1) },
-            onIncrease: { viewModel.changeServings(by: 1) }
+            onIncrease: { viewModel.changeServings(by: 1) },
+            density: .compact
         )
     }
 
@@ -180,8 +182,166 @@ struct ImportedRecipeReviewView: View {
             selectedTab: $selectedContentTab,
             ingredients: viewModel.displayedIngredients,
             steps: viewModel.instructions,
-            onCookStepByStep: { showsStepByStep = true }
+            onCookStepByStep: { showsStepByStep = true },
+            density: .compact
         )
+    }
+
+    private var reviewTopBar: some View {
+        HStack(spacing: 10) {
+            RecipePresentationActionIconButton(systemImage: "chevron.left") {
+                dismiss()
+            }
+
+            Spacer(minLength: 0)
+
+            RecipePresentationActionIconButton(systemImage: "square.and.arrow.up") {
+                showsShareSheet = true
+            }
+
+            Menu {
+                Button("Modifier") {
+                    showsEditor = true
+                }
+
+                if let sourceURL = viewModel.sourceURL {
+                    Button("Ouvrir la source") {
+                        openURL(sourceURL)
+                    }
+                }
+
+                Button("Signaler une erreur d'importation") {
+                    showsReportAlert = true
+                }
+            } label: {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.92))
+                    .frame(width: 38, height: 38)
+                    .overlay {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var reviewHeaderSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                CompactImportedRecipeThumbnail(
+                    image: viewModel.heroImage,
+                    creatorHandle: viewModel.creatorHandle,
+                    difficultyLabel: viewModel.difficultyLabel
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    if let sourceLabel = viewModel.sourceLabel {
+                        Text(sourceLabel.uppercased())
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .tracking(0.8)
+                            .foregroundStyle(CooksyTheme.brandBlueDark)
+                    }
+
+                    Text(viewModel.title)
+                        .font(.system(size: 26, weight: .bold, design: .serif))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(viewModel.summaryText)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                        .lineSpacing(2)
+                        .lineLimit(3)
+
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            headerMetricPill(text: viewModel.servingsLabel, systemImage: "person.2")
+                            headerMetricPill(text: "\(viewModel.ingredientCount) ingrédients", systemImage: "list.bullet")
+                            headerMetricPill(text: "\(viewModel.instructionCount) étapes", systemImage: "text.justify.left")
+
+                            if let totalCaloriesLabel = viewModel.totalCaloriesLabel {
+                                headerMetricPill(text: totalCaloriesLabel, systemImage: "flame.fill")
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                headerMetricPill(text: viewModel.servingsLabel, systemImage: "person.2")
+                                headerMetricPill(text: "\(viewModel.ingredientCount) ingrédients", systemImage: "list.bullet")
+                            }
+
+                            HStack(spacing: 6) {
+                                headerMetricPill(text: "\(viewModel.instructionCount) étapes", systemImage: "text.justify.left")
+
+                                if let totalCaloriesLabel = viewModel.totalCaloriesLabel {
+                                    headerMetricPill(text: totalCaloriesLabel, systemImage: "flame.fill")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let sourceButtonTitle = viewModel.sourceButtonTitle, let sourceURL = viewModel.sourceURL {
+                Button(action: { openURL(sourceURL) }) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(CooksyTheme.blush.opacity(0.92))
+                                .frame(width: 38, height: 38)
+
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                        }
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(sourceButtonTitle)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.primaryText)
+
+                            Text(viewModel.sourceHostLabel)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(CooksyTheme.secondaryText)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(CooksyTheme.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.97))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+        .shadow(color: CooksyTheme.softShadow, radius: 10, y: 4)
     }
 
     private var topBar: some View {
@@ -566,7 +726,7 @@ struct ImportedRecipeReviewView: View {
 
     private var saveArea: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 if let reviewNotice = viewModel.reviewNotice {
                     inlineMessageCard(
                         text: reviewNotice,
@@ -579,7 +739,7 @@ struct ImportedRecipeReviewView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(CooksyTheme.accentGradient)
-                            .frame(height: 52)
+                            .frame(height: 50)
 
                         if viewModel.isSaving {
                             ProgressView()
@@ -610,19 +770,19 @@ struct ImportedRecipeReviewView: View {
                     Spacer(minLength: 0)
                 }
             }
-            .padding(12)
+            .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(CooksyTheme.elevatedSurface.opacity(0.98))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(CooksyTheme.stroke, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.08), radius: 16, y: 6)
+            .shadow(color: Color.black.opacity(0.08), radius: 12, y: 5)
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 10)
+            .padding(.bottom, 8)
         }
         .background(CooksyTheme.background.opacity(0.96))
     }
@@ -818,6 +978,22 @@ struct ImportedRecipeReviewView: View {
             .tracking(0.9)
             .foregroundStyle(CooksyTheme.brandBlueDark)
     }
+
+    private func headerMetricPill(text: String, systemImage: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .foregroundStyle(CooksyTheme.secondaryText)
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.surface)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(CooksyTheme.stroke, lineWidth: 1)
+            )
+    }
 }
 
 @MainActor
@@ -942,11 +1118,11 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     }
 
     var ingredientCount: Int {
-        previewRecipe.ingredients.count
+        displayedIngredients.count
     }
 
     var instructionCount: Int {
-        previewRecipe.steps.count
+        instructions.count
     }
 
     var totalTimeLabel: String? {
@@ -1107,6 +1283,80 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     private func nonEmpty(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private struct CompactImportedRecipeThumbnail: View {
+    let image: UIImage?
+    let creatorHandle: String?
+    let difficultyLabel: String
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    CooksyTheme.heroGlowGradient
+                        .overlay {
+                            Image(systemName: "fork.knife")
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.9))
+                        }
+                }
+            }
+            .frame(width: 112, height: 112)
+            .clipped()
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.02),
+                    Color.black.opacity(0.18),
+                    Color.black.opacity(0.56)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                if let creatorHandle {
+                    Text(creatorHandle)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.black.opacity(0.36))
+                        )
+                }
+
+                Spacer(minLength: 0)
+
+                HStack {
+                    Spacer(minLength: 0)
+
+                    Text(difficultyLabel)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.2))
+                        )
+                }
+            }
+            .padding(10)
+            .frame(width: 112, height: 112)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 

@@ -178,3 +178,37 @@ test("ensureCookableRecipeStructure expands thin crepes instructions into a cook
     false
   );
 });
+
+test("ensureCookableRecipeStructure upgrades multi-part sandwich imports into a fuller cookable flow", () => {
+  const completedRecipe = ensureCookableRecipeStructure(
+    emptyRecipe({
+      title: "Sandwich Naan",
+      ingredientDrafts: [
+        { amount: "300", unit: "g", name: "farine", nutritionQuery: "flour" },
+        { amount: "6", unit: "g", name: "levure deshydratee", nutritionQuery: "dry yeast" },
+        { amount: "125", unit: "g", name: "yaourt nature", nutritionQuery: "plain yogurt" },
+        { amount: "60", unit: "ml", name: "eau tiede", nutritionQuery: "water" },
+        { amount: "30", unit: "g", name: "beurre mou", nutritionQuery: "butter" },
+        { amount: "320", unit: "g", name: "blanc de poulet", nutritionQuery: "chicken breast" },
+        { amount: "2", unit: "", name: "flatbread", nutritionQuery: "flatbread" },
+        { amount: "2", unit: "tranches", name: "cheddar", nutritionQuery: "cheddar cheese" },
+        { amount: "1", unit: "", name: "oignon", nutritionQuery: "onion" },
+        { amount: "60", unit: "g", name: "salade", nutritionQuery: "lettuce" },
+        { amount: "2", unit: "c a soupe", name: "sauce yaourt", nutritionQuery: "yogurt sauce" }
+      ],
+      stepDrafts: [
+        { detail: "Preparez les garnitures en emincant l'oignon et en assaisonnant le poulet." },
+        { detail: "Faites cuire le poulet dans une poele chaude jusqu'a ce qu'il soit bien dore." },
+        { detail: "Toastez le flatbread puis preparez la garniture avec la salade et la sauce." },
+        { detail: "Montez le sandwich naan avec le flatbread, le poulet et les garnitures." }
+      ],
+      confidence: "medium",
+      needsWebFallback: false,
+      searchQuery: "Sandwich Naan recette"
+    })
+  );
+
+  assert.ok(completedRecipe.stepDrafts.length >= 6);
+  assert.ok(completedRecipe.stepDrafts.some((step) => /levure|pate|pétr|petr|naan/i.test(step.detail)));
+  assert.ok(completedRecipe.stepDrafts.some((step) => /poulet|garni|garnissez|sauce/i.test(step.detail)));
+});

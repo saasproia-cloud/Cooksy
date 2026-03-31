@@ -3,6 +3,7 @@ import SwiftUI
 struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: View {
     let heroImage: UIImage?
     let heroStyle: HeroStyle
+    let density: RecipePresentationDensity
     let creatorHandle: String?
     let ratingValue: Double?
     let ratingCountText: String?
@@ -13,6 +14,7 @@ struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: 
     init(
         heroImage: UIImage?,
         heroStyle: HeroStyle,
+        density: RecipePresentationDensity = .regular,
         creatorHandle: String?,
         ratingValue: Double?,
         ratingCountText: String?,
@@ -22,6 +24,7 @@ struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: 
     ) {
         self.heroImage = heroImage
         self.heroStyle = heroStyle
+        self.density = density
         self.creatorHandle = creatorHandle
         self.ratingValue = ratingValue
         self.ratingCountText = ratingCountText
@@ -42,7 +45,7 @@ struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: 
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 296)
+            .frame(height: density == .compact ? 212 : 296)
             .clipped()
 
             LinearGradient(
@@ -61,17 +64,17 @@ struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: 
                     Spacer(minLength: 0)
                     trailingActions
                 }
-                .padding(16)
+                .padding(density == .compact ? 12 : 16)
 
                 Spacer(minLength: 0)
 
                 VStack(alignment: .leading, spacing: 10) {
                     if let creatorHandle {
                         Text(creatorHandle)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: density == .compact ? 10 : 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .frame(height: 24)
+                            .padding(.horizontal, density == .compact ? 8 : 10)
+                            .frame(height: density == .compact ? 22 : 24)
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(Color.black.opacity(0.46))
@@ -89,25 +92,25 @@ struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: 
                         Spacer(minLength: 0)
 
                         Text(difficultyLabel)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: density == .compact ? 10 : 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .frame(height: 24)
+                            .padding(.horizontal, density == .compact ? 8 : 10)
+                            .frame(height: density == .compact ? 22 : 24)
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(Color.white.opacity(0.18))
                             )
                     }
                 }
-                .padding(18)
+                .padding(density == .compact ? 14 : 18)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: density == .compact ? 22 : 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 22 : 28, style: .continuous)
                 .stroke(Color.black.opacity(0.08), lineWidth: 1)
         )
-        .shadow(color: CooksyTheme.shadow.opacity(0.7), radius: 16, y: 8)
+        .shadow(color: CooksyTheme.shadow.opacity(0.7), radius: density == .compact ? 10 : 16, y: density == .compact ? 4 : 8)
     }
 }
 
@@ -120,101 +123,125 @@ struct RecipePresentationSummaryCard: View {
     let sourceButtonTitle: String?
     let sourceHostLabel: String
     let sourceAction: (() -> Void)?
+    let density: RecipePresentationDensity
+
+    init(
+        title: String,
+        summaryText: String,
+        totalTimeLabel: String?,
+        totalCaloriesLabel: String?,
+        servingsLabel: String,
+        sourceButtonTitle: String?,
+        sourceHostLabel: String,
+        sourceAction: (() -> Void)?,
+        density: RecipePresentationDensity = .regular
+    ) {
+        self.title = title
+        self.summaryText = summaryText
+        self.totalTimeLabel = totalTimeLabel
+        self.totalCaloriesLabel = totalCaloriesLabel
+        self.servingsLabel = servingsLabel
+        self.sourceButtonTitle = sourceButtonTitle
+        self.sourceHostLabel = sourceHostLabel
+        self.sourceAction = sourceAction
+        self.density = density
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: density == .compact ? 10 : 14) {
             Text(title)
-                .font(.system(size: 31, weight: .bold, design: .serif))
+                .font(.system(size: density == .compact ? 24 : 31, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .lineSpacing(-1)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(summaryText)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.system(size: density == .compact ? 13 : 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
-                .lineSpacing(4)
+                .lineSpacing(density == .compact ? 2 : 4)
+                .lineLimit(density == .compact ? 2 : nil)
                 .fixedSize(horizontal: false, vertical: true)
 
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
+                HStack(spacing: density == .compact ? 6 : 8) {
                     if let totalTimeLabel {
-                        RecipeSummaryChip(systemImage: "clock", text: totalTimeLabel)
+                        RecipeSummaryChip(systemImage: "clock", text: totalTimeLabel, density: density)
                     }
 
-                    RecipeSummaryChip(systemImage: "person.2", text: servingsLabel)
+                    RecipeSummaryChip(systemImage: "person.2", text: servingsLabel, density: density)
 
                     if let totalCaloriesLabel {
-                        RecipeSummaryChip(systemImage: "flame.fill", text: totalCaloriesLabel)
+                        RecipeSummaryChip(systemImage: "flame.fill", text: totalCaloriesLabel, density: density)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: density == .compact ? 6 : 8) {
+                    HStack(spacing: density == .compact ? 6 : 8) {
                         if let totalTimeLabel {
-                            RecipeSummaryChip(systemImage: "clock", text: totalTimeLabel)
+                            RecipeSummaryChip(systemImage: "clock", text: totalTimeLabel, density: density)
                         }
-                        RecipeSummaryChip(systemImage: "person.2", text: servingsLabel)
+                        RecipeSummaryChip(systemImage: "person.2", text: servingsLabel, density: density)
                     }
 
                     if let totalCaloriesLabel {
-                        RecipeSummaryChip(systemImage: "flame.fill", text: totalCaloriesLabel)
+                        RecipeSummaryChip(systemImage: "flame.fill", text: totalCaloriesLabel, density: density)
                     }
                 }
             }
 
             if let sourceButtonTitle, let sourceAction {
                 Button(action: sourceAction) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: density == .compact ? 10 : 12) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: density == .compact ? 12 : 14, style: .continuous)
                                 .fill(CooksyTheme.blush.opacity(0.9))
-                                .frame(width: 42, height: 42)
+                                .frame(width: density == .compact ? 38 : 42, height: density == .compact ? 38 : 42)
 
                             Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 16, weight: .bold))
+                                .font(.system(size: density == .compact ? 14 : 16, weight: .bold))
                                 .foregroundStyle(CooksyTheme.ctaOrangeDark)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(sourceButtonTitle)
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .font(.system(size: density == .compact ? 14 : 15, weight: .bold, design: .rounded))
                                 .foregroundStyle(CooksyTheme.primaryText)
 
                             Text(sourceHostLabel)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(size: density == .compact ? 11 : 12, weight: .medium, design: .rounded))
                                 .foregroundStyle(CooksyTheme.secondaryText)
                         }
 
                         Spacer(minLength: 0)
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: density == .compact ? 12 : 13, weight: .bold))
                             .foregroundStyle(CooksyTheme.secondaryText)
                     }
-                    .padding(.horizontal, 14)
-                    .frame(height: 58)
+                    .padding(.horizontal, density == .compact ? 12 : 14)
+                    .frame(height: density == .compact ? 50 : 58)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                             .fill(CooksyTheme.surface)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                             .stroke(CooksyTheme.stroke, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(18)
+        .padding(density == .compact ? 14 : 18)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 18 : 24, style: .continuous)
                 .fill(Color.white.opacity(0.97))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 18 : 24, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
-        .shadow(color: CooksyTheme.softShadow, radius: 12, y: 6)
+        .shadow(color: CooksyTheme.softShadow, radius: density == .compact ? 8 : 12, y: density == .compact ? 4 : 6)
     }
 }
 
@@ -225,53 +252,75 @@ struct RecipePresentationNutritionCard: View {
     let baseServings: Int
     let onDecrease: () -> Void
     let onIncrease: () -> Void
+    let density: RecipePresentationDensity
+
+    init(
+        nutrition: RecipeNutritionDisplay?,
+        isEstimated: Bool,
+        currentServings: Int,
+        baseServings: Int,
+        onDecrease: @escaping () -> Void,
+        onIncrease: @escaping () -> Void,
+        density: RecipePresentationDensity = .regular
+    ) {
+        self.nutrition = nutrition
+        self.isEstimated = isEstimated
+        self.currentServings = currentServings
+        self.baseServings = baseServings
+        self.onDecrease = onDecrease
+        self.onIncrease = onIncrease
+        self.density = density
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: density == .compact ? 12 : 16) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
                         Image(systemName: "chart.bar.fill")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: density == .compact ? 11 : 12, weight: .bold))
                             .foregroundStyle(CooksyTheme.ctaOrange)
 
                         Text("Nutrition")
-                            .font(.system(size: 16, weight: .bold, design: .serif))
+                            .font(.system(size: density == .compact ? 15 : 16, weight: .bold, design: .serif))
                             .foregroundStyle(CooksyTheme.primaryText)
                     }
 
                     Text(RecipePresentationFormatter.baseServingsCaption(for: baseServings))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: density == .compact ? 11 : 12, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
 
                 Spacer(minLength: 0)
 
-                RecipeServingStepper(
-                    currentServings: currentServings,
-                    onDecrease: onDecrease,
-                    onIncrease: onIncrease
-                )
+                    RecipeServingStepper(
+                        currentServings: currentServings,
+                        onDecrease: onDecrease,
+                        onIncrease: onIncrease
+                    )
             }
 
             if let nutrition {
                 RecipeNutritionMacroBar(nutrition: nutrition)
 
-                HStack(spacing: 10) {
+                HStack(spacing: density == .compact ? 8 : 10) {
                     RecipeMacroMetricCard(
                         tint: CooksyTheme.ctaOrange,
-                        title: "Protein",
-                        value: nutrition.proteinText
+                        title: "Protéines",
+                        value: nutrition.proteinText,
+                        density: density
                     )
                     RecipeMacroMetricCard(
                         tint: CooksyTheme.sparkleYellow,
-                        title: "Carbs",
-                        value: nutrition.carbsText
+                        title: "Glucides",
+                        value: nutrition.carbsText,
+                        density: density
                     )
                     RecipeMacroMetricCard(
                         tint: CooksyTheme.brandBlue,
-                        title: "Fats",
-                        value: nutrition.fatText
+                        title: "Lipides",
+                        value: nutrition.fatText,
+                        density: density
                     )
                 }
 
@@ -283,32 +332,32 @@ struct RecipePresentationNutritionCard: View {
                     Spacer(minLength: 0)
 
                     Text(nutrition.caloriesText)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: density == .compact ? 13 : 14, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
                 }
 
                 if isEstimated {
-                    Text("Estimated from ingredients.")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                    Text("Estimation calculée à partir des ingrédients.")
+                        .font(.system(size: density == .compact ? 10 : 11, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
             } else {
                 RecipePresentationEmptyState(
-                    title: "Nutrition unavailable",
-                    subtitle: "Cooksy will show calories and macros here when enough ingredient data is available."
+                    title: "Nutrition indisponible",
+                    subtitle: "Cooksy affichera les calories et macros ici dès que les ingrédients seront assez précis."
                 )
             }
         }
-        .padding(18)
+        .padding(density == .compact ? 14 : 18)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 18 : 24, style: .continuous)
                 .fill(Color.white.opacity(0.97))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 18 : 24, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
-        .shadow(color: CooksyTheme.softShadow, radius: 12, y: 6)
+        .shadow(color: CooksyTheme.softShadow, radius: density == .compact ? 8 : 12, y: density == .compact ? 4 : 6)
     }
 }
 
@@ -317,23 +366,38 @@ struct RecipePresentationContentCard: View {
     let ingredients: [RecipeIngredientPresentation]
     let steps: [RecipeStep]
     let onCookStepByStep: () -> Void
+    let density: RecipePresentationDensity
+
+    init(
+        selectedTab: Binding<RecipePresentationTab>,
+        ingredients: [RecipeIngredientPresentation],
+        steps: [RecipeStep],
+        onCookStepByStep: @escaping () -> Void,
+        density: RecipePresentationDensity = .regular
+    ) {
+        self._selectedTab = selectedTab
+        self.ingredients = ingredients
+        self.steps = steps
+        self.onCookStepByStep = onCookStepByStep
+        self.density = density
+    }
 
     private var ingredientPhotoTaskKey: String {
         ingredients.map(\.name).joined(separator: "|")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: density == .compact ? 10 : 14) {
+            HStack(spacing: density == .compact ? 6 : 8) {
                 ForEach(RecipePresentationTab.allCases) { tab in
                     Button(action: { selectedTab = tab }) {
                         Text(tabTitle(for: tab))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .font(.system(size: density == .compact ? 12 : 13, weight: .bold, design: .rounded))
                             .foregroundStyle(selectedTab == tab ? .white : CooksyTheme.secondaryText)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 38)
+                            .frame(height: density == .compact ? 34 : 38)
                             .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                RoundedRectangle(cornerRadius: density == .compact ? 10 : 12, style: .continuous)
                                     .fill(selectedTab == tab ? CooksyTheme.accentGradient : LinearGradient(colors: [CooksyTheme.surface, CooksyTheme.surface], startPoint: .leading, endPoint: .trailing))
                             )
                     }
@@ -346,46 +410,46 @@ struct RecipePresentationContentCard: View {
                 case .ingredients:
                     if ingredients.isEmpty {
                         RecipePresentationEmptyState(
-                            title: "No ingredients yet",
-                            subtitle: "Cooksy will list them here as soon as the recipe is structured."
+                            title: "Pas encore d'ingrédients",
+                            subtitle: "Cooksy affichera les ingrédients ici dès que la recette sera bien structurée."
                         )
                     } else {
-                        VStack(spacing: 12) {
+                        VStack(spacing: density == .compact ? 8 : 12) {
                             ForEach(ingredients) { ingredient in
-                                RecipeIngredientRow(ingredient: ingredient)
+                                RecipeIngredientRow(ingredient: ingredient, density: density)
                             }
                         }
                     }
 
                 case .steps:
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: density == .compact ? 8 : 12) {
                         if !steps.isEmpty {
                             Button(action: onCookStepByStep) {
                                 HStack(spacing: 12) {
                                     ZStack {
                                         Circle()
                                             .fill(CooksyTheme.blush)
-                                            .frame(width: 38, height: 38)
+                                            .frame(width: density == .compact ? 34 : 38, height: density == .compact ? 34 : 38)
 
                                         Image(systemName: "play.fill")
-                                            .font(.system(size: 14, weight: .bold))
+                                            .font(.system(size: density == .compact ? 13 : 14, weight: .bold))
                                             .foregroundStyle(CooksyTheme.ctaOrangeDark)
                                     }
 
-                                    Text("Cook Step-by-Step")
-                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    Text("Cuisiner pas à pas")
+                                        .font(.system(size: density == .compact ? 14 : 15, weight: .bold, design: .rounded))
                                         .foregroundStyle(CooksyTheme.primaryText)
 
                                     Spacer(minLength: 0)
                                 }
-                                .padding(.horizontal, 12)
-                                .frame(height: 50)
+                                .padding(.horizontal, density == .compact ? 10 : 12)
+                                .frame(height: density == .compact ? 44 : 50)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    RoundedRectangle(cornerRadius: density == .compact ? 14 : 16, style: .continuous)
                                         .fill(Color.white)
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    RoundedRectangle(cornerRadius: density == .compact ? 14 : 16, style: .continuous)
                                         .stroke(CooksyTheme.stroke, lineWidth: 1)
                                 )
                             }
@@ -394,13 +458,13 @@ struct RecipePresentationContentCard: View {
 
                         if steps.isEmpty {
                             RecipePresentationEmptyState(
-                                title: "No steps yet",
-                                subtitle: "Cooksy needs a few clear instructions before step-by-step cooking can start."
+                                title: "Pas encore d'étapes",
+                                subtitle: "Cooksy a besoin de quelques instructions claires avant de lancer le pas-à-pas."
                             )
                         } else {
-                            VStack(spacing: 12) {
+                            VStack(spacing: density == .compact ? 8 : 12) {
                                 ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                                    RecipeInstructionRow(index: index + 1, step: step)
+                                    RecipeInstructionRow(index: index + 1, step: step, density: density)
                                 }
                             }
                         }
@@ -408,16 +472,16 @@ struct RecipePresentationContentCard: View {
                 }
             }
         }
-        .padding(18)
+        .padding(density == .compact ? 14 : 18)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 18 : 24, style: .continuous)
                 .fill(Color.white.opacity(0.97))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 18 : 24, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
-        .shadow(color: CooksyTheme.softShadow, radius: 12, y: 6)
+        .shadow(color: CooksyTheme.softShadow, radius: density == .compact ? 8 : 12, y: density == .compact ? 4 : 6)
         .task(id: ingredientPhotoTaskKey) {
             await IngredientPhotoStore.shared.preload(for: ingredients.map(\.name))
         }
@@ -426,9 +490,9 @@ struct RecipePresentationContentCard: View {
     private func tabTitle(for tab: RecipePresentationTab) -> String {
         switch tab {
         case .ingredients:
-            return "Ingredients (\(ingredients.count))"
+            return "Ingrédients (\(ingredients.count))"
         case .steps:
-            return "Steps (\(steps.count))"
+            return "Étapes (\(steps.count))"
         }
     }
 }
@@ -500,19 +564,20 @@ private struct RecipePresentationRatingView: View {
 private struct RecipeSummaryChip: View {
     let systemImage: String
     let text: String
+    let density: RecipePresentationDensity
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: density == .compact ? 10 : 11, weight: .bold))
 
             Text(text)
                 .lineLimit(1)
         }
-        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .font(.system(size: density == .compact ? 11 : 12, weight: .bold, design: .rounded))
         .foregroundStyle(CooksyTheme.secondaryText)
-        .padding(.horizontal, 10)
-        .frame(height: 34)
+        .padding(.horizontal, density == .compact ? 8 : 10)
+        .frame(height: density == .compact ? 30 : 34)
         .background(
             Capsule(style: .continuous)
                 .fill(CooksyTheme.surface)
@@ -543,7 +608,7 @@ private struct RecipeServingStepper: View {
             Text(RecipePresentationFormatter.selectedServingsLabel(for: currentServings))
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
-                .frame(minWidth: 68)
+                .frame(minWidth: 84)
 
             Button(action: onIncrease) {
                 Image(systemName: "plus")
@@ -598,29 +663,30 @@ private struct RecipeMacroMetricCard: View {
     let tint: Color
     let title: String
     let value: String
+    let density: RecipePresentationDensity
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: density == .compact ? 4 : 6) {
             Circle()
                 .fill(tint)
-                .frame(width: 6, height: 6)
+                .frame(width: density == .compact ? 5 : 6, height: density == .compact ? 5 : 6)
 
             Text(value)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: density == .compact ? 13 : 14, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
 
             Text(title)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: density == .compact ? 10 : 11, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, density == .compact ? 9 : 12)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 14 : 16, style: .continuous)
                 .fill(CooksyTheme.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 14 : 16, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
     }
@@ -628,38 +694,44 @@ private struct RecipeMacroMetricCard: View {
 
 private struct RecipeIngredientRow: View {
     let ingredient: RecipeIngredientPresentation
+    let density: RecipePresentationDensity
 
     var body: some View {
-        HStack(spacing: 12) {
-            IngredientIconBadge(ingredientName: ingredient.name)
+        HStack(spacing: density == .compact ? 10 : 12) {
+            IngredientIconBadge(
+                ingredientName: ingredient.name,
+                size: density == .compact ? 38 : 42
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(ingredient.name)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: density == .compact ? 14 : 15, weight: .bold, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let quantityText = ingredient.quantityText {
                     Text(quantityText)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: density == .compact ? 11 : 12, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
             }
 
             Spacer(minLength: 0)
 
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(CooksyTheme.stroke)
+            if density == .regular {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(CooksyTheme.stroke)
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, density == .compact ? 12 : 14)
+        .padding(.vertical, density == .compact ? 9 : 12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .fill(CooksyTheme.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
     }
@@ -668,43 +740,44 @@ private struct RecipeIngredientRow: View {
 private struct RecipeInstructionRow: View {
     let index: Int
     let step: RecipeStep
+    let density: RecipePresentationDensity
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: density == .compact ? 10 : 12) {
             ZStack {
                 Circle()
                     .fill(CooksyTheme.ctaOrange)
-                    .frame(width: 24, height: 24)
+                    .frame(width: density == .compact ? 22 : 24, height: density == .compact ? 22 : 24)
 
                 Text("\(index)")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .font(.system(size: density == .compact ? 10 : 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
             }
             .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(step.detail)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: density == .compact ? 14 : 15, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
-                    .lineSpacing(3)
+                    .lineSpacing(density == .compact ? 2 : 3)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let title = step.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                     Text(title)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: density == .compact ? 11 : 12, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, density == .compact ? 12 : 14)
+        .padding(.vertical, density == .compact ? 10 : 12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .fill(CooksyTheme.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
     }
@@ -740,20 +813,26 @@ private struct RecipePresentationEmptyState: View {
 
 struct IngredientIconBadge: View {
     let ingredientName: String
+    let size: CGFloat
     @State private var image: UIImage?
+
+    init(ingredientName: String, size: CGFloat = 42) {
+        self.ingredientName = ingredientName
+        self.size = size
+    }
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: size * 0.38, style: .continuous)
                 .fill(Color.white)
-                .frame(width: 42, height: 42)
+                .frame(width: size, height: size)
 
             imageView
-                .frame(width: 42, height: 42)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.38, style: .continuous))
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: size * 0.38, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
         .task(id: ingredientName) {
@@ -777,38 +856,32 @@ struct IngredientIconBadge: View {
 private struct IngredientPhotoPlaceholder: View {
     let ingredientName: String
 
-    private var initial: String {
-        IngredientPhotoLookupBuilder.lookup(for: ingredientName)
-            .article
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .prefix(1)
-            .uppercased()
-    }
-
     var body: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(hex: 0xFFF2E1),
-                    Color(hex: 0xF4D6B1)
+                    Color(hex: 0xFFF6EA),
+                    Color(hex: 0xEBCB9C)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             Circle()
-                .fill(Color.white.opacity(0.32))
-                .frame(width: 22, height: 22)
-                .offset(x: -7, y: -6)
+                .fill(Color.white.opacity(0.4))
+                .frame(width: 24, height: 24)
+                .offset(x: -8, y: -7)
 
             Circle()
-                .fill(Color.white.opacity(0.18))
-                .frame(width: 16, height: 16)
-                .offset(x: 10, y: 8)
+                .fill(Color(hex: 0xD9A15D).opacity(0.26))
+                .frame(width: 18, height: 18)
+                .offset(x: 9, y: 9)
 
-            Text(initial.isEmpty ? "?" : initial)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText.opacity(0.8))
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 18, height: 12)
+                .rotationEffect(.degrees(-18))
+                .offset(x: 6, y: -6)
         }
     }
 }
