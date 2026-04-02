@@ -216,7 +216,7 @@ function ensureCompleteSteps(
     ...explicitSteps.map((step) => step.description)
   ])
     .filter((description) => isUsableCookingInstruction(description))
-    .slice(0, 8)
+    .slice(0, 20)
     .map((description, index) => ({
       stepNumber: index + 1,
       description
@@ -269,6 +269,10 @@ function normalizeIngredientName(value: string): string {
   return cleanIngredientText(value)
     .replace(/^\s*(?:[-•*]|\d+[\).:\-\s]+)\s*/u, "")
     .replace(/^\s*(?:une?\s+)?\d+\s*(?:e|eme|ème|aine)\s+de\s+/i, "")
+    .replace(/^\s*(?:c\.?\s*[aà]\.?\s*(?:soupe|caf[ée]|s\.?|c\.?)\.?)\s+(?:de?\s+)?/i, "")
+    .replace(/^\s*(?:\d+\s*)?(?:g|kg|ml|cl|l|dl)\s+(?:de?\s+)?/i, "")
+    .replace(/^\s*[aà]\s+soupe\s+(?:de?\s+)?/i, "")
+    .replace(/^\s*[aà]\s+caf[ée]\s+(?:de?\s+)?/i, "")
     .replace(/\s*\((?:ici|comme ici|optional|facultatif|to taste)\)$/i, "")
     .replace(/\b(?:to serve|for serving|pour servir)\b.*$/i, "")
     .replace(/\s+/g, " ")
@@ -403,8 +407,10 @@ function normalizeUnitLabel(value: string): string {
   }
 
   const normalized = cleaned
-    .replace(/\bc(?:uill?e?re)?\.?\s*a\s*soupe\b/gi, "c. à soupe")
-    .replace(/\bc(?:uill?e?re)?\.?\s*a\s*cafe\b/gi, "c. à café")
+    .replace(/\bc\.?\s*a\.?\s*s\.?\b/gi, "c. à soupe")
+    .replace(/\bc\.?\s*a\.?\s*c\.?\b/gi, "c. à café")
+    .replace(/\bc(?:uill?e?re)?\.?\s*[aà]\s*soupe\b/gi, "c. à soupe")
+    .replace(/\bc(?:uill?e?re)?\.?\s*[aà]\s*caf[ée]\b/gi, "c. à café")
     .replace(/\bcas\b/gi, "c. à soupe")
     .replace(/\bcac\b/gi, "c. à café")
     .replace(/\bgrammes?\b/gi, "g")
@@ -710,7 +716,7 @@ function generatedIngredientSignals(
   };
 }
 
-const instructionVerbPattern = /\b(?:preparez|assaisonnez|faites|faites cuire|chauffez|cuisez|ajoutez|melangez|mélangez|versez|disposez|repartissez|répartissez|montez|assemblez|rabattez|roulez|etalez|étalez|rechauffez|réchauffez|toastez|fouettez|incorporez|laissez|servez|garnissez|saisissez|rectifiez|poursuivez|dressez|enfournez|coupez|emincez|émincez|detaillez|détaillez)\b/;
+const instructionVerbPattern = /\b(?:preparez|préparez|assaisonnez|faites|chauffez|cuisez|ajoutez|melangez|mélangez|versez|disposez|repartissez|répartissez|montez|assemblez|rabattez|roulez|etalez|étalez|rechauffez|réchauffez|toastez|fouettez|incorporez|laissez|servez|garnissez|saisissez|rectifiez|poursuivez|dressez|enfournez|coupez|emincez|émincez|detaillez|détaillez|petrir|pétrir|façonnez|faconnez|formez|divisez|boulez|filmer|filmerz|saupoudrez|singer|degazez|dégazez|couvrez|decoupez|découpez|decouper|découper|former|former|plongez|portez|ebullition|ébullition|refroidir|refroidissez|egouttez|égouttez|saler|poivrer|dorez|dorez|griller|grillez|prechauffez|préchauffez|etalez|plier|pliez|farcir|farcissez|aplatir|aplatissez|mariner|marinez|deglacer|déglacer|deglacer|flamber|flambez|dresser|pocher|pochez|blanchir|blanchissez|saisir|faire revenir|revenir|depouillez|filtrez|assaisonner|reserver|réserver|reservez|réservez|sortez|retirer|retirez|ajouter|melanger|melangez|continuer|continuez|terminez|finir|finissez|couvrir)\b/;
 const ingredientNarrativePattern = /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a|regarde|video|abonne|abonnez|abonnes|follow|follower|followers|like|liker|likez|partage|partager|partagez|commente|commenter|commentez|rejoins|rejoignez|save|sauvegarde|sauvegarder|sauvegardez|clique|cliquer|cliquez|telecharg|télécharg|notification|notif|instagram|tiktok|pinterest|youtube|reels?|story|stories|hashtag|link in bio|en bio|lien en bio|lien bio)\b/;
 const ingredientBadStartPattern = /^(?:et|ensuite|puis|alors|voila|voilà|du coup|on a|c est)\b/;
 const ingredientFoodPattern = /\b(?:oeufs?|œufs?|eggs?|farine|flour|sucre|sugar|sel|lait|milk|beurre|butter|vanille|vanilla|rhum|fleur|orange|cheddar|oignon|onion|tomate|tomato|poulet|chicken|salade|lettuce|sauce|yaourt|yogurt|citron|lemon|huile|oil|chocolat|chocolate|creme|crème|cream|fromage|cheese|riz|rice|pates?|pâtes?|pasta|levure|yeast|eau|water|miel|honey|sirop|syrup|pain|bun|boeuf|bœuf|beef|poisson|fish|saumon|salmon|thon|tuna|crevette|shrimp|avocat|avocado|concombre|cucumber|carotte|carrot|champignon|mushroom)\b/;
