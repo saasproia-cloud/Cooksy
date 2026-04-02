@@ -16,7 +16,8 @@ const RECIPE_IMAGE_FALLBACK_URL = "https://placehold.co/1200x900/png?text=Cooksy
 const apiIngredientSchema = z.object({
   name: z.string(),
   quantity: z.string(),
-  unit: z.string()
+  unit: z.string(),
+  nutritionQuery: z.string().optional()
 });
 
 const apiStepSchema = z.object({
@@ -168,7 +169,8 @@ function normalizeIngredients(
     .map((ingredient) => ({
       name: normalizeIngredientName(ingredient.name),
       quantity: cleanIngredientText(ingredient.amount),
-      unit: normalizeUnitLabel(ingredient.unit)
+      unit: normalizeUnitLabel(ingredient.unit),
+      nutritionQuery: ingredient.nutritionQuery?.trim() || undefined
     }))
     .filter((ingredient) => isUsableIngredientName(ingredient.name, title))
     .filter((ingredient) => {

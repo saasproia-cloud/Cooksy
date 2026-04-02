@@ -571,9 +571,10 @@ private struct BackendStableIngredient: Decodable {
     let name: String
     let quantity: String
     let unit: String
+    let nutritionQuery: String?
 
     func asDraft() -> IngredientDraft {
-        IngredientDraft(amount: quantity, unit: unit, name: name)
+        IngredientDraft(amount: quantity, unit: unit, name: name, nutritionQuery: nutritionQuery)
     }
 }
 
@@ -610,9 +611,10 @@ private struct BackendIngredientDraft: Decodable {
     let amount: String
     let unit: String
     let name: String
+    let nutritionQuery: String?
 
     func asDraft() -> IngredientDraft {
-        IngredientDraft(amount: amount, unit: unit, name: name)
+        IngredientDraft(amount: amount, unit: unit, name: name, nutritionQuery: nutritionQuery)
     }
 }
 

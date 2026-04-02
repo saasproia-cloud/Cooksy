@@ -289,17 +289,20 @@ struct IngredientDraft: Identifiable, Codable, Hashable {
     var amount: String
     var unit: String
     var name: String
+    var nutritionQuery: String?
 
     init(
         id: UUID = UUID(),
         amount: String = "",
         unit: String = "",
-        name: String = ""
+        name: String = "",
+        nutritionQuery: String? = nil
     ) {
         self.id = id
         self.amount = amount
         self.unit = unit
         self.name = name
+        self.nutritionQuery = nutritionQuery
     }
 }
 
