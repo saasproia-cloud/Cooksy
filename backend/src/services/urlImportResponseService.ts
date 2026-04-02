@@ -4,6 +4,7 @@ import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
   hasCookabilityGaps,
   sanitizeRecipeImport,
+  type ImportDebug,
   type RecipeImportResult,
   type RecipeIngredientDraft
 } from "../types/recipe.js";
@@ -30,6 +31,19 @@ const apiNutritionSchema = z.object({
   fat: z.number().finite().min(0)
 });
 
+const apiDebugSchema = z.object({
+  strategy: z.string(),
+  durationMs: z.number().int(),
+  ingredientsCount: z.number().int(),
+  stepsCount: z.number().int(),
+  isLikelyValid: z.boolean(),
+  usedApify: z.boolean(),
+  usedTranscription: z.boolean(),
+  usedWebFallback: z.boolean(),
+  missing: z.array(z.string()),
+  failureReason: z.string().optional()
+});
+
 const apiSuccessSchema = z.object({
   success: z.literal(true),
   data: z.object({
@@ -41,8 +55,13 @@ const apiSuccessSchema = z.object({
     steps: z.array(apiStepSchema).min(1),
     nutrition: apiNutritionSchema,
     image: z.string().url(),
-    sourceUrl: z.string().url()
-  })
+    sourceUrl: z.string().url(),
+    prepTimeText: z.string().optional(),
+    cookTimeText: z.string().optional(),
+    servingsText: z.string().optional(),
+    notesText: z.string().optional()
+  }),
+  debug: apiDebugSchema.optional()
 });
 
 const apiFailureSchema = z.object({
@@ -56,6 +75,7 @@ export type URLImportFailureResponse = z.infer<typeof apiFailureSchema>;
 export async function buildURLImportResponse(input: {
   recipe: RecipeImportResult;
   sourceUrl: string;
+  debug?: ImportDebug;
 }): Promise<URLImportSuccessResponse | URLImportFailureResponse> {
   const normalizedSourceUrl = normalizeUrl(input.sourceUrl);
   if (!normalizedSourceUrl) {
@@ -84,8 +104,13 @@ export async function buildURLImportResponse(input: {
         steps,
         nutrition,
         image: stableImageUrl(recipeWithNutrition.remoteImageUrl),
-        sourceUrl: normalizedSourceUrl
-      }
+        sourceUrl: normalizedSourceUrl,
+        prepTimeText: recipeWithNutrition.prepTimeText || undefined,
+        cookTimeText: recipeWithNutrition.cookTimeText || undefined,
+        servingsText: recipeWithNutrition.servingsText || undefined,
+        notesText: recipeWithNutrition.notesText || undefined
+      },
+      debug: input.debug
     });
 
     return response;
@@ -360,7 +385,11 @@ function isUsableCookingInstruction(value: string): boolean {
     return false;
   }
 
-  if (/\b(?:read more|view post|link in bio)\b/.test(normalized)) {
+  if (/\b(?:read more|view post|link in bio|lien en bio|lien bio|en bio)\b/.test(normalized)) {
+    return false;
+  }
+
+  if (/\b(?:abonne|abonnez|follow|like|partage|partagez|commente|commentez|rejoins|rejoignez|sauvegarde|sauvegardez|clique|cliquez|notification|instagram|tiktok|pinterest|youtube)\b/.test(normalized)) {
     return false;
   }
 
@@ -682,6 +711,6 @@ function generatedIngredientSignals(
 }
 
 const instructionVerbPattern = /\b(?:preparez|assaisonnez|faites|faites cuire|chauffez|cuisez|ajoutez|melangez|mélangez|versez|disposez|repartissez|répartissez|montez|assemblez|rabattez|roulez|etalez|étalez|rechauffez|réchauffez|toastez|fouettez|incorporez|laissez|servez|garnissez|saisissez|rectifiez|poursuivez|dressez|enfournez|coupez|emincez|émincez|detaillez|détaillez)\b/;
-const ingredientNarrativePattern = /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a|regarde|video)\b/;
+const ingredientNarrativePattern = /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a|regarde|video|abonne|abonnez|abonnes|follow|follower|followers|like|liker|likez|partage|partager|partagez|commente|commenter|commentez|rejoins|rejoignez|save|sauvegarde|sauvegarder|sauvegardez|clique|cliquer|cliquez|telecharg|télécharg|notification|notif|instagram|tiktok|pinterest|youtube|reels?|story|stories|hashtag|link in bio|en bio|lien en bio|lien bio)\b/;
 const ingredientBadStartPattern = /^(?:et|ensuite|puis|alors|voila|voilà|du coup|on a|c est)\b/;
 const ingredientFoodPattern = /\b(?:oeufs?|œufs?|eggs?|farine|flour|sucre|sugar|sel|lait|milk|beurre|butter|vanille|vanilla|rhum|fleur|orange|cheddar|oignon|onion|tomate|tomato|poulet|chicken|salade|lettuce|sauce|yaourt|yogurt|citron|lemon|huile|oil|chocolat|chocolate|creme|crème|cream|fromage|cheese|riz|rice|pates?|pâtes?|pasta|levure|yeast|eau|water|miel|honey|sirop|syrup|pain|bun|boeuf|bœuf|beef|poisson|fish|saumon|salmon|thon|tuna|crevette|shrimp|avocat|avocado|concombre|cucumber|carotte|carrot|champignon|mushroom)\b/;

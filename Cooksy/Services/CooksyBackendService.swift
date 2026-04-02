@@ -517,6 +517,10 @@ private struct BackendStableRecipeSeed: Decodable {
     let creatorHandle: String?
     let externalRating: Double?
     let externalRatingCount: Int?
+    let prepTimeText: String?
+    let cookTimeText: String?
+    let servingsText: String?
+    let notesText: String?
 
     func asSeed() -> RecipeEditorSeed {
         RecipeEditorSeed(
@@ -527,10 +531,10 @@ private struct BackendStableRecipeSeed: Decodable {
             externalRatingCount: externalRatingCount,
             ingredientDrafts: ingredients.map { $0.asDraft() },
             stepDrafts: steps.map { $0.asDraft() },
-            notesText: "",
-            prepTimeText: "",
-            cookTimeText: "",
-            servingsText: "",
+            notesText: notesText ?? "",
+            prepTimeText: prepTimeText ?? "",
+            cookTimeText: cookTimeText ?? "",
+            servingsText: servingsText ?? "",
             caloriesText: BackendStableNutrition.formatCalories(nutrition.calories),
             proteinText: BackendStableNutrition.formatMacro(nutrition.protein),
             carbsText: BackendStableNutrition.formatMacro(nutrition.carbs),

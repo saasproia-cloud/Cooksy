@@ -70,7 +70,8 @@ app.post("/api/import/url", async (request, reply) => {
     });
     const response = await buildURLImportResponse({
       recipe: imported.recipe,
-      sourceUrl: body.url
+      sourceUrl: body.url,
+      debug: imported.debug
     });
 
     console.log("FINAL_RESPONSE", JSON.stringify(response, null, 2));

@@ -24,7 +24,7 @@ const rawEnvSchema = z.object({
   USDA_API_KEY: z.string().default("YOUR_USDA_API_KEY"),
   BACKEND_BASE_URL: z.string().optional(),
   RAILWAY_PUBLIC_DOMAIN: z.string().optional(),
-  OPENAI_RECIPE_MODEL: z.string().default("gpt-5-mini"),
+  OPENAI_RECIPE_MODEL: z.string().default("gpt-4.1-mini"),
   OPENAI_TRANSCRIPTION_MODEL: z.string().default("gpt-4o-transcribe"),
   APIFY_TIKTOK_ACTOR_ID: z.string().default("clockworks/tiktok-scraper"),
   APIFY_INSTAGRAM_ACTOR_ID: z.string().default("apify/instagram-api-scraper"),
