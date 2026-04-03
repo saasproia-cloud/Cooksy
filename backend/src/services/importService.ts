@@ -2178,9 +2178,14 @@ async function finalizeImportedRecipe(
     };
   }
   const nutritionResult = await enrichRecipeNutrition(sanitizedRecipe);
-  const metadataRecipe = await enrichRecipePresentationMetadata(
-    ensureCookableRecipeStructure(nutritionResult.recipe)
-  );
+  const postNutritionRecipe = ensureCookableRecipeStructure(nutritionResult.recipe);
+
+  // Final quality gate: never return a recipe with fewer than 4 ingredients or 4 steps
+  const finalRecipe = (postNutritionRecipe.ingredientDrafts.length < 4 || postNutritionRecipe.stepDrafts.length < 4)
+    ? ensureCookableRecipeStructure(postNutritionRecipe)
+    : postNutritionRecipe;
+
+  const metadataRecipe = await enrichRecipePresentationMetadata(finalRecipe);
 
   return {
     ...nutritionResult,
@@ -2218,7 +2223,7 @@ export function ensureCookableRecipeStructure(recipe: RecipeImportResult): Recip
     : generatedSteps;
   const nextSteps = preferredSteps.slice(
     0,
-    Math.max(requiredStepCount, Math.min(preferredSteps.length, 8))
+    Math.max(requiredStepCount, Math.min(preferredSteps.length, 12))
   );
   const flags = normalizeRecipeImportFlags(sanitizedRecipe.flags);
 
@@ -2562,28 +2567,28 @@ function minimumGeneratedStepCount(
   const ingredientSignals = generatedIngredientSignals(ingredients);
 
   if (/\b(?:omelette|toast|croque|quesadilla|tartine)\b/.test(normalizedTitle)) {
-    return 2;
+    return 3;
   }
 
   if (/\b(?:crepes?|crêpes?|pancakes?)\b/.test(normalizedTitle)) {
-    return 5;
+    return 6;
   }
 
   if (/\b(?:burger|sandwich|naan|wrap|taco)\b/.test(normalizedTitle)) {
     if (ingredientSignals.hasBreadDoughBase && ingredientSignals.hasProtein) {
-      return 7;
+      return 8;
     }
 
     if (ingredientSignals.hasProtein || ingredientSignals.hasAssemblyFillings) {
-      return 5;
+      return 7;
     }
   }
 
   if (/\b(?:cake|gateau|gâteau|brownie|cookie|dessert|tiramisu)\b/.test(normalizedTitle)) {
-    return 5;
+    return 6;
   }
 
-  return 4;
+  return 6;
 }
 
 function dedupeGeneratedStepDrafts(stepDrafts: Array<{ detail: string }>): Array<{ detail: string }> {

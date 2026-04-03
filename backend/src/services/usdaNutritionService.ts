@@ -113,21 +113,35 @@ export async function enrichRecipeNutrition(
   const hasExistingNutrition = Object.values(existingNutrition).some((value) => value !== null);
 
   if (matchedIngredients === 0 || totals.calories <= 0) {
-    return {
-      recipe: hasExistingNutrition
-        ? {
+    if (hasExistingNutrition) {
+      return {
+        recipe: {
           ...recipe,
-          flags: hasExistingNutrition
-            ? normalizeRecipeImportFlags(recipe.flags)
-            : {
-              ...normalizeRecipeImportFlags(recipe.flags),
-              generatedNutrition: true
-            }
+          flags: normalizeRecipeImportFlags(recipe.flags)
+        },
+        usedUsda: false,
+        nutritionCoverage,
+        matchedIngredients
+      };
+    }
+
+    const dishEstimate = estimateRecipeLevelNutrition(recipe);
+    const servingDivisor = parseServings(recipe.servingsText) || inferRecipeServings(recipe) || 1;
+    return {
+      recipe: {
+        ...recipe,
+        caloriesText: formatCalories(dishEstimate.calories / servingDivisor),
+        proteinText: formatMacro(dishEstimate.protein / servingDivisor),
+        carbsText: formatMacro(dishEstimate.carbs / servingDivisor),
+        fatText: formatMacro(dishEstimate.fat / servingDivisor),
+        flags: {
+          ...normalizeRecipeImportFlags(recipe.flags),
+          generatedNutrition: true
         }
-        : recipe,
-      usedUsda: matchedUsdaIngredients > 0,
-      nutritionCoverage,
-      matchedIngredients
+      },
+      usedUsda: false,
+      nutritionCoverage: 0,
+      matchedIngredients: 0
     };
   }
 
@@ -141,12 +155,7 @@ export async function enrichRecipeNutrition(
     fat: totals.fat / perServingDivisor
   };
 
-  const shouldApplyUsda = nutritionCoverage >= 0.35 ||
-    !hasExistingNutrition ||
-    nutritionLooksSuspicious(existingNutrition, perServing, {
-      matchedIngredients,
-      consideredIngredients: consideredIngredients.length
-    });
+  const shouldApplyUsda = true;
   if (!shouldApplyUsda) {
     return {
       recipe,
@@ -219,6 +228,44 @@ async function estimateIngredientNutrition(
   }
 
   return fallbackIngredientNutrition(ingredient, grams);
+}
+
+function estimateRecipeLevelNutrition(recipe: RecipeImportResult): NutritionTotals {
+  const title = (recipe.title ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const ingredientCount = recipe.ingredientDrafts.length;
+
+  if (/\b(?:salad|salade)\b/.test(title)) {
+    return { calories: 350, protein: 15, carbs: 25, fat: 18 };
+  }
+  if (/\b(?:omelette|toast|tartine)\b/.test(title)) {
+    return { calories: 300, protein: 18, carbs: 20, fat: 16 };
+  }
+  if (/\b(?:burger|sandwich|wrap|naan|taco)\b/.test(title)) {
+    return { calories: 600, protein: 30, carbs: 45, fat: 28 };
+  }
+  if (/\b(?:pasta|pate|risotto|ramen)\b/.test(title)) {
+    return { calories: 550, protein: 22, carbs: 65, fat: 18 };
+  }
+  if (/\b(?:curry|tikka|dhal|dal)\b/.test(title)) {
+    return { calories: 500, protein: 25, carbs: 40, fat: 22 };
+  }
+  if (/\b(?:cake|gateau|brownie|cookie|tiramisu|dessert|crepe|pancake)\b/.test(title)) {
+    return { calories: 400, protein: 8, carbs: 55, fat: 18 };
+  }
+  if (/\b(?:pizza)\b/.test(title)) {
+    return { calories: 700, protein: 28, carbs: 70, fat: 30 };
+  }
+  if (/\b(?:soup|soupe|bouillon)\b/.test(title)) {
+    return { calories: 250, protein: 12, carbs: 30, fat: 8 };
+  }
+
+  const baseCal = 400 + Math.min(ingredientCount, 10) * 20;
+  return {
+    calories: baseCal,
+    protein: Math.round(baseCal * 0.15 / 4),
+    carbs: Math.round(baseCal * 0.45 / 4),
+    fat: Math.round(baseCal * 0.35 / 9)
+  };
 }
 
 function fallbackIngredientNutrition(
@@ -1057,7 +1104,41 @@ const fallbackNutritionProfiles: Array<NutritionTotals & { keywords: string[] }>
   { keywords: ["coconut milk"], calories: 197, protein: 2, carbs: 3, fat: 21 },
   { keywords: ["coffee"], calories: 1, protein: 0.1, carbs: 0, fat: 0 },
   { keywords: ["ladyfinger cookie"], calories: 390, protein: 10, carbs: 72, fat: 5 },
-  { keywords: ["chickpeas"], calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6 }
+  { keywords: ["chickpeas"], calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6 },
+  { keywords: ["salmon"], calories: 208, protein: 20, carbs: 0, fat: 13 },
+  { keywords: ["shrimp", "prawn"], calories: 99, protein: 24, carbs: 0.2, fat: 0.3 },
+  { keywords: ["avocado"], calories: 160, protein: 2, carbs: 8.5, fat: 15 },
+  { keywords: ["sweet potato"], calories: 86, protein: 1.6, carbs: 20, fat: 0.1 },
+  { keywords: ["quinoa"], calories: 120, protein: 4.4, carbs: 21, fat: 1.9 },
+  { keywords: ["tofu"], calories: 76, protein: 8, carbs: 1.9, fat: 4.8 },
+  { keywords: ["bacon", "lardons"], calories: 541, protein: 37, carbs: 1.4, fat: 42 },
+  { keywords: ["sausage"], calories: 301, protein: 12, carbs: 2, fat: 27 },
+  { keywords: ["ham"], calories: 145, protein: 21, carbs: 1.5, fat: 6 },
+  { keywords: ["cream cheese", "philadelphia"], calories: 342, protein: 6, carbs: 4, fat: 34 },
+  { keywords: ["goat cheese", "chevre"], calories: 364, protein: 22, carbs: 0.1, fat: 30 },
+  { keywords: ["feta cheese", "feta"], calories: 264, protein: 14, carbs: 4, fat: 21 },
+  { keywords: ["almond milk"], calories: 15, protein: 0.6, carbs: 0.6, fat: 1.1 },
+  { keywords: ["soy milk"], calories: 33, protein: 2.8, carbs: 1.2, fat: 1.8 },
+  { keywords: ["oats", "rolled oats"], calories: 389, protein: 17, carbs: 66, fat: 7 },
+  { keywords: ["couscous", "semolina"], calories: 376, protein: 13, carbs: 77, fat: 0.6 },
+  { keywords: ["lentils"], calories: 116, protein: 9, carbs: 20, fat: 0.4 },
+  { keywords: ["kidney beans", "red beans", "black beans", "beans"], calories: 127, protein: 8.7, carbs: 22.8, fat: 0.5 },
+  { keywords: ["corn tortilla"], calories: 218, protein: 5.7, carbs: 44, fat: 2.8 },
+  { keywords: ["pita bread", "naan"], calories: 275, protein: 9, carbs: 55, fat: 1.2 },
+  { keywords: ["tahini"], calories: 595, protein: 17, carbs: 21, fat: 54 },
+  { keywords: ["peanut butter", "almond butter"], calories: 588, protein: 25, carbs: 20, fat: 50 },
+  { keywords: ["honey"], calories: 304, protein: 0.3, carbs: 82, fat: 0 },
+  { keywords: ["maple syrup"], calories: 260, protein: 0, carbs: 67, fat: 0 },
+  { keywords: ["coconut", "shredded coconut"], calories: 354, protein: 3.3, carbs: 15, fat: 33 },
+  { keywords: ["banana"], calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+  { keywords: ["mango"], calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
+  { keywords: ["pineapple"], calories: 50, protein: 0.5, carbs: 13, fat: 0.1 },
+  { keywords: ["bell pepper", "pepper"], calories: 31, protein: 1, carbs: 6, fat: 0.3 },
+  { keywords: ["spinach"], calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
+  { keywords: ["carrot"], calories: 41, protein: 0.9, carbs: 10, fat: 0.2 },
+  { keywords: ["potato"], calories: 77, protein: 2, carbs: 17, fat: 0.1 },
+  { keywords: ["zucchini", "courgette"], calories: 17, protein: 1.2, carbs: 3.1, fat: 0.3 },
+  { keywords: ["eggplant", "aubergine"], calories: 25, protein: 1, carbs: 6, fat: 0.2 }
 ];
 
 const densityProfiles = [

@@ -34,13 +34,13 @@ struct RecipeDetailView: View {
 
             if let recipe = viewModel.recipe {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 14) {
+                    VStack(spacing: 20) {
                         detailHeroSection(recipe: recipe)
                         detailSummarySection
                         detailNutritionSection
                         detailContentSection
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 18)
                     .padding(.top, 12)
                     .padding(.bottom, 120)
                 }

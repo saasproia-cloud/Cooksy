@@ -369,7 +369,7 @@ function ensureMinimumDishSteps(
   steps: Array<{ detail: string }>,
   ingredients: RecipeIngredientDraft[]
 ): Array<{ detail: string }> {
-  if (steps.length >= 4) {
+  if (steps.length >= 6) {
     return steps;
   }
 
@@ -789,14 +789,33 @@ function extractDishCandidate(
   };
 }
 
+function cleanIngredientDraftNoise(ingredient: RecipeIngredientDraft): RecipeIngredientDraft {
+  let name = ingredient.name
+    .replace(/#\S+/g, "")
+    .replace(/@[\p{L}\p{N}._-]+/gu, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\b(?:lien en bio|link in bio|abonne[z-]?(?:toi|vous)|like|partage|subscribe|follow|commentaire|bon app[ée]tit|bonne d[ée]gustation)\b/gi, "")
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/→|←|↑|↓|⬇️?|⬆️?|➡️?|⏰|⏱/g, "")
+    .replace(/\d{1,2}:\d{2}(?::\d{2})?/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!name) {
+    name = ingredient.name.trim();
+  }
+  return { ...ingredient, name };
+}
+
 function collectExplicitIngredients(
   input: NormalizerInput,
   parsed: RecipeImportResult,
   dishName: string
 ): RecipeIngredientDraft[] {
-  const explicitIngredients = parsed.ingredientDrafts.filter((ingredient) =>
-    !looksLikeDishNameIngredient(ingredient.name, dishName)
-  );
+  const explicitIngredients = parsed.ingredientDrafts
+    .map(cleanIngredientDraftNoise)
+    .filter((ingredient) =>
+      ingredient.name.length > 0 && !looksLikeDishNameIngredient(ingredient.name, dishName)
+    );
 
   for (const text of explicitIngredientSourceTexts(input)) {
     explicitIngredients.push(...scanCatalogIngredients(text));
@@ -1011,11 +1030,11 @@ function shouldRegenerateDishSteps(
     return true;
   }
 
-  if (parsed.stepDrafts.length >= 6) {
+  if (parsed.stepDrafts.length >= 8) {
     return false;
   }
 
-  if (finalIngredients.length > parsed.ingredientDrafts.length && parsed.stepDrafts.length < 4) {
+  if (finalIngredients.length > parsed.ingredientDrafts.length && parsed.stepDrafts.length < 6) {
     return true;
   }
 
@@ -1527,10 +1546,15 @@ function tacoSteps(ingredients: RecipeIngredientDraft[]): string[] {
   const sauce = preferredIngredientName(ingredients, ["sour_cream", "mayonnaise"], "sauce");
 
   return [
-    `Assaisonnez le ${protein} avec les épices, un peu de sel et de poivre, puis enrobez-le légèrement de farine si vous voulez une texture bien croustillante.`,
-    `Faites cuire le ${protein} dans une poêle chaude avec un filet d'huile jusqu'à ce qu'il soit bien doré et cuit à cœur, puis détaillez-le en morceaux.`,
-    `Mélangez le ${cabbage} avec un peu de ${lime} et une cuillère de ${sauce} pour obtenir une garniture fraîche.`,
-    `Réchauffez les ${tortillas}, garnissez-les avec le ${protein}, le ${cabbage} et le reste de ${sauce}, puis servez immédiatement.`
+    `Préparez les épices dans un bol en mélangeant sel, poivre, cumin et paprika selon votre goût.`,
+    `Assaisonnez le ${protein} avec le mélange d'épices, puis enrobez-le légèrement de farine si vous voulez une texture bien croustillante.`,
+    `Faites chauffer une poêle avec un filet d'huile à feu vif jusqu'à ce qu'elle soit bien chaude.`,
+    `Faites cuire le ${protein} jusqu'à ce qu'il soit bien doré et cuit à cœur, puis détaillez-le en morceaux.`,
+    `Émincez le ${cabbage} finement et pressez le ${lime} par-dessus.`,
+    `Mélangez le ${cabbage} avec une cuillère de ${sauce} pour obtenir une garniture fraîche et croquante.`,
+    `Réchauffez les ${tortillas} quelques secondes dans une poêle sèche ou au micro-ondes pour les assouplir.`,
+    `Garnissez chaque ${tortillas} avec le ${protein}, le ${cabbage} assaisonné et le reste de ${sauce}.`,
+    "Servez les tacos immédiatement avec des quartiers de citron vert à côté."
   ];
 }
 
@@ -1544,10 +1568,15 @@ function pastaSteps(ingredients: RecipeIngredientDraft[]): string[] {
   const cheese = preferredIngredientName(ingredients, ["parmesan"], "parmesan");
 
   return [
-    `Faites cuire les ${pasta} dans une grande casserole d'eau salée jusqu'à ce qu'elles soient al dente, puis réservez une petite louche d'eau de cuisson.`,
-    `Faites revenir le ${protein} avec l'${onion} et l'${garlic} dans un peu d'huile jusqu'à ce que le tout soit bien doré.`,
-    `Ajoutez le ${curry}, laissez-le torréfier quelques secondes, puis versez la ${cream} et laissez mijoter pour obtenir une sauce nappante.`,
-    `Incorporez les ${pasta} à la sauce, détendez avec un peu d'eau de cuisson si besoin, ajoutez le ${cheese} et servez bien chaud.`
+    `Portez une grande casserole d'eau salée à ébullition.`,
+    `Faites cuire les ${pasta} jusqu'à ce qu'elles soient al dente, puis réservez une petite louche d'eau de cuisson avant d'égoutter.`,
+    `Coupez le ${protein} en morceaux réguliers et assaisonnez avec du sel et du poivre.`,
+    `Faites revenir le ${protein} dans un peu d'huile jusqu'à ce qu'il soit bien doré, puis réservez-le.`,
+    `Dans la même poêle, faites revenir l'${onion} émincé et l'${garlic} haché jusqu'à ce qu'ils soient fondants.`,
+    `Ajoutez le ${curry}, mélangez pendant quelques secondes pour le torréfier et libérer ses arômes.`,
+    `Versez la ${cream} et laissez mijoter à feu doux jusqu'à obtenir une sauce nappante et onctueuse.`,
+    `Remettez le ${protein} dans la sauce et incorporez les ${pasta} égouttées en détendant avec l'eau de cuisson si besoin.`,
+    `Ajoutez le ${cheese} râpé, mélangez bien et servez immédiatement dans des assiettes chaudes.`
   ];
 }
 
@@ -1560,10 +1589,16 @@ function tiramisuSteps(ingredients: RecipeIngredientDraft[]): string[] {
   const cocoa = preferredIngredientName(ingredients, ["cocoa_powder"], "cacao");
 
   return [
-    `Fouettez les ${eggs} avec le ${sugar} jusqu'à obtenir un mélange pâle et souple, puis incorporez délicatement le ${mascarpone}.`,
-    `Versez le ${coffee} refroidi dans une assiette creuse et trempez rapidement les ${biscuits} pour qu'ils restent souples sans se défaire.`,
-    `Alternez une couche de ${biscuits} imbibés et une couche de crème au ${mascarpone} dans un plat, puis lissez la surface.`,
-    `Laissez prendre au frais plusieurs heures et saupoudrez de ${cocoa} juste avant de servir.`
+    `Séparez les blancs des jaunes des ${eggs} dans deux bols distincts.`,
+    `Fouettez les jaunes avec le ${sugar} jusqu'à obtenir un mélange pâle et mousseux.`,
+    `Incorporez délicatement le ${mascarpone} au mélange jaunes-sucre en soulevant la masse pour garder du volume.`,
+    `Montez les blancs en neige ferme avec une pincée de sel.`,
+    `Incorporez les blancs en neige à la crème au ${mascarpone} en pliant délicatement avec une spatule.`,
+    `Préparez le ${coffee} bien fort et laissez-le refroidir complètement dans une assiette creuse.`,
+    `Trempez rapidement les ${biscuits} dans le ${coffee} pour qu'ils restent souples sans se défaire.`,
+    `Alternez une couche de ${biscuits} imbibés et une couche de crème au ${mascarpone} dans un plat, en lissant chaque couche.`,
+    `Filmez le plat et laissez prendre au réfrigérateur au moins 4 heures, idéalement une nuit.`,
+    `Saupoudrez généreusement de ${cocoa} juste avant de servir.`
   ];
 }
 
@@ -1575,10 +1610,15 @@ function currySteps(ingredients: RecipeIngredientDraft[]): string[] {
   const coconutMilk = preferredIngredientName(ingredients, ["coconut_milk", "cream"], "lait de coco");
 
   return [
-    `Faites revenir l'${onion} et l'${garlic} dans un peu d'huile jusqu'à ce qu'ils soient fondants.`,
-    `Ajoutez le ${protein}, salez légèrement et faites-le dorer sur toutes les faces.`,
-    `Incorporez le ${curry}, mélangez pendant quelques secondes, puis versez le ${coconutMilk} et laissez mijoter jusqu'à ce que la sauce épaississe.`,
-    "Goûtez, rectifiez l'assaisonnement et servez le curry bien chaud avec l'accompagnement de votre choix."
+    `Coupez le ${protein} en morceaux réguliers et assaisonnez avec du sel et du poivre.`,
+    `Émincez l'${onion} et hachez l'${garlic} finement.`,
+    `Faites chauffer un peu d'huile dans une grande poêle ou un wok à feu moyen-vif.`,
+    `Faites revenir l'${onion} et l'${garlic} jusqu'à ce qu'ils soient fondants et parfumés.`,
+    `Ajoutez le ${protein} et faites-le dorer sur toutes les faces pendant quelques minutes.`,
+    `Incorporez le ${curry} et mélangez pendant quelques secondes pour torréfier les épices.`,
+    `Versez le ${coconutMilk} et portez à frémissement en mélangeant bien.`,
+    `Laissez mijoter à feu doux 15 à 20 minutes jusqu'à ce que la sauce épaississe et que le ${protein} soit bien cuit.`,
+    "Goûtez, rectifiez l'assaisonnement et servez le curry bien chaud avec du riz ou des naans."
   ];
 }
 
@@ -1591,10 +1631,15 @@ function crepeSteps(ingredients: RecipeIngredientDraft[]): string[] {
   const vanilla = preferredIngredientName(ingredients, ["vanilla"], "vanille");
 
   return [
-    `Fouettez la ${flour} avec les ${eggs}, le ${sugar} et une pincée de sel, puis versez progressivement le ${milk} pour obtenir une pâte lisse sans grumeaux.`,
-    `Ajoutez le ${butter} fondu et la ${vanilla}, mélangez encore, puis laissez reposer la pâte quelques minutes pour l'assouplir.`,
-    "Chauffez une poêle légèrement beurrée, versez une fine louche de pâte et inclinez la poêle pour répartir la préparation en couche régulière.",
-    "Faites cuire chaque crêpe jusqu'à ce que les bords se décollent, retournez-la, puis poursuivez la cuisson quelques secondes avant de répéter avec le reste de la pâte."
+    `Versez la ${flour} dans un grand saladier et creusez un puits au centre.`,
+    `Cassez les ${eggs} dans le puits et ajoutez le ${sugar} avec une pincée de sel.`,
+    `Fouettez en incorporant progressivement la ${flour} depuis les bords.`,
+    `Versez progressivement le ${milk} tout en continuant de fouetter pour obtenir une pâte lisse sans grumeaux.`,
+    `Ajoutez le ${butter} fondu et la ${vanilla}, puis mélangez une dernière fois.`,
+    "Laissez reposer la pâte au moins 30 minutes à température ambiante pour l'assouplir.",
+    "Chauffez une poêle légèrement beurrée à feu moyen, versez une fine louche de pâte et inclinez la poêle pour répartir en couche régulière.",
+    "Faites cuire chaque crêpe 1 à 2 minutes jusqu'à ce que les bords se décollent, retournez-la et poursuivez la cuisson quelques secondes.",
+    "Empilez les crêpes sur une assiette et garnissez selon votre goût avant de servir."
   ];
 }
 
@@ -1631,10 +1676,15 @@ function genericDishSteps(dishName: string, ingredients: RecipeIngredientDraft[]
   const tail = mainIngredients[2] ?? "garnitures";
 
   return [
-    `Préparez les éléments du ${dishName.toLocaleLowerCase()} en détaillant le ${head} et le ${middle} selon la taille souhaitée.`,
-    `Faites cuire le ${head} avec un peu de matière grasse jusqu'à obtenir une bonne coloration et une cuisson régulière.`,
-    `Ajoutez le ${middle} puis le ${tail}, assaisonnez et poursuivez la cuisson jusqu'à ce que l'ensemble soit bien lié.`,
-    `Rectifiez l'assaisonnement, dressez le ${dishName.toLocaleLowerCase()} et servez immédiatement.`
+    `Rassemblez et mesurez tous les ingrédients pour le ${dishName.toLocaleLowerCase()}.`,
+    `Préparez le ${head} et le ${middle} en les détaillant selon la taille souhaitée.`,
+    `Faites chauffer une poêle ou une casserole avec un peu de matière grasse à feu moyen.`,
+    `Faites cuire le ${head} jusqu'à obtenir une bonne coloration et une cuisson régulière.`,
+    `Ajoutez le ${middle} et poursuivez la cuisson quelques minutes en remuant.`,
+    `Incorporez le ${tail}, assaisonnez avec du sel et du poivre et mélangez bien.`,
+    `Poursuivez la cuisson jusqu'à ce que l'ensemble soit bien lié et les saveurs développées.`,
+    `Goûtez et rectifiez l'assaisonnement si nécessaire.`,
+    `Dressez le ${dishName.toLocaleLowerCase()} dans une assiette et servez immédiatement.`
   ];
 }
 
@@ -1646,10 +1696,14 @@ function sandwichSteps(dishName: string, ingredients: RecipeIngredientDraft[]): 
   const sauce = preferredIngredientName(ingredients, ["mayonnaise", "burger_sauce", "yogurt"], "sauce");
 
   return [
-    `Assaisonnez le ${protein} puis faites-le cuire dans une poele chaude jusqu'a ce qu'il soit bien dore et cuit a coeur.`,
-    `Coupez le ${bread} et faites-le griller legerement pour lui donner du croustillant.`,
-    `Preparez la garniture avec la ${greens}, la ${tomato} et le ${sauce}.`,
-    `Montez le ${dishName.toLocaleLowerCase()} avec le ${bread}, le ${protein}, les legumes et la sauce, puis servez aussitot.`
+    `Assaisonnez le ${protein} avec du sel, du poivre et les épices de votre choix.`,
+    `Faites chauffer une poêle avec un filet d'huile à feu moyen-vif.`,
+    `Faites cuire le ${protein} jusqu'à ce qu'il soit bien doré et cuit à cœur, puis réservez.`,
+    `Coupez le ${bread} en deux et faites-le griller légèrement pour lui donner du croustillant.`,
+    `Lavez et préparez la ${greens} et coupez la ${tomato} en rondelles.`,
+    `Tartinez le ${sauce} sur le ${bread} grillé.`,
+    `Montez le ${dishName.toLocaleLowerCase()} en superposant le ${protein}, la ${greens}, la ${tomato} et le reste de garniture.`,
+    "Refermez le sandwich, coupez en deux si souhaité et servez aussitôt."
   ];
 }
 
@@ -1661,10 +1715,14 @@ function wrapSteps(dishName: string, ingredients: RecipeIngredientDraft[]): stri
   const sauce = preferredIngredientName(ingredients, ["yogurt", "mayonnaise", "burger_sauce"], "sauce");
 
   return [
-    `Assaisonnez le ${protein} et faites-le cuire jusqu'a ce qu'il soit bien dore, puis coupez-le en morceaux si besoin.`,
-    `Rechauffez le ${wrap} quelques secondes pour l'assouplir sans le dessécher.`,
+    `Assaisonnez le ${protein} avec du sel, du poivre et les épices de votre choix.`,
+    `Faites chauffer une poêle avec un filet d'huile et faites cuire le ${protein} jusqu'à ce qu'il soit bien doré.`,
+    `Coupez le ${protein} en morceaux ou en lamelles selon votre préférence.`,
+    `Lavez et émincez la ${greens} et coupez la ${tomato} en petits morceaux.`,
+    `Réchauffez le ${wrap} quelques secondes dans une poêle sèche pour l'assouplir.`,
     `Disposez la ${greens}, la ${tomato}, le ${protein} et le ${sauce} au centre du ${wrap}.`,
-    `Rabattez les cotes, roulez le ${dishName.toLocaleLowerCase()} bien serre et servez aussitot.`
+    `Rabattez les côtés, roulez le ${dishName.toLocaleLowerCase()} bien serré et coupez en deux si souhaité.`,
+    "Servez immédiatement pendant que le wrap est encore chaud."
   ];
 }
 
@@ -1675,10 +1733,14 @@ function pizzaSteps(ingredients: RecipeIngredientDraft[]): string[] {
   const basil = preferredIngredientName(ingredients, ["basil"], "basilic");
 
   return [
-    `Etalez la ${dough} sur une plaque ou une pierre chaude en laissant un leger rebord.`,
-    `Repartissez la ${sauce} sur la pate puis ajoutez le ${cheese} et les garnitures principales.`,
-    `Faites cuire la pizza dans un four tres chaud jusqu'a ce que la pate soit doree et le fromage bien fondu.`,
-    `Ajoutez le ${basil} et un filet d'huile a la sortie du four, puis servez immediatement.`
+    "Préchauffez le four à la température maximale (240-280°C) avec la plaque ou la pierre à pizza à l'intérieur.",
+    `Étalez la ${dough} sur un plan de travail fariné en formant un disque régulier avec un léger rebord.`,
+    `Répartissez la ${sauce} uniformément sur la pâte en laissant un bord d'environ 1 cm.`,
+    `Ajoutez le ${cheese} et les garnitures principales sur la sauce.`,
+    "Transférez la pizza sur la plaque ou la pierre bien chaude dans le four.",
+    "Faites cuire 8 à 12 minutes jusqu'à ce que la pâte soit dorée et le fromage bien fondu et bullant.",
+    `Sortez la pizza du four, ajoutez le ${basil} frais et un filet d'huile d'olive.`,
+    "Laissez reposer 1 minute, découpez et servez immédiatement."
   ];
 }
 
@@ -1690,10 +1752,14 @@ function saladSteps(dishName: string, ingredients: RecipeIngredientDraft[]): str
   const dressing = preferredIngredientName(ingredients, ["olive_oil", "yogurt", "mayonnaise"], "assaisonnement");
 
   return [
-    `Preparez la base du ${dishName.toLocaleLowerCase()} en lavant la ${greens} et en coupant la ${tomato} et le ${cucumber}.`,
-    `Faites cuire le ${protein} si necessaire puis laissez-le tiedir quelques minutes.`,
-    `Melangez les legumes avec le ${protein} et le ${dressing} jusqu'a obtenir un ensemble bien assaisonne.`,
-    `Rectifiez le sel et le poivre, puis servez le ${dishName.toLocaleLowerCase()} bien frais ou tiede.`
+    `Lavez soigneusement la ${greens} et essorez-la bien.`,
+    `Coupez la ${tomato} en quartiers et le ${cucumber} en rondelles.`,
+    `Faites cuire le ${protein} si nécessaire, assaisonnez et laissez-le tiédir quelques minutes.`,
+    `Préparez la vinaigrette en mélangeant le ${dressing} avec du sel, du poivre et un trait de jus de citron.`,
+    `Disposez la ${greens} dans un saladier ou dans les assiettes de service.`,
+    `Ajoutez la ${tomato}, le ${cucumber} et le ${protein} par-dessus.`,
+    `Arrosez avec la vinaigrette au ${dressing} et mélangez délicatement.`,
+    `Rectifiez l'assaisonnement et servez le ${dishName.toLocaleLowerCase()} frais ou tiède.`
   ];
 }
 
@@ -1703,10 +1769,14 @@ function omeletteSteps(ingredients: RecipeIngredientDraft[]): string[] {
   const cheese = preferredIngredientName(ingredients, ["cheddar", "mozzarella", "parmesan"], "fromage");
 
   return [
-    `Battez les ${eggs} avec une pincee de sel et de poivre jusqu'a obtenir un melange homogene.`,
-    `Faites fondre le ${butter} dans une poele chaude puis versez les oeufs.`,
-    `Ajoutez le ${cheese} quand l'omelette commence a prendre, puis repliez-la delicatement.`,
-    "Poursuivez la cuisson quelques secondes et servez sans attendre."
+    `Cassez les ${eggs} dans un bol et assaisonnez avec du sel et du poivre.`,
+    "Battez vigoureusement les œufs à la fourchette jusqu'à obtenir un mélange homogène et légèrement mousseux.",
+    `Faites fondre le ${butter} dans une poêle antiadhésive à feu moyen.`,
+    "Versez les œufs battus dans la poêle et laissez cuire sans remuer pendant 30 secondes.",
+    "Ramenez doucement les bords vers le centre avec une spatule en inclinant la poêle pour laisser couler l'œuf liquide.",
+    `Quand l'omelette est encore légèrement baveuse au centre, ajoutez le ${cheese}.`,
+    "Repliez délicatement l'omelette en deux ou en trois et glissez-la dans l'assiette.",
+    "Servez immédiatement pendant que l'omelette est encore moelleuse."
   ];
 }
 
@@ -1718,10 +1788,15 @@ function dessertSteps(dishName: string, ingredients: RecipeIngredientDraft[]): s
   const chocolate = preferredIngredientName(ingredients, ["chocolate", "cocoa_powder"], "chocolat");
 
   return [
-    `Faites fondre le ${butter} avec le ${chocolate} puis laissez tiedir quelques instants.`,
-    `Fouettez les ${eggs} avec le ${sugar}, puis incorporez le melange au chocolat et la ${flour}.`,
-    `Versez la pate dans un moule ou formez des portions selon le ${dishName.toLocaleLowerCase()}.`,
-    `Faites cuire jusqu'a ce que le dessert soit pris mais encore moelleux, puis laissez refroidir avant de servir.`
+    "Préchauffez le four à 180°C et préparez le moule en le beurrant et en le farinant légèrement.",
+    `Faites fondre le ${butter} avec le ${chocolate} au bain-marie ou au micro-ondes en remuant régulièrement.`,
+    "Laissez tiédir le mélange quelques instants hors du feu.",
+    `Fouettez les ${eggs} avec le ${sugar} jusqu'à obtenir un mélange pâle et mousseux.`,
+    `Incorporez le mélange ${chocolate} fondu aux œufs en mélangeant délicatement.`,
+    `Ajoutez la ${flour} tamisée et mélangez jusqu'à obtenir une pâte lisse et homogène.`,
+    `Versez la pâte dans le moule préparé et lissez la surface.`,
+    `Enfournez et faites cuire jusqu'à ce que le ${dishName.toLocaleLowerCase()} soit pris mais encore moelleux au centre.`,
+    "Laissez refroidir dans le moule avant de démouler et de servir."
   ];
 }
 

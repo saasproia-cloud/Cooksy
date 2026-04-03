@@ -71,7 +71,7 @@ struct StepByStepCookingView: View {
                                     .lineSpacing(5)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            .padding(22)
+                            .padding(26)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -104,6 +104,16 @@ struct StepByStepCookingView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .gesture(
+            DragGesture(minimumDistance: 50, coordinateSpace: .local)
+                .onEnded { value in
+                    if value.translation.width < -50 {
+                        nextStepOrDismiss()
+                    } else if value.translation.width > 50 {
+                        previousStep()
+                    }
+                }
+        )
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomBar
         }
@@ -241,14 +251,18 @@ struct StepByStepCookingView: View {
     }
 
     private func previousStep() {
-        currentIndex = max(0, currentIndex - 1)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            currentIndex = max(0, currentIndex - 1)
+        }
     }
 
     private func nextStepOrDismiss() {
         if currentIndex >= steps.count - 1 {
             dismiss()
         } else {
-            currentIndex += 1
+            withAnimation(.easeInOut(duration: 0.25)) {
+                currentIndex += 1
+            }
         }
     }
 }

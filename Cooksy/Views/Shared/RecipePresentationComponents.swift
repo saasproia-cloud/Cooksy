@@ -148,9 +148,9 @@ struct RecipePresentationSummaryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: density == .compact ? 10 : 14) {
+        VStack(alignment: .leading, spacing: density == .compact ? 10 : 18) {
             Text(title)
-                .font(.system(size: density == .compact ? 24 : 31, weight: .bold, design: .serif))
+                .font(.system(size: density == .compact ? 24 : 32, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .lineSpacing(-1)
                 .fixedSize(horizontal: false, vertical: true)
@@ -158,7 +158,7 @@ struct RecipePresentationSummaryCard: View {
             Text(summaryText)
                 .font(.system(size: density == .compact ? 13 : 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
-                .lineSpacing(density == .compact ? 2 : 4)
+                .lineSpacing(density == .compact ? 2 : 6)
                 .lineLimit(density == .compact ? 2 : nil)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -697,10 +697,10 @@ private struct RecipeIngredientRow: View {
     let density: RecipePresentationDensity
 
     var body: some View {
-        HStack(spacing: density == .compact ? 10 : 12) {
+        HStack(spacing: density == .compact ? 10 : 14) {
             IngredientIconBadge(
                 ingredientName: ingredient.name,
-                size: density == .compact ? 38 : 42
+                size: density == .compact ? 38 : 46
             )
 
             VStack(alignment: .leading, spacing: 3) {
@@ -724,8 +724,8 @@ private struct RecipeIngredientRow: View {
                     .foregroundStyle(CooksyTheme.stroke)
             }
         }
-        .padding(.horizontal, density == .compact ? 12 : 14)
-        .padding(.vertical, density == .compact ? 9 : 12)
+        .padding(.horizontal, density == .compact ? 12 : 16)
+        .padding(.vertical, density == .compact ? 9 : 14)
         .background(
             RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .fill(CooksyTheme.surface)
@@ -734,6 +734,7 @@ private struct RecipeIngredientRow: View {
             RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
+        .shadow(color: CooksyTheme.softShadow, radius: density == .regular ? 4 : 0, y: density == .regular ? 2 : 0)
     }
 }
 
@@ -743,14 +744,14 @@ private struct RecipeInstructionRow: View {
     let density: RecipePresentationDensity
 
     var body: some View {
-        HStack(alignment: .top, spacing: density == .compact ? 10 : 12) {
+        HStack(alignment: .top, spacing: density == .compact ? 10 : 14) {
             ZStack {
                 Circle()
                     .fill(CooksyTheme.ctaOrange)
-                    .frame(width: density == .compact ? 22 : 24, height: density == .compact ? 22 : 24)
+                    .frame(width: density == .compact ? 22 : 28, height: density == .compact ? 22 : 28)
 
                 Text("\(index)")
-                    .font(.system(size: density == .compact ? 10 : 11, weight: .bold, design: .rounded))
+                    .font(.system(size: density == .compact ? 10 : 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
             }
             .padding(.top, 2)
@@ -759,7 +760,7 @@ private struct RecipeInstructionRow: View {
                 Text(step.detail)
                     .font(.system(size: density == .compact ? 14 : 15, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
-                    .lineSpacing(density == .compact ? 2 : 3)
+                    .lineSpacing(density == .compact ? 2 : 5)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let title = step.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
@@ -770,8 +771,8 @@ private struct RecipeInstructionRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, density == .compact ? 12 : 14)
-        .padding(.vertical, density == .compact ? 10 : 12)
+        .padding(.horizontal, density == .compact ? 12 : 16)
+        .padding(.vertical, density == .compact ? 10 : 16)
         .background(
             RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .fill(CooksyTheme.surface)
@@ -780,6 +781,7 @@ private struct RecipeInstructionRow: View {
             RoundedRectangle(cornerRadius: density == .compact ? 14 : 18, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
+        .shadow(color: CooksyTheme.softShadow, radius: density == .regular ? 4 : 0, y: density == .regular ? 2 : 0)
     }
 }
 
