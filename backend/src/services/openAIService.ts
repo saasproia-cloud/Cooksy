@@ -428,12 +428,17 @@ async function requestStructuredRecipeFromOpenAI(input: {
     throw new Error(`OpenAI normalization failed (${response.status}): ${errorBody}`);
   }
 
-  const json = await response.json() as { output_text?: string };
-  if (!json.output_text) {
+  const json = await response.json() as Record<string, unknown>;
+  const outputText = resolveOpenAIOutputText(json);
+  if (!outputText) {
+    console.error(
+      "[openAIService] Unexpected OpenAI response structure:",
+      JSON.stringify(json).slice(0, 800)
+    );
     throw new Error("OpenAI normalization returned an empty output_text payload.");
   }
 
-  const parsed = recipeImportSchema.parse(JSON.parse(json.output_text));
+  const parsed = recipeImportSchema.parse(JSON.parse(outputText));
   return sanitizeRecipeImport(parsed);
 }
 
@@ -535,4 +540,43 @@ function normalizedImageMimeType(contentType?: string, url?: string): string | u
   }
 
   return "image/jpeg";
+}
+
+function resolveOpenAIOutputText(json: Record<string, unknown>): string | undefined {
+  // Top-level convenience property (most common)
+  if (typeof json.output_text === "string" && json.output_text.trim()) {
+    return json.output_text.trim();
+  }
+
+  // Nested structure: output[].content[].text
+  if (Array.isArray(json.output)) {
+    for (const outputItem of json.output) {
+      if (!outputItem || typeof outputItem !== "object") {
+        continue;
+      }
+
+      const item = outputItem as Record<string, unknown>;
+
+      // Direct text on output item
+      if (typeof item.text === "string" && item.text.trim()) {
+        return item.text.trim();
+      }
+
+      // Nested content array
+      if (Array.isArray(item.content)) {
+        for (const contentItem of item.content) {
+          if (!contentItem || typeof contentItem !== "object") {
+            continue;
+          }
+
+          const content = contentItem as Record<string, unknown>;
+          if (typeof content.text === "string" && content.text.trim()) {
+            return content.text.trim();
+          }
+        }
+      }
+    }
+  }
+
+  return undefined;
 }

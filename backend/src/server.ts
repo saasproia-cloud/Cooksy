@@ -78,6 +78,13 @@ app.post("/api/import/url", async (request, reply) => {
     reply.status(200);
     return response;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorType = error instanceof Error ? error.constructor.name : "Unknown";
+    const isTimeout = errorMessage.toLowerCase().includes("timeout") ||
+      errorMessage.toLowerCase().includes("aborted");
+    console.error(
+      `[IMPORT FAILURE] type=${errorType} timeout=${isTimeout} url=${(request.body as Record<string, unknown>)?.url ?? "(unknown)"} message=${errorMessage}`
+    );
     request.log.error(error);
     const response = buildURLImportFailureResponse();
     console.log("FINAL_RESPONSE", JSON.stringify(response, null, 2));

@@ -72,6 +72,7 @@ const SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS = 12_000;
 const SHARED_AUDIO_MAX_DURATION_SECONDS = 75;
 const SHARED_WEB_TIMEOUT_MS = 5_000;
 const SHARED_RESERVE_MS = 1_200;
+const FULL_TOTAL_LIMIT_MS = 120_000;
 
 export async function importFromUrl(input: {
   url: string;
@@ -2499,7 +2500,7 @@ function deadlineForProfile(
     return startedAt + SHARED_TOTAL_LIMIT_MS;
   }
 
-  return undefined;
+  return startedAt + FULL_TOTAL_LIMIT_MS;
 }
 
 function hasExecutionBudget(deadline?: number, reserveMs = 0): boolean {
