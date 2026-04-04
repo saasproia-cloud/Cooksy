@@ -338,7 +338,8 @@ export async function importFromUrl(input: {
     shouldAttemptSearchEnrichment({
       recipe,
       sourcePlatform,
-      captionWasSparse
+      captionWasSparse,
+      hasTranscript: Boolean(transcript)
     }) &&
     hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
@@ -687,20 +688,22 @@ function shouldAttemptSearchEnrichment(input: {
   recipe: RecipeImportResult;
   sourcePlatform: ReturnType<typeof platformFromUrl>;
   captionWasSparse: boolean;
+  hasTranscript?: boolean;
 }): boolean {
   if (!hasMeaningfulFoodSignal(input.recipe)) {
-    return false;
+    // When we have a transcript the video likely contains food content that
+    // the heuristic recipe extraction couldn't capture.  Allow search
+    // enrichment so we can still find the recipe online.
+    if (!input.hasTranscript) {
+      return false;
+    }
   }
 
   if (shouldFallbackToSearch(input.recipe)) {
     return true;
   }
 
-  if (input.sourcePlatform === "web" || !input.captionWasSparse) {
-    return false;
-  }
-
-  if (!hasMeaningfulFoodSignal(input.recipe)) {
+  if (input.sourcePlatform === "web" || (!input.captionWasSparse && !input.hasTranscript)) {
     return false;
   }
 
