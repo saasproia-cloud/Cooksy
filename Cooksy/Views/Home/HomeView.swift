@@ -34,7 +34,7 @@ struct HomeView: View {
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 28) {
                     topBar
                     welcomeBlock
                     importGuideCard
@@ -58,7 +58,7 @@ struct HomeView: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(width: 34, height: 34)
+                .frame(width: 48, height: 48)
                 .accessibilityHidden(true)
 
             Spacer()
@@ -122,14 +122,14 @@ struct HomeView: View {
 
                 Spacer(minLength: 8)
 
-                Text("Try it")
+                Text("Import")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .frame(height: 28)
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    .padding(.horizontal, 14)
+                    .frame(height: 30)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(CooksyTheme.accentGradient)
+                            .fill(Color(hex: 0xFFF2E4))
                     )
             }
             .padding(.horizontal, 14)
@@ -156,22 +156,28 @@ struct HomeView: View {
 
                 Spacer(minLength: 0)
 
-                Button(action: openRecipesTab) {
-                    Text("See all")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                if viewModel.hasRecentImports {
+                    Button(action: openRecipesTab) {
+                        Text("See all")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(viewModel.recentImportCards) { card in
-                        recentImportDestination(for: card)
+            if viewModel.hasRecentImports {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(viewModel.recentImportCards) { card in
+                            recentImportDestination(for: card)
+                        }
                     }
+                    .padding(.vertical, 2)
+                    .padding(.trailing, 4)
                 }
-                .padding(.vertical, 2)
-                .padding(.trailing, 4)
+            } else {
+                HomeRecentImportsEmptyState(onImport: openImportSheet)
             }
         }
     }
@@ -220,21 +226,16 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder
     private func trendingDestination(for item: HomeViewModel.TrendingRecipe) -> some View {
-        if let recipeID = item.destinationRecipeID {
-            NavigationLink {
-                RecipeDetailView(store: store, recipeID: recipeID)
-            } label: {
-                HomeTrendingRecipeRow(item: item)
-            }
-            .buttonStyle(.plain)
-        } else {
-            Button(action: openImportSheet) {
-                HomeTrendingRecipeRow(item: item)
-            }
-            .buttonStyle(.plain)
+        NavigationLink {
+            TrendingRecipePreviewView(
+                scenario: item.scenario,
+                store: store
+            )
+        } label: {
+            HomeTrendingRecipeRow(item: item)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -415,6 +416,53 @@ private struct HomeTrendingRecipeRow: View {
                 .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.04), radius: 14, y: 8)
+    }
+}
+
+private struct HomeRecentImportsEmptyState: View {
+    let onImport: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "book.closed")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(CooksyTheme.secondaryText.opacity(0.5))
+
+            VStack(spacing: 6) {
+                Text("No recipes yet")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+
+                Text("Import your first recipe from TikTok, Instagram or any link")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: onImport) {
+                Text("Import a recipe")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    .padding(.horizontal, 18)
+                    .frame(height: 34)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(hex: 0xFFF2E4))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.98))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(CooksyTheme.stroke.opacity(0.6), lineWidth: 1)
+        )
     }
 }
 

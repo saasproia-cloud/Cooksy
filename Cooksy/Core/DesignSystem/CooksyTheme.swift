@@ -9,9 +9,9 @@ enum CooksyTheme {
     static let primaryAccentStrong = Color(hex: 0xC9471D)
     static let primaryAccentSoft = Color(hex: 0xFFD8BD)
     static let primaryAccentGlow = Color(hex: 0xF5B14E)
-    static let secondaryAccent = Color(hex: 0x7EA34A)
-    static let secondaryAccentStrong = Color(hex: 0x4F6F2C)
-    static let secondaryAccentSoft = Color(hex: 0xEEF4D9)
+    static let secondaryAccent = Color(hex: 0x8A9BB5)
+    static let secondaryAccentStrong = Color(hex: 0x5E7491)
+    static let secondaryAccentSoft = Color(hex: 0xE8EDF4)
     static let warmCard = Color(hex: 0xFFE4C7)
     static let warmCardMuted = Color(hex: 0xF4C86A)
     static let brandBlue = secondaryAccent

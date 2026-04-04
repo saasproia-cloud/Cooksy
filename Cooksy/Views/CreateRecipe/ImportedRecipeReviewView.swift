@@ -45,13 +45,7 @@ struct ImportedRecipeReviewView: View {
                     reviewTopBar
                     reviewHeaderSection
 
-                    if let importNotice = viewModel.importNotice {
-                        inlineMessageCard(
-                            text: importNotice,
-                            tint: CooksyTheme.brandBlueDark,
-                            icon: "sparkles"
-                        )
-                    }
+                    // Import notice removed — no blocking messages
 
                     if viewModel.showsNutrition {
                         reviewNutritionSection
@@ -66,7 +60,7 @@ struct ImportedRecipeReviewView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadRemoteImageIfNeeded()
-            await IngredientPhotoStore.shared.preload(for: viewModel.displayedIngredients.map(\.name))
+            IngredientVisualCatalog.preload()
         }
         .sheet(isPresented: $showsPlanSheet) {
             ImportRecipePlanSelectionSheet { day in
@@ -1454,7 +1448,7 @@ private struct ImportedIngredientRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            IngredientIconBadge(ingredientName: ingredient.name)
+            IngredientLocalIcon(ingredientName: ingredient.name, size: 42)
 
             VStack(alignment: .leading, spacing: 4) {
                 if let quantityText = ingredient.quantityText {

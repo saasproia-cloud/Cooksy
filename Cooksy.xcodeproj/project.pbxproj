@@ -38,6 +38,7 @@
 		77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FFE86A462D70EEF79877DD9 /* Recipe.swift */; };
 		7BDDF7C3C56E41828A086F4B /* CreateRecipeBookSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDDF7C2C56E41828A086F4B /* CreateRecipeBookSheet.swift */; };
 		7F51341EEDA0EFB4D770E679 /* RecipeEditorSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */; };
+		849D18B4B61099D1E30E0EE1 /* TrendingRecipePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */; };
 		873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14827D31D5DF8504B453F5E0 /* RootTabView.swift */; };
 		8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */; };
 		883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E295B4D72656690C64670ED8 /* RecipeBook.swift */; };
@@ -144,6 +145,7 @@
 		A31C42014123456789ABC101 /* RecipePresentationSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipePresentationSupport.swift; sourceTree = "<group>"; };
 		A31C42024123456789ABC101 /* RecipePresentationComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipePresentationComponents.swift; sourceTree = "<group>"; };
 		C031CB0EB64DA601375638B9 /* CooksyApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyApp.swift; sourceTree = "<group>"; };
+		C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingRecipePreviewView.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
 		DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
 		DDFE043E909AA15F5CDFAE1B /* BrandHeaderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BrandHeaderView.swift; sourceTree = "<group>"; };
@@ -403,6 +405,7 @@
 				CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */,
 				646B541A44F24D2497BEF4A7 /* RecipeBookDetailView.swift */,
 				509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */,
+				C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -588,6 +591,7 @@
 				0A516B3735420DAB941A709B /* AppConfiguration.swift in Sources */,
 				8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */,
 				A20000000000000000000002 /* RecipeImportFailureView.swift in Sources */,
+				849D18B4B61099D1E30E0EE1 /* TrendingRecipePreviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

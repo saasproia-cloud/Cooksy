@@ -965,433 +965,93 @@ private struct ShareExtensionRootView: View {
 private struct ShareLoadingView: View {
     let loadingState: ShareLoadingState
     let onCancel: () -> Void
-    @State private var activeStepIndex = 0
-    @State private var activeMessageIndex = 0
-    @State private var orbPulse = false
-    @State private var orbSpin = false
+
+    @State private var messageIndex = 0
+    @State private var floatOffset: CGFloat = 0
+    @State private var progressPhase: CGFloat = 0
+
+    private let messages = [
+        "Reading the recipe…",
+        "Understanding the dish…",
+        "Almost there…"
+    ]
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 0) {
             ShareHeaderBar(onCancel: onCancel)
 
-            Spacer(minLength: 8)
+            Spacer()
 
-            VStack(alignment: .leading, spacing: 14) {
-                headerRow
-                heroRow
-                progressBar
-                stepList
-                previewSection
+            VStack(spacing: 28) {
+                // Floating illustration
+                Text("🍜")
+                    .font(.system(size: 64))
+                    .offset(y: floatOffset)
 
-                Text(footerMessage)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x8B8378))
-                    .multilineTextAlignment(.leading)
+                VStack(spacing: 8) {
+                    Text("Cooksy is preparing your recipe")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: 0x221A14))
+                        .multilineTextAlignment(.center)
+
+                    Text("Sit back, this will only take a few seconds")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color(hex: 0x7B7268))
+                        .multilineTextAlignment(.center)
+                }
+
+                // Micro message
+                Text(messages[messageIndex])
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(hex: 0xD98C5F))
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.4), value: messageIndex)
+
+                // Thin progress bar
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule(style: .continuous)
+                            .fill(Color(hex: 0xEBE5DD))
+
+                        Capsule(style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: 0xD98C5F), Color(hex: 0xB87345)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(24, proxy.size.width * progressPhase))
+                    }
+                }
+                .frame(width: 180, height: 4)
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.98), Color(hex: 0xFFF7EF)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(Color(hex: 0xE6DED2), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.08), radius: 24, y: 12)
+            .padding(.horizontal, 40)
 
-            Spacer(minLength: 0)
+            Spacer()
+            Spacer()
         }
         .padding(.horizontal, 20)
         .padding(.top, 18)
         .padding(.bottom, 34)
-        .task {
-            await runProgressLoop()
-        }
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) {
-                orbPulse = true
-            }
-
-            withAnimation(.linear(duration: 4.2).repeatForever(autoreverses: false)) {
-                orbSpin = true
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                floatOffset = -8
             }
         }
-    }
-
-    private var headerRow: some View {
-        HStack(spacing: 8) {
-            statusPill(
-                text: loadingState.isVideoImport ? "Import vidéo" : "Import partagé",
-                textColor: Color(hex: 0xA94F1D),
-                background: Color(hex: 0xFFE9D3)
-            )
-
-            if let hostLabel = sanitizedHostLabel {
-                statusPill(
-                    text: hostLabel,
-                    textColor: Color(hex: 0x275C9D),
-                    background: Color(hex: 0xE6F0FF)
-                )
+        .task {
+            withAnimation(.easeInOut(duration: 15)) {
+                progressPhase = 0.92
             }
 
-            Spacer(minLength: 0)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3.5))
+                guard !Task.isCancelled else { break }
 
-            Text("\(min(activeStepIndex + 1, progressSteps.count))/\(progressSteps.count)")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(hex: 0xA94F1D))
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.white.opacity(0.9))
-                )
-        }
-    }
-
-    private var heroRow: some View {
-        HStack(alignment: .center, spacing: 16) {
-            loadingOrb
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(loadingState.title)
-                    .font(.system(size: 25, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x221A14))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(currentMessage)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x7B7268))
-                    .lineSpacing(2)
-                    .contentTransition(.opacity)
-            }
-        }
-    }
-
-    private var progressBar: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(Color(hex: 0xEEE5DA))
-
-                Capsule(style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: 0x6B9BFF), Color(hex: 0x2E7DDE)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(24, proxy.size.width * progressValue))
-            }
-        }
-        .frame(height: 8)
-    }
-
-    private var loadingOrb: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: 0x5B9AFF), Color(hex: 0x2E7DDE)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 88, height: 88)
-
-            Circle()
-                .trim(from: 0.08, to: 0.76)
-                .stroke(
-                    Color.white.opacity(0.92),
-                    style: StrokeStyle(lineWidth: 5, lineCap: .round)
-                )
-                .frame(width: 98, height: 98)
-                .rotationEffect(.degrees(orbSpin ? 360 : 0))
-
-            Circle()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 62, height: 62)
-                .scaleEffect(orbPulse ? 1.06 : 0.92)
-
-            Image(systemName: loadingState.isVideoImport ? "play.rectangle.fill" : "sparkles")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(.white)
-        }
-    }
-
-    private var stepList: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(progressSteps.enumerated()), id: \.offset) { index, step in
-                HStack(spacing: 12) {
-                    ShareLoadingStepIcon(state: stepState(for: index), tint: step.tint)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(step.title)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color(hex: 0x3F352D))
-
-                        Text(stepStatusText(for: index))
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(Color(hex: 0x7B7268))
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        messageIndex = (messageIndex + 1) % messages.count
                     }
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(stepRowBackground(for: index))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(stepRowBorder(for: index), lineWidth: 1)
-                )
-            }
-        }
-    }
-
-    private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Aperçu en préparation")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x7B7268))
-
-                Spacer(minLength: 0)
-
-                Text("Recette propre")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0xA94F1D))
-            }
-
-            HStack(alignment: .top, spacing: 12) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(hex: 0xF3E4D3))
-                    .frame(width: 78, height: 78)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    skeletonLine(width: 134, height: 12)
-                    skeletonLine(width: 94, height: 10)
-
-                    HStack(spacing: 8) {
-                        skeletonCapsule(width: 56)
-                        skeletonCapsule(width: 66)
-                        skeletonCapsule(width: 48)
-                    }
-
-                    skeletonLine(width: 152, height: 9)
-                }
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.86))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(hex: 0xEEE5DA), lineWidth: 1)
-        )
-    }
-
-    private var sanitizedHostLabel: String? {
-        guard let hostLabel = loadingState.hostLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !hostLabel.isEmpty else {
-            return nil
-        }
-
-        return hostLabel
-    }
-
-    private var currentMessage: String {
-        let step = progressSteps[min(activeStepIndex, progressSteps.count - 1)]
-        let messageIndex = min(activeMessageIndex, step.messages.count - 1)
-        return step.messages[messageIndex]
-    }
-
-    private var progressValue: Double {
-        let completed = Double(min(activeStepIndex, max(progressSteps.count - 1, 0)))
-        let partial = activeStepIndex < progressSteps.count - 1
-            ? Double(activeMessageIndex + 1) / Double(max(progressSteps[activeStepIndex].messages.count, 1))
-            : 1
-        return min((completed + partial) / Double(max(progressSteps.count, 1)), 1)
-    }
-
-    private var progressSteps: [ShareLoadingProgressStep] {
-        if loadingState.isVideoImport {
-            return [
-                ShareLoadingProgressStep(
-                    title: "Analyse de la vidéo",
-                    tint: Color(hex: 0x2E7DDE),
-                    messages: [
-                        "Lecture de la vidéo et du contexte…",
-                        "Détection du plat principal…",
-                        "Nettoyage du contexte TikTok…"
-                    ]
-                ),
-                ShareLoadingProgressStep(
-                    title: "Extraction des ingrédients",
-                    tint: Color(hex: 0xF07B20),
-                    messages: [
-                        "Extraction des ingrédients utiles…",
-                        "Préparation des quantités propres…"
-                    ]
-                ),
-                ShareLoadingProgressStep(
-                    title: "Génération de la recette",
-                    tint: Color(hex: 0x6A8F47),
-                    messages: [
-                        "Reconstruction des étapes dans Cooksy…",
-                        "Assemblage de la fiche recette…"
-                    ]
-                ),
-                ShareLoadingProgressStep(
-                    title: "Calcul nutritionnel",
-                    tint: Color(hex: 0x8C73D8),
-                    messages: [
-                        "Calcul des macros…",
-                        "Finalisation avant ouverture…"
-                    ]
-                )
-            ]
-        }
-
-        return [
-            ShareLoadingProgressStep(
-                title: "Analyse du partage",
-                tint: Color(hex: 0x2E7DDE),
-                messages: [
-                    "Lecture du lien partagé…",
-                    "Détection du plat et du contexte…"
-                ]
-            ),
-            ShareLoadingProgressStep(
-                title: "Extraction des ingrédients",
-                tint: Color(hex: 0xF07B20),
-                messages: [
-                    "Nettoyage des ingrédients utiles…",
-                    "Préparation des quantités…"
-                ]
-            ),
-            ShareLoadingProgressStep(
-                title: "Génération de la recette",
-                tint: Color(hex: 0x6A8F47),
-                messages: [
-                    "Reconstruction de la recette dans Cooksy…",
-                    "Préparation des étapes finales…"
-                ]
-            ),
-            ShareLoadingProgressStep(
-                title: "Calcul nutritionnel",
-                tint: Color(hex: 0x8C73D8),
-                messages: [
-                    "Estimation des macros…",
-                    "Finalisation avant ouverture…"
-                ]
-            )
-        ]
-    }
-
-    private var footerMessage: String {
-        if loadingState.isVideoImport {
-            return "Cooksy reprendra l’import automatiquement dès que l’app s’ouvre."
-        }
-
-        return "Vous pouvez patienter ici, Cooksy reprend la main automatiquement."
-    }
-
-    private func stepState(for index: Int) -> ShareLoadingStepState {
-        if index < activeStepIndex {
-            return .completed
-        }
-        if index == activeStepIndex {
-            return .active
-        }
-        return .pending
-    }
-
-    private func stepStatusText(for index: Int) -> String {
-        switch stepState(for: index) {
-        case .completed:
-            return "Terminé"
-        case .active:
-            return "En cours"
-        case .pending:
-            return "En attente"
-        }
-    }
-
-    private func stepRowBackground(for index: Int) -> Color {
-        switch stepState(for: index) {
-        case .completed:
-            return Color(hex: 0xEFF7E6)
-        case .active:
-            return Color(hex: 0xFFF2E8)
-        case .pending:
-            return Color.white.opacity(0.88)
-        }
-    }
-
-    private func stepRowBorder(for index: Int) -> Color {
-        switch stepState(for: index) {
-        case .completed:
-            return Color(hex: 0xD8E8C6)
-        case .active:
-            return Color(hex: 0xF2D7C1)
-        case .pending:
-            return Color(hex: 0xEEE5DA)
-        }
-    }
-
-    private func statusPill(text: String, textColor: Color, background: Color) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(textColor)
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(background)
-            )
-    }
-
-    private func skeletonLine(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: height / 2, style: .continuous)
-            .fill(Color.white.opacity(0.76))
-            .frame(width: width, height: height)
-    }
-
-    private func skeletonCapsule(width: CGFloat) -> some View {
-        Capsule(style: .continuous)
-            .fill(Color.white.opacity(0.78))
-            .frame(width: width, height: 22)
-    }
-
-    private func runProgressLoop() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(1.1))
-            guard !Task.isCancelled else { break }
-
-            await MainActor.run {
-                let messages = progressSteps[activeStepIndex].messages
-                if activeMessageIndex < messages.count - 1 {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        activeMessageIndex += 1
-                    }
-                } else if activeStepIndex < progressSteps.count - 1 {
-                    withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
-                        activeStepIndex += 1
-                        activeMessageIndex = 0
-                    }
-                } else {
-                    activeMessageIndex = (activeMessageIndex + 1) % messages.count
                 }
             }
         }
@@ -1400,149 +1060,27 @@ private struct ShareLoadingView: View {
 
 private struct ShareActionOverlay: View {
     let isVideoImport: Bool
-    @State private var pulse = false
-    @State private var spin = false
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.14)
+            Color.black.opacity(0.12)
                 .ignoresSafeArea()
 
-            VStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.14))
-                        .frame(width: 60, height: 60)
-                        .scaleEffect(pulse ? 1.06 : 0.92)
+            VStack(spacing: 12) {
+                ProgressView()
+                    .controlSize(.regular)
+                    .tint(.white)
 
-                    Circle()
-                        .trim(from: 0.08, to: 0.74)
-                        .stroke(
-                            Color.white,
-                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
-                        )
-                        .frame(width: 68, height: 68)
-                        .rotationEffect(.degrees(spin ? 360 : 0))
-
-                    Image(systemName: isVideoImport ? "play.rectangle.fill" : "sparkles")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-
-                Text("Ouverture de Cooksy")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                Text("Opening Cooksy…")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-
-                Text(
-                    isVideoImport
-                        ? "La vidéo est prête à être reprise dans l’app."
-                        : "Le partage est prêt à être repris dans l’app."
-                )
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.8))
-                .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 24)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 22)
             .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.black.opacity(0.8), Color.black.opacity(0.66)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.black.opacity(0.72))
             )
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
-                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
-                    spin = true
-                }
-            }
-        }
-    }
-}
-
-private enum ShareLoadingStepState: Equatable {
-    case completed
-    case active
-    case pending
-}
-
-private struct ShareLoadingProgressStep {
-    let title: String
-    let tint: Color
-    let messages: [String]
-}
-
-private struct ShareLoadingStepIcon: View {
-    let state: ShareLoadingStepState
-    let tint: Color
-
-    @State private var spin = false
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            switch state {
-            case .completed:
-                Circle()
-                    .fill(tint)
-                    .frame(width: 28, height: 28)
-
-                Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-
-            case .active:
-                Circle()
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 28, height: 28)
-                    .scaleEffect(pulse ? 1.08 : 0.92)
-
-                Circle()
-                    .trim(from: 0.08, to: 0.72)
-                    .stroke(
-                        tint,
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                    )
-                    .frame(width: 28, height: 28)
-                    .rotationEffect(.degrees(spin ? 360 : 0))
-
-            case .pending:
-                Circle()
-                    .stroke(Color(hex: 0xD9D0C5), lineWidth: 2)
-                    .frame(width: 28, height: 28)
-            }
-        }
-        .onAppear {
-            refreshAnimations()
-        }
-        .onChange(of: state) { _, _ in
-            refreshAnimations()
-        }
-    }
-
-    private func refreshAnimations() {
-        guard state == .active else {
-            spin = false
-            pulse = false
-            return
-        }
-
-        withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
-            spin = true
-        }
-
-        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-            pulse = true
         }
     }
 }

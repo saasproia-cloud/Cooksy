@@ -27,7 +27,7 @@ final class HomeViewModel: ObservableObject {
         let durationLabel: String
         let ratingLabel: String
         let artwork: Artwork
-        let destinationRecipeID: Recipe.ID?
+        let scenario: DemoRecipeScenario
     }
 
     @Published private(set) var recipes: [Recipe] = []
@@ -85,12 +85,12 @@ final class HomeViewModel: ObservableObject {
         "TikTok - Instagram - Any link"
     }
 
+    var hasRecentImports: Bool {
+        !sortedRecipes.isEmpty
+    }
+
     var recentImportCards: [RecentImportCard] {
-        let liveCards = Array(sortedRecipes.prefix(6)).map { makeRecentImportCard(for: $0) }
-        let minimumVisibleCards = 4
-        let fillerCount = max(0, minimumVisibleCards - liveCards.count)
-        let fillerCards = rotatedScenarios(prefixCount: fillerCount).enumerated().map { makeDemoRecentImportCard($0) }
-        return Array((liveCards + fillerCards).prefix(6))
+        Array(sortedRecipes.prefix(6)).map { makeRecentImportCard(for: $0) }
     }
 
     var trendingTodayItems: [TrendingRecipe] {
@@ -105,7 +105,7 @@ final class HomeViewModel: ObservableObject {
                     durationLabel: "\(scenario.prepMinutes + scenario.cookMinutes)m",
                     ratingLabel: ratingLabel(for: scenario.id, base: 4.7, range: 3),
                     artwork: .demo(scenario),
-                    destinationRecipeID: nil
+                    scenario: scenario
                 )
             }
     }
@@ -113,6 +113,26 @@ final class HomeViewModel: ObservableObject {
     func refreshPendingImport() {
         pendingImport = sharedLinkInbox.peek()
         refreshDailyContentIfNeeded()
+    }
+
+    static func previewRecipe(from scenario: DemoRecipeScenario) -> Recipe {
+        Recipe(
+            title: scenario.title,
+            heroStyle: .citrus,
+            details: RecipeDetails(
+                prepTimeMinutes: scenario.prepMinutes,
+                cookTimeMinutes: scenario.cookMinutes,
+                servings: scenario.servings
+            ),
+            ingredients: scenario.ingredients.map { ing in
+                RecipeIngredient(
+                    amount: ing.amount.isEmpty ? nil : ing.amount,
+                    unit: ing.unit.isEmpty ? nil : ing.unit,
+                    name: ing.name
+                )
+            },
+            steps: scenario.steps.map { RecipeStep(detail: $0) }
+        )
     }
 
     private var sortedRecipes: [Recipe] {
@@ -139,23 +159,6 @@ final class HomeViewModel: ObservableObject {
             ratingLabel: ratingLabel(for: recipe.id.uuidString, base: 4.6, range: 4),
             artwork: .recipe(recipe),
             destinationRecipeID: recipe.id
-        )
-    }
-
-    private func makeDemoRecentImportCard(
-        _ pair: EnumeratedSequence<[DemoRecipeScenario]>.Element
-    ) -> RecentImportCard {
-        let sourceLabel = Self.demoSourceLabels[(pair.offset + daySeed) % Self.demoSourceLabels.count]
-
-        return RecentImportCard(
-            id: "recent-demo-\(pair.element.id)",
-            title: pair.element.title,
-            sourceLabel: sourceLabel,
-            durationLabel: "\(pair.element.prepMinutes + pair.element.cookMinutes)m",
-            caloriesLabel: "\(420 + (stableNumber(for: pair.element.id) % 5) * 55) kcal",
-            ratingLabel: ratingLabel(for: pair.element.id, base: 4.6, range: 4),
-            artwork: .demo(pair.element),
-            destinationRecipeID: nil
         )
     }
 
@@ -264,15 +267,6 @@ final class HomeViewModel: ObservableObject {
         midnightRefreshTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
-
-    private static let demoSourceLabels = [
-        "TikTok",
-        "Instagram",
-        "TikTok",
-        "Instagram",
-        "Pinterest",
-        "YouTube"
-    ]
 
     private static let trendingHandles = [
         "@brunchbae",

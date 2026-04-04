@@ -103,7 +103,7 @@ struct RecipeValidationResult {
 
     var reviewNotice: String? {
         if !canSave {
-            return "Import incomplet. Modifiez la recette pour l'enregistrer."
+            return "Quelques ajustements sont recommandés avant l'enregistrement."
         }
 
         if status == .needsReview {

@@ -18,7 +18,6 @@ struct RecipeDetailView: View {
     @State private var selectedPhotoSource: RecipePhotoSource?
     @State private var showsPhotoOptions = false
     @State private var notice: RecipeDetailNotice?
-    @State private var activeSection: RecipeDetailSection = .ingredients
 
     init(store: RecipeStore, recipeID: Recipe.ID) {
         self.store = store
@@ -31,31 +30,26 @@ struct RecipeDetailView: View {
                 .ignoresSafeArea()
 
             if let recipe = viewModel.recipe {
-                ScrollViewReader { scrollProxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            heroSection(recipe: recipe)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        heroSection(recipe: recipe)
 
-                            VStack(spacing: 16) {
-                                metadataBar
-
-                                summarySection
-
-                                stickySegmentedControl(scrollProxy: scrollProxy)
-
-                                ingredientsSection
-                                    .id(RecipeDetailSection.ingredients)
-
-                                stepsSection
-                                    .id(RecipeDetailSection.steps)
-
-                                nutritionSection
-                                    .id(RecipeDetailSection.nutrition)
-                            }
+                        metadataBar
+                            .frame(maxWidth: .infinity)
                             .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 120)
+
+                        sourceLink
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+
+                        VStack(spacing: 24) {
+                            ingredientsSection
+                            stepsSection
+                            nutritionSection
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 24)
+                        .padding(.bottom, 120)
                     }
                 }
             }
@@ -174,49 +168,37 @@ struct RecipeDetailView: View {
     private var metadataBar: some View {
         RecipeMetadataBar(
             totalTimeLabel: viewModel.totalTimeLabel,
-            servingsLabel: viewModel.servingsLabel,
-            difficultyLabel: viewModel.difficultyLabel
+            servingsLabel: viewModel.servingsLabel
         )
     }
 
-    // MARK: - Summary
+    // MARK: - Source Link
 
-    private var summarySection: some View {
-        RecipePresentationSummaryCard(
-            summaryText: viewModel.summaryText,
-            sourceButtonTitle: viewModel.sourceButtonTitle,
-            sourceHostLabel: viewModel.sourceHostLabel,
-            sourceAction: viewModel.sourceURL.map { sourceURL in
-                { openURL(sourceURL) }
-            }
-        )
-    }
+    @ViewBuilder
+    private var sourceLink: some View {
+        if let sourceButtonTitle = viewModel.sourceButtonTitle, let sourceURL = viewModel.sourceURL {
+            Button(action: { openURL(sourceURL) }) {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(CooksyTheme.accentWarm)
 
-    // MARK: - Sticky Segmented Control
-
-    private func stickySegmentedControl(scrollProxy: ScrollViewProxy) -> some View {
-        HStack(spacing: 6) {
-            ForEach(RecipeDetailSection.allCases) { section in
-                Button {
-                    activeSection = section
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        scrollProxy.scrollTo(section, anchor: .top)
-                    }
-                } label: {
-                    Text(section.label)
+                    Text(sourceButtonTitle)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(activeSection == section ? .white : CooksyTheme.secondaryText)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(activeSection == section
-                                      ? AnyShapeStyle(CooksyTheme.accentGradient)
-                                      : AnyShapeStyle(CooksyTheme.backgroundCalm))
-                        )
+                        .foregroundStyle(CooksyTheme.primaryText)
+
+                    Text("·")
+                        .foregroundStyle(CooksyTheme.dividerSubtle)
+
+                    Text(viewModel.sourceHostLabel)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 10)
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -268,24 +250,6 @@ struct RecipeDetailView: View {
             onDecrease: { viewModel.changeServings(by: -1) },
             onIncrease: { viewModel.changeServings(by: 1) }
         )
-    }
-}
-
-// MARK: - Section Enum
-
-private enum RecipeDetailSection: String, CaseIterable, Identifiable {
-    case ingredients
-    case steps
-    case nutrition
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .ingredients: return "Ingrédients"
-        case .steps: return "Étapes"
-        case .nutrition: return "Nutrition"
-        }
     }
 }
 

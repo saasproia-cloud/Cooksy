@@ -95,8 +95,36 @@ struct CreateRecipeView: View {
                     )
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 40)
+                .padding(.bottom, 20)
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 0) {
+                Divider()
+                    .overlay(CooksyTheme.stroke)
+
+                Button {
+                    if viewModel.saveRecipe() {
+                        onSave?()
+                        dismiss()
+                    }
+                } label: {
+                    Text(saveButtonTitle)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(viewModel.canSave ? CooksyTheme.accentGradient : LinearGradient(colors: [CooksyTheme.stroke], startPoint: .leading, endPoint: .trailing))
+                        )
+                }
+                .disabled(!viewModel.canSave)
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+            }
+            .background(.ultraThinMaterial)
         }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showsBookPicker) {
@@ -131,18 +159,6 @@ struct CreateRecipeView: View {
                 }
 
                 Spacer()
-
-                topPillButton(
-                    title: saveButtonTitle,
-                    tint: viewModel.canSave ? .white : CooksyTheme.secondaryText.opacity(0.55),
-                    background: viewModel.canSave ? CooksyTheme.ctaOrange : CooksyTheme.elevatedSurface
-                ) {
-                    if viewModel.saveRecipe() {
-                        onSave?()
-                        dismiss()
-                    }
-                }
-                .disabled(!viewModel.canSave)
             }
 
             VStack(alignment: .leading, spacing: 6) {

@@ -184,20 +184,6 @@ final class RecipeValidationServiceTests: XCTestCase {
         XCTAssertTrue(resolution.usesLogoFallback)
     }
 
-    func testIngredientPhotoLookupBuilderNormalizesIngredientQueriesForRealPhotos() {
-        let lookup = IngredientPhotoLookupBuilder.lookup(for: "300 g de crème fraîche épaisse")
-
-        XCTAssertEqual(lookup.article, "creme fraiche epaisse")
-        XCTAssertEqual(lookup.category, "cream")
-        XCTAssertEqual(lookup.fallbackArticle, "cream")
-    }
-
-    func testIngredientPhotoLookupBuilderStripsMeasurementNoiseFromSimpleIngredients() {
-        let lookup = IngredientPhotoLookupBuilder.lookup(for: "2 citrons")
-
-        XCTAssertEqual(lookup.article, "citron")
-        XCTAssertEqual(lookup.category, "lemon")
-    }
 
     func testRecipeEditorSeedShortensVerboseImportedTitleForDisplayAndSave() {
         let seed = RecipeEditorSeed(

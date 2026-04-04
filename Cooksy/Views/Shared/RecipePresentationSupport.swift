@@ -16,12 +16,37 @@ enum RecipePresentationDensity {
 struct RecipeIngredientPresentation: Identifiable, Hashable {
     let id: RecipeIngredient.ID
     let quantityText: String?
+    let rawAmount: String?
+    let rawUnit: String?
     let name: String
+
+    init(id: RecipeIngredient.ID, quantityText: String?, rawAmount: String? = nil, rawUnit: String? = nil, name: String) {
+        self.id = id
+        self.quantityText = quantityText
+        self.rawAmount = rawAmount
+        self.rawUnit = rawUnit
+        self.name = name
+    }
 
     var fullLine: String {
         [quantityText?.nilIfEmpty, name.nilIfEmpty]
             .compactMap { $0 }
             .joined(separator: " ")
+    }
+
+    /// Display-normalized row for rendering.
+    /// Uses the (possibly scaled) quantityText for the amount portion,
+    /// but normalizes the unit and name for clean display.
+    var normalizedDisplay: IngredientDisplayRow {
+        // Extract the numeric portion from the already-scaled quantityText
+        let scaledAmount: String?
+        if let qt = quantityText {
+            let parts = qt.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
+            scaledAmount = parts.first
+        } else {
+            scaledAmount = nil
+        }
+        return IngredientDisplayNormalizer.displayRow(amount: scaledAmount, unit: rawUnit, name: name)
     }
 }
 
@@ -51,12 +76,6 @@ struct NormalizedIngredient: Hashable {
     let familyHints: [String]
 }
 
-struct IngredientPhotoLookup: Hashable {
-    let cacheKey: String
-    let article: String
-    let category: String?
-    let fallbackArticle: String?
-}
 
 enum IngredientVisualMatchKind: String, Hashable {
     case canonical
@@ -315,178 +334,6 @@ enum RecipeNutritionDisplayBuilder {
     }
 }
 
-enum IngredientPhotoLookupBuilder {
-    static func lookup(for ingredientName: String) -> IngredientPhotoLookup {
-        let normalized = IngredientNameNormalizer.normalize(ingredientName)
-        let article = preferredArticle(for: normalized)
-        let cacheKey = normalized.candidateKeys.first ?? normalized.normalizedText.nilIfEmpty ?? article
-        let category = normalized.familyHints.first?.nilIfEmpty
-
-        return IngredientPhotoLookup(
-            cacheKey: cacheKey,
-            article: article,
-            category: category,
-            fallbackArticle: category
-        )
-    }
-
-    private static func preferredArticle(for normalized: NormalizedIngredient) -> String {
-        let candidate = normalized.candidateKeys.first(where: { key in
-            let words = key.split(separator: " ").count
-            return words >= 1 && words <= 4
-        })
-
-        if let candidate, !candidate.isEmpty {
-            return candidate
-        }
-
-        return normalized.normalizedText.nilIfEmpty ?? normalized.original
-    }
-}
-
-actor IngredientPhotoStore {
-    static let shared = IngredientPhotoStore()
-
-    private let imageSession: URLSession
-    private let imageCache = NSCache<NSString, UIImage>()
-    private var resolvedURLs: [String: URL?] = [:]
-    private var attemptedKeys = Set<String>()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 60
-        configuration.requestCachePolicy = .returnCacheDataElseLoad
-        configuration.urlCache = URLCache(
-            memoryCapacity: 32 * 1024 * 1024,
-            diskCapacity: 128 * 1024 * 1024,
-            diskPath: "cooksy-ingredient-photo-cache"
-        )
-        self.imageSession = URLSession(configuration: configuration)
-        imageCache.countLimit = 256
-    }
-
-    func preload(for ingredientNames: [String]) async {
-        let lookups = ingredientNames
-            .map(IngredientPhotoLookupBuilder.lookup(for:))
-            .filter { !$0.article.isEmpty }
-
-        guard !lookups.isEmpty else { return }
-        _ = await resolveURLs(for: lookups)
-    }
-
-    func image(for ingredientName: String) async -> UIImage? {
-        let lookup = IngredientPhotoLookupBuilder.lookup(for: ingredientName)
-        guard let url = await resolvedURL(for: lookup) else {
-            return nil
-        }
-
-        return await loadImage(from: url)
-    }
-
-    private func resolvedURL(for lookup: IngredientPhotoLookup) async -> URL? {
-        let resolved = await resolveURLs(for: [lookup])
-        return resolved[lookup.cacheKey] ?? nil
-    }
-
-    private func resolveURLs(for lookups: [IngredientPhotoLookup]) async -> [String: URL?] {
-        let uniqueLookups = Dictionary(grouping: lookups, by: \.cacheKey)
-            .compactMap { _, values in values.first }
-
-        let unresolved = uniqueLookups.filter { !attemptedKeys.contains($0.cacheKey) }
-        if !unresolved.isEmpty {
-            await fetchResolvedURLs(for: unresolved)
-        }
-
-        return uniqueLookups.reduce(into: [String: URL?]()) { partialResult, lookup in
-            partialResult[lookup.cacheKey] = resolvedURLs[lookup.cacheKey] ?? nil
-        }
-    }
-
-    private func fetchResolvedURLs(for lookups: [IngredientPhotoLookup]) async {
-        for lookup in lookups {
-            attemptedKeys.insert(lookup.cacheKey)
-        }
-
-        let requestItems = lookups.map { lookup in
-            IngredientPhotoEnrichmentRequestItem(
-                id: lookup.cacheKey,
-                article: lookup.article,
-                category: lookup.category
-            )
-        }
-
-        if let responseItems = try? await CooksyBackendService.enrichIngredientPhotos(requestItems) {
-            for item in responseItems {
-                if let imageURL = item.imageURL {
-                    resolvedURLs[item.id] = imageURL
-                }
-            }
-        }
-
-        let fallbackLookups = lookups.filter { lookup in
-            resolvedURLs[lookup.cacheKey] == nil &&
-            (lookup.fallbackArticle?.isEmpty == false) &&
-            lookup.fallbackArticle.map { $0.caseInsensitiveCompare(lookup.article) != .orderedSame } == true
-        }
-
-        if !fallbackLookups.isEmpty {
-            let fallbackItems: [IngredientPhotoEnrichmentRequestItem] = fallbackLookups.compactMap { lookup in
-                guard let fallbackArticle = lookup.fallbackArticle else { return nil }
-                return IngredientPhotoEnrichmentRequestItem(
-                    id: lookup.cacheKey,
-                    article: fallbackArticle,
-                    category: fallbackArticle
-                )
-            }
-
-            if let fallbackResponse = try? await CooksyBackendService.enrichIngredientPhotos(fallbackItems) {
-                for item in fallbackResponse {
-                    if let imageURL = item.imageURL {
-                        resolvedURLs[item.id] = imageURL
-                    }
-                }
-            }
-        }
-    }
-
-    private func loadImage(from url: URL) async -> UIImage? {
-        let cacheKey = url.absoluteString as NSString
-        if let cached = imageCache.object(forKey: cacheKey) {
-            return cached
-        }
-
-        let request = URLRequest(
-            url: url,
-            cachePolicy: .returnCacheDataElseLoad,
-            timeoutInterval: 20
-        )
-
-        if
-            let cachedResponse = imageSession.configuration.urlCache?.cachedResponse(for: request),
-            let image = UIImage(data: cachedResponse.data)
-        {
-            imageCache.setObject(image, forKey: cacheKey)
-            return image
-        }
-
-        do {
-            let (data, response) = try await imageSession.data(for: request)
-            guard
-                let httpResponse = response as? HTTPURLResponse,
-                200 ..< 300 ~= httpResponse.statusCode,
-                let image = UIImage(data: data)
-            else {
-                return nil
-            }
-
-            imageCache.setObject(image, forKey: cacheKey)
-            return image
-        } catch {
-            return nil
-        }
-    }
-}
 
 struct IngredientVisualResolver {
     private let canonicalEntries: [String: IngredientVisualCatalogEntry]

@@ -121,51 +121,46 @@ struct RecipePresentationHeroCard<LeadingActions: View, TrailingActions: View>: 
 struct RecipeMetadataBar: View {
     let totalTimeLabel: String?
     let servingsLabel: String
-    let difficultyLabel: String
     let density: RecipePresentationDensity
 
     init(
         totalTimeLabel: String?,
         servingsLabel: String,
-        difficultyLabel: String,
         density: RecipePresentationDensity = .regular
     ) {
         self.totalTimeLabel = totalTimeLabel
         self.servingsLabel = servingsLabel
-        self.difficultyLabel = difficultyLabel
         self.density = density
     }
 
     var body: some View {
-        HStack(spacing: density == .compact ? 12 : 16) {
+        HStack(spacing: density == .compact ? 14 : 18) {
             if let totalTimeLabel {
                 metadataItem(systemImage: "clock", text: totalTimeLabel)
                 dotSeparator
             }
 
             metadataItem(systemImage: "person.2", text: servingsLabel)
-            dotSeparator
-            metadataItem(systemImage: nil, text: difficultyLabel)
         }
-        .padding(.vertical, density == .compact ? 8 : 12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, density == .compact ? 10 : 14)
     }
 
-    private func metadataItem(systemImage: String?, text: String) -> some View {
-        HStack(spacing: 5) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: density == .compact ? 11 : 12, weight: .semibold))
-            }
+    private func metadataItem(systemImage: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: density == .compact ? 12 : 13, weight: .semibold))
+
             Text(text)
                 .lineLimit(1)
         }
-        .font(.system(size: density == .compact ? 12 : 13, weight: .semibold, design: .rounded))
+        .font(.system(size: density == .compact ? 13 : 14, weight: .semibold, design: .rounded))
         .foregroundStyle(CooksyTheme.secondaryText)
     }
 
     private var dotSeparator: some View {
         Text("·")
-            .font(.system(size: 16, weight: .bold))
+            .font(.system(size: 18, weight: .bold))
             .foregroundStyle(CooksyTheme.dividerSubtle)
     }
 }
@@ -325,15 +320,12 @@ struct RecipeIngredientListCard: View {
                                 density: density
                             )
                         } else {
-                            let displayRow = IngredientDisplayNormalizer.displayRow(
-                                amount: ingredient.quantityText?.components(separatedBy: " ").first,
-                                unit: extractUnit(from: ingredient.quantityText),
-                                name: ingredient.name
-                            )
+                            let display = ingredient.normalizedDisplay
 
                             IngredientFlatRow(
-                                quantityColumn: ingredient.quantityText ?? "",
-                                nameColumn: displayRow.nameColumn,
+                                ingredientName: ingredient.name,
+                                quantityColumn: display.quantityColumn,
+                                nameColumn: display.nameColumn,
                                 density: density
                             )
                             .contentShape(Rectangle())
@@ -351,26 +343,23 @@ struct RecipeIngredientListCard: View {
         .presentationCard(density: density)
     }
 
-    private func extractUnit(from quantityText: String?) -> String? {
-        guard let text = quantityText else { return nil }
-        let parts = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: " ")
-        guard parts.count > 1 else { return nil }
-        return parts.dropFirst().joined(separator: " ")
-    }
 }
 
 // MARK: - Flat Ingredient Row
 
 private struct IngredientFlatRow: View {
+    let ingredientName: String
     let quantityColumn: String
     let nameColumn: String
     let density: RecipePresentationDensity
 
-    private var quantityWidth: CGFloat { density == .compact ? 80 : 96 }
+    private var iconSize: CGFloat { density == .compact ? 24 : 28 }
+    private var quantityWidth: CGFloat { density == .compact ? 72 : 86 }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: density == .compact ? 12 : 16) {
+        HStack(alignment: .center, spacing: density == .compact ? 10 : 14) {
+            IngredientLocalIcon(ingredientName: ingredientName, size: iconSize)
+
             Text(quantityColumn)
                 .font(.system(size: density == .compact ? 13 : 14, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.accentWarm)
@@ -700,101 +689,102 @@ struct RecipePresentationNutritionCard: View {
             }
 
             if let nutrition {
-                RecipeNutritionMacroBar(nutrition: nutrition)
-
-                // 4-column grid
-                HStack(spacing: 0) {
-                    NutritionMetricColumn(
-                        tint: CooksyTheme.accentWarm,
-                        value: nutrition.caloriesText,
+                VStack(spacing: 0) {
+                    NutritionRow(
                         label: "Calories",
+                        value: nutrition.caloriesText,
+                        tint: CooksyTheme.accentWarm,
+                        fraction: 1.0,
                         density: density
                     )
-                    NutritionMetricColumn(
-                        tint: CooksyTheme.ctaOrange,
+                    Divider().overlay(CooksyTheme.dividerSubtle)
+                    NutritionRow(
+                        label: "Protéines",
                         value: nutrition.proteinText,
-                        label: "Prot.",
+                        tint: CooksyTheme.ctaOrange,
+                        fraction: macroFraction(nutrition.protein, total: macroTotal(nutrition)),
                         density: density
                     )
-                    NutritionMetricColumn(
-                        tint: CooksyTheme.sparkleYellow,
+                    Divider().overlay(CooksyTheme.dividerSubtle)
+                    NutritionRow(
+                        label: "Glucides",
                         value: nutrition.carbsText,
-                        label: "Gluc.",
+                        tint: CooksyTheme.sparkleYellow,
+                        fraction: macroFraction(nutrition.carbs, total: macroTotal(nutrition)),
                         density: density
                     )
-                    NutritionMetricColumn(
-                        tint: CooksyTheme.secondaryAccent,
+                    Divider().overlay(CooksyTheme.dividerSubtle)
+                    NutritionRow(
+                        label: "Lipides",
                         value: nutrition.fatText,
-                        label: "Lip.",
+                        tint: CooksyTheme.secondaryAccent,
+                        fraction: macroFraction(nutrition.fat, total: macroTotal(nutrition)),
                         density: density
                     )
                 }
 
                 if isEstimated {
-                    Text("Valeurs estimées à partir des ingrédients.")
+                    Text("Valeurs estimées")
                         .font(.system(size: density == .compact ? 10 : 11, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
+                        .padding(.top, 2)
                 }
             }
         }
         .presentationCard(density: density)
     }
-}
 
-// MARK: - Nutrition Helpers
+    private func macroTotal(_ n: RecipeNutritionDisplay) -> Double {
+        max(n.protein + n.carbs + n.fat, 1)
+    }
 
-private struct NutritionMetricColumn: View {
-    let tint: Color
-    let value: String
-    let label: String
-    let density: RecipePresentationDensity
-
-    var body: some View {
-        VStack(spacing: density == .compact ? 3 : 5) {
-            Circle()
-                .fill(tint)
-                .frame(width: 6, height: 6)
-
-            Text(value)
-                .font(.system(size: density == .compact ? 14 : 16, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Text(label)
-                .font(.system(size: density == .compact ? 10 : 11, weight: .medium, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, density == .compact ? 8 : 12)
+    private func macroFraction(_ value: Double, total: Double) -> Double {
+        max(value, 0) / total
     }
 }
 
-private struct RecipeNutritionMacroBar: View {
-    let nutrition: RecipeNutritionDisplay
+// MARK: - Nutrition Row
 
-    private var proteinCalories: Double { max(nutrition.protein, 0) * 4 }
-    private var carbCalories: Double { max(nutrition.carbs, 0) * 4 }
-    private var fatCalories: Double { max(nutrition.fat, 0) * 9 }
-    private var total: Double { max(proteinCalories + carbCalories + fatCalories, 1) }
+private struct NutritionRow: View {
+    let label: String
+    let value: String
+    let tint: Color
+    let fraction: Double
+    let density: RecipePresentationDensity
 
     var body: some View {
-        GeometryReader { proxy in
-            HStack(spacing: 3) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(CooksyTheme.ctaOrange)
-                    .frame(width: max(16, proxy.size.width * proteinCalories / total))
+        HStack(spacing: density == .compact ? 10 : 14) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
 
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(CooksyTheme.sparkleYellow)
-                    .frame(width: max(16, proxy.size.width * carbCalories / total))
+            Text(label)
+                .font(.system(size: density == .compact ? 13 : 14, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+                .frame(width: density == .compact ? 72 : 80, alignment: .leading)
 
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(CooksyTheme.secondaryAccent)
-                    .frame(width: max(16, proxy.size.width * fatCalories / total))
+            // Subtle bar
+            GeometryReader { proxy in
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(tint.opacity(0.2))
+                    .frame(maxWidth: .infinity)
+                    .overlay(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(tint)
+                            .frame(width: max(4, proxy.size.width * fraction))
+                    }
             }
+            .frame(height: 6)
+
+            Text(value)
+                .font(.system(size: density == .compact ? 13 : 14, weight: .bold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .frame(width: density == .compact ? 64 : 72, alignment: .trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .frame(height: 6)
+        .padding(.vertical, density == .compact ? 10 : 13)
+        .padding(.horizontal, density == .compact ? 4 : 8)
     }
 }
 
@@ -905,7 +895,7 @@ private struct RecipePresentationHeroPlaceholder: View {
 
 // MARK: - Card Modifier
 
-private extension View {
+extension View {
     func presentationCard(density: RecipePresentationDensity) -> some View {
         self
             .padding(density == .compact ? 14 : 18)
@@ -920,79 +910,20 @@ private extension View {
     }
 }
 
-// MARK: - Legacy Compatibility (kept for IngredientIconBadge external usage)
+// MARK: - Ingredient Local Icon
 
-struct IngredientIconBadge: View {
+struct IngredientLocalIcon: View {
     let ingredientName: String
-    let size: CGFloat
-    @State private var image: UIImage?
-
-    init(ingredientName: String, size: CGFloat = 42) {
-        self.ingredientName = ingredientName
-        self.size = size
-    }
+    var size: CGFloat = 28
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.38, style: .continuous)
-                .fill(Color.white)
-                .frame(width: size, height: size)
-
-            imageView
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.38, style: .continuous))
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: size * 0.38, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-        .task(id: ingredientName) {
-            image = await IngredientPhotoStore.shared.image(for: ingredientName)
-        }
+        Image(resolvedAssetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
     }
 
-    @ViewBuilder
-    private var imageView: some View {
-        if let image {
-            Image(uiImage: image)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFill()
-        } else {
-            IngredientPhotoPlaceholder(ingredientName: ingredientName)
-        }
-    }
-}
-
-private struct IngredientPhotoPlaceholder: View {
-    let ingredientName: String
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(hex: 0xFFF6EA),
-                    Color(hex: 0xEBCB9C)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Circle()
-                .fill(Color.white.opacity(0.4))
-                .frame(width: 24, height: 24)
-                .offset(x: -8, y: -7)
-
-            Circle()
-                .fill(Color(hex: 0xD9A15D).opacity(0.26))
-                .frame(width: 18, height: 18)
-                .offset(x: 9, y: 9)
-
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.white.opacity(0.18))
-                .frame(width: 18, height: 12)
-                .rotationEffect(.degrees(-18))
-                .offset(x: 6, y: -6)
-        }
+    private var resolvedAssetName: String {
+        IngredientVisualCatalog.assetName(for: ingredientName) ?? "IngredientIconGeneric"
     }
 }

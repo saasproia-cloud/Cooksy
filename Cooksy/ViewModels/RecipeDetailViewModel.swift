@@ -188,6 +188,8 @@ final class RecipeDetailViewModel: ObservableObject {
                     baseServings: baseServings,
                     targetServings: currentServings
                 ),
+                rawAmount: ingredient.amount,
+                rawUnit: ingredient.unit,
                 name: ingredient.name
             )
         }
