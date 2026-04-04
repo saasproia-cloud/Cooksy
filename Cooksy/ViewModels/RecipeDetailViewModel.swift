@@ -21,6 +21,14 @@ final class RecipeDetailViewModel: ObservableObject {
     @Published private(set) var currentBook: RecipeBook?
     @Published var currentServings: Int = 1
 
+    // Inline editing state
+    @Published var editingIngredientID: RecipeIngredient.ID?
+    @Published var editingStepID: RecipeStep.ID?
+    @Published var editDraftAmount: String = ""
+    @Published var editDraftUnit: String = ""
+    @Published var editDraftName: String = ""
+    @Published var editDraftStepDetail: String = ""
+
     private let store: RecipeStore
     private let recipeID: Recipe.ID
     private var cancellables = Set<AnyCancellable>()
@@ -215,6 +223,70 @@ final class RecipeDetailViewModel: ObservableObject {
 
     func addToMealPlan(on day: Date) {
         store.addMealPlanRecipe(recipeID: recipeID, for: day)
+    }
+
+    // MARK: - Inline Editing
+
+    func beginEditingIngredient(_ ingredient: RecipeIngredient) {
+        cancelEdit()
+        editingIngredientID = ingredient.id
+        editDraftAmount = ingredient.amount ?? ""
+        editDraftUnit = ingredient.unit ?? ""
+        editDraftName = ingredient.name
+    }
+
+    func beginEditingStep(_ step: RecipeStep) {
+        cancelEdit()
+        editingStepID = step.id
+        editDraftStepDetail = step.detail
+    }
+
+    func saveIngredientEdit() {
+        guard var recipe, let editingID = editingIngredientID,
+              let index = recipe.ingredients.firstIndex(where: { $0.id == editingID }) else { return }
+
+        recipe.ingredients[index].amount = editDraftAmount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil : editDraftAmount.trimmingCharacters(in: .whitespacesAndNewlines)
+        recipe.ingredients[index].unit = editDraftUnit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil : editDraftUnit.trimmingCharacters(in: .whitespacesAndNewlines)
+        recipe.ingredients[index].name = editDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        recipe.updatedAt = .now
+        store.updateRecipe(recipe, movingTo: recipe.bookID)
+        cancelEdit()
+    }
+
+    func saveStepEdit() {
+        guard var recipe, let editingID = editingStepID,
+              let index = recipe.steps.firstIndex(where: { $0.id == editingID }) else { return }
+
+        recipe.steps[index].detail = editDraftStepDetail.trimmingCharacters(in: .whitespacesAndNewlines)
+        recipe.updatedAt = .now
+        store.updateRecipe(recipe, movingTo: recipe.bookID)
+        cancelEdit()
+    }
+
+    func cancelEdit() {
+        editingIngredientID = nil
+        editingStepID = nil
+        editDraftAmount = ""
+        editDraftUnit = ""
+        editDraftName = ""
+        editDraftStepDetail = ""
+    }
+
+    func deleteIngredient(id: RecipeIngredient.ID) {
+        guard var recipe else { return }
+        recipe.ingredients.removeAll { $0.id == id }
+        recipe.updatedAt = .now
+        store.updateRecipe(recipe, movingTo: recipe.bookID)
+    }
+
+    func deleteStep(id: RecipeStep.ID) {
+        guard var recipe else { return }
+        recipe.steps.removeAll { $0.id == id }
+        recipe.updatedAt = .now
+        store.updateRecipe(recipe, movingTo: recipe.bookID)
     }
 
     func shareText() -> String {

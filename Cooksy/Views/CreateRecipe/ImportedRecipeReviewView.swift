@@ -15,7 +15,6 @@ struct ImportedRecipeReviewView: View {
     @State private var showsPlanSheet = false
     @State private var showsShareSheet = false
     @State private var showsStepByStep = false
-    @State private var selectedContentTab: RecipePresentationTab = .ingredients
 
     init(
         store: RecipeStore,
@@ -107,9 +106,9 @@ struct ImportedRecipeReviewView: View {
         RecipePresentationHeroCard(
             heroImage: viewModel.heroImage,
             heroStyle: .ocean,
+            title: viewModel.title,
+            density: .compact,
             creatorHandle: viewModel.creatorHandle,
-            ratingValue: viewModel.ratingValue,
-            ratingCountText: viewModel.ratingCountLabel,
             difficultyLabel: viewModel.difficultyLabel
         ) {
             RecipePresentationActionIconButton(systemImage: "chevron.left") {
@@ -152,16 +151,13 @@ struct ImportedRecipeReviewView: View {
 
     private var reviewSummarySection: some View {
         RecipePresentationSummaryCard(
-            title: viewModel.title,
             summaryText: viewModel.summaryText,
-            totalTimeLabel: viewModel.totalTimeLabel,
-            totalCaloriesLabel: viewModel.totalCaloriesLabel,
-            servingsLabel: viewModel.servingsLabel,
             sourceButtonTitle: viewModel.sourceButtonTitle,
             sourceHostLabel: viewModel.sourceHostLabel,
             sourceAction: viewModel.sourceURL.map { sourceURL in
                 { openURL(sourceURL) }
-            }
+            },
+            density: .compact
         )
     }
 
@@ -178,13 +174,22 @@ struct ImportedRecipeReviewView: View {
     }
 
     private var reviewContentSection: some View {
-        RecipePresentationContentCard(
-            selectedTab: $selectedContentTab,
-            ingredients: viewModel.displayedIngredients,
-            steps: viewModel.instructions,
-            onCookStepByStep: { showsStepByStep = true },
-            density: .compact
-        )
+        VStack(spacing: 12) {
+            RecipeIngredientListCard(
+                ingredients: viewModel.displayedIngredients,
+                currentServings: viewModel.currentServings,
+                baseServings: viewModel.baseServings,
+                onDecrease: { viewModel.changeServings(by: -1) },
+                onIncrease: { viewModel.changeServings(by: 1) },
+                density: .compact
+            )
+
+            RecipeStepListCard(
+                steps: viewModel.instructions,
+                onCookStepByStep: { showsStepByStep = true },
+                density: .compact
+            )
+        }
     }
 
     private var reviewTopBar: some View {

@@ -27,6 +27,12 @@ enum CooksyTheme {
     static let shadow = Color(hex: 0x7C3F16, opacity: 0.12)
     static let softShadow = Color(hex: 0x7C3F16, opacity: 0.06)
 
+    // Premium redesign tokens
+    static let backgroundCalm = Color(hex: 0xF8F7F4)
+    static let accentWarm = Color(hex: 0xD98C5F)
+    static let accentWarmDark = Color(hex: 0xB87345)
+    static let dividerSubtle = Color(hex: 0xEBE5DD)
+
     static let ambientGradient = LinearGradient(
         colors: [
             Color(hex: 0xFFF9F0),

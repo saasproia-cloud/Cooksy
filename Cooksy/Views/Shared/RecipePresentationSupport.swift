@@ -843,6 +843,174 @@ private extension NSRegularExpression {
     }
 }
 
+// MARK: - Ingredient Display Normalization
+
+struct IngredientDisplayRow: Hashable {
+    let quantityColumn: String   // e.g. "300 g", "2 c. à soupe", "1"
+    let nameColumn: String       // e.g. "Farine", "Huile d'olive"
+}
+
+enum IngredientDisplayNormalizer {
+
+    /// Produces a display-ready row from a raw ingredient.
+    /// Does **not** mutate stored data — display-only transform.
+    static func displayRow(amount: String?, unit: String?, name: String) -> IngredientDisplayRow {
+        let normalizedUnit = normalizeUnit(unit)
+        let cleanedName = cleanName(name)
+
+        let quantityColumn: String
+        let trimmedAmount = amount?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if trimmedAmount.isEmpty && normalizedUnit.isEmpty {
+            quantityColumn = ""
+        } else if normalizedUnit.isEmpty {
+            quantityColumn = trimmedAmount
+        } else {
+            quantityColumn = trimmedAmount.isEmpty ? normalizedUnit : "\(trimmedAmount) \(normalizedUnit)"
+        }
+
+        return IngredientDisplayRow(quantityColumn: quantityColumn, nameColumn: cleanedName)
+    }
+
+    // MARK: - Unit normalization
+
+    private static func normalizeUnit(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "" }
+
+        let folded = raw
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .replacingOccurrences(of: "[^a-z0-9. ]", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let mapped = unitMap[folded] {
+            return mapped
+        }
+
+        // Partial / compound match
+        for (key, value) in unitMap where folded.contains(key) {
+            return value
+        }
+
+        // Already clean — return as-is with lowercase
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static let unitMap: [String: String] = [
+        // Teaspoon family → c. à café
+        "cac": "c. à café",
+        "c.a.c.": "c. à café",
+        "c.a.c": "c. à café",
+        "c a c": "c. à café",
+        "cc": "c. à café",
+        "cac.": "c. à café",
+        "cuillere a cafe": "c. à café",
+        "cuilleres a cafe": "c. à café",
+        "a cafe": "c. à café",
+        "tsp": "c. à café",
+        "teaspoon": "c. à café",
+        "teaspoons": "c. à café",
+
+        // Tablespoon family → c. à soupe
+        "cas": "c. à soupe",
+        "c.a.s.": "c. à soupe",
+        "c.a.s": "c. à soupe",
+        "c a s": "c. à soupe",
+        "cs": "c. à soupe",
+        "cas.": "c. à soupe",
+        "cuillere a soupe": "c. à soupe",
+        "cuilleres a soupe": "c. à soupe",
+        "a soupe": "c. à soupe",
+        "tbsp": "c. à soupe",
+        "tablespoon": "c. à soupe",
+        "tablespoons": "c. à soupe",
+
+        // Weight
+        "g": "g",
+        "gr": "g",
+        "gramme": "g",
+        "grammes": "g",
+        "gram": "g",
+        "grams": "g",
+        "kg": "kg",
+        "kilogramme": "kg",
+        "kilogrammes": "kg",
+        "mg": "mg",
+
+        // Volume
+        "ml": "ml",
+        "millilitre": "ml",
+        "millilitres": "ml",
+        "cl": "cl",
+        "dl": "dl",
+        "l": "l",
+        "litre": "l",
+        "litres": "l",
+
+        // Cup
+        "tasse": "tasse",
+        "tasses": "tasses",
+        "cup": "tasse",
+        "cups": "tasses",
+
+        // Glass
+        "verre": "verre",
+        "verres": "verres",
+
+        // Count-like units → omit from display
+        "piece": "",
+        "pieces": "",
+        "pce": "",
+        "unite": "",
+        "unites": "",
+        "unit": "",
+        "units": "",
+
+        // Keep as-is with clean form
+        "pincee": "pincée",
+        "pincees": "pincées",
+        "pinch": "pincée",
+        "tranche": "tranche",
+        "tranches": "tranches",
+        "gousse": "gousse",
+        "gousses": "gousses",
+        "sachet": "sachet",
+        "sachets": "sachets",
+        "botte": "botte",
+        "bottes": "bottes",
+        "feuille": "feuille",
+        "feuilles": "feuilles",
+        "branche": "branche",
+        "branches": "branches",
+    ]
+
+    // MARK: - Name cleaning
+
+    private static func cleanName(_ raw: String) -> String {
+        var name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return name }
+
+        // Strip parenthetical content (brand, type info)
+        name = name.replacingOccurrences(
+            of: "\\s*\\([^)]*\\)",
+            with: "",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Remove leading articles: "de la ", "du ", "d'", "de ", "le ", "la ", "les ", "des "
+        let articlePattern = "^(?:de\\s+la\\s+|du\\s+|d'|de\\s+|le\\s+|la\\s+|les\\s+|des\\s+|l')"
+        name = name.replacingOccurrences(
+            of: articlePattern,
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Capitalize first letter
+        guard let first = name.first else { return name }
+        return String(first).uppercased() + name.dropFirst()
+    }
+}
+
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
