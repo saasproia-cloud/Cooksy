@@ -1,9 +1,11 @@
 import Foundation
+import SwiftUI
 import UIKit
 
 enum RecipePresentationTab: String, CaseIterable, Identifiable {
-    case ingredients = "Ingrédients"
-    case steps = "Étapes"
+    case ingredients = "Ingredients"
+    case steps = "Steps"
+    case nutrition = "Nutrition"
 
     var id: String { rawValue }
 }
@@ -55,10 +57,18 @@ struct RecipeNutritionDisplay: Hashable {
     let protein: Double
     let carbs: Double
     let fat: Double
+    let fiber: Double
+    let sugar: Double
+    let salt: Double
+    let saturatedFat: Double
     let caloriesText: String
     let proteinText: String
     let carbsText: String
     let fatText: String
+    let fiberText: String
+    let sugarText: String
+    let saltText: String
+    let saturatedFatText: String
 }
 
 struct IngredientVisualCatalogEntry: Codable, Hashable {
@@ -280,10 +290,18 @@ enum RecipeNutritionDisplayBuilder {
             protein: perServingNutrition.protein * factor,
             carbs: perServingNutrition.carbs * factor,
             fat: perServingNutrition.fat * factor,
+            fiber: perServingNutrition.fiber * factor,
+            sugar: perServingNutrition.sugar * factor,
+            salt: perServingNutrition.salt * factor,
+            saturatedFat: perServingNutrition.saturatedFat * factor,
             caloriesText: RecipePresentationFormatter.formatCalories(perServingNutrition.calories * factor),
             proteinText: RecipePresentationFormatter.formatMacro(perServingNutrition.protein * factor),
             carbsText: RecipePresentationFormatter.formatMacro(perServingNutrition.carbs * factor),
-            fatText: RecipePresentationFormatter.formatMacro(perServingNutrition.fat * factor)
+            fatText: RecipePresentationFormatter.formatMacro(perServingNutrition.fat * factor),
+            fiberText: RecipePresentationFormatter.formatMacro(perServingNutrition.fiber * factor),
+            sugarText: RecipePresentationFormatter.formatMacro(perServingNutrition.sugar * factor),
+            saltText: RecipePresentationFormatter.formatMacro(perServingNutrition.salt * factor),
+            saturatedFatText: RecipePresentationFormatter.formatMacro(perServingNutrition.saturatedFat * factor)
         )
     }
 
@@ -298,38 +316,59 @@ enum RecipeNutritionDisplayBuilder {
     }
 
     private static func perServingNutrition(for recipe: Recipe) -> RecipeNutritionDisplay? {
+        let baseServings = max(RecipeQuantityScaler.baseServings(from: recipe), 1)
+        let estimate = RecipeNutritionEstimator.estimate(
+            recipe: recipe,
+            forPortions: baseServings
+        )
+
         if let stored = recipe.nutrition {
-            let calories = RecipePresentationFormatter.parseNumber(from: stored.calories) ?? 0
-            let protein = RecipePresentationFormatter.parseNumber(from: stored.protein) ?? 0
-            let carbs = RecipePresentationFormatter.parseNumber(from: stored.carbs) ?? 0
-            let fat = RecipePresentationFormatter.parseNumber(from: stored.fat) ?? 0
+            let calories = RecipePresentationFormatter.parseNumber(from: stored.calories) ?? estimate.calories
+            let protein = RecipePresentationFormatter.parseNumber(from: stored.protein) ?? estimate.protein
+            let carbs = RecipePresentationFormatter.parseNumber(from: stored.carbs) ?? estimate.carbs
+            let fat = RecipePresentationFormatter.parseNumber(from: stored.fat) ?? estimate.fat
+            let fiber = RecipePresentationFormatter.parseNumber(from: stored.fiber) ?? estimate.fiber
+            let sugar = RecipePresentationFormatter.parseNumber(from: stored.sugar) ?? estimate.sugar
+            let salt = RecipePresentationFormatter.parseNumber(from: stored.salt) ?? estimate.salt
+            let saturatedFat = RecipePresentationFormatter.parseNumber(from: stored.saturatedFat) ?? estimate.saturatedFat
             if calories > 0 || protein > 0 || carbs > 0 || fat > 0 {
                 return RecipeNutritionDisplay(
                     calories: calories,
                     protein: protein,
                     carbs: carbs,
                     fat: fat,
+                    fiber: fiber,
+                    sugar: sugar,
+                    salt: salt,
+                    saturatedFat: saturatedFat,
                     caloriesText: stored.calories ?? RecipePresentationFormatter.formatCalories(calories),
                     proteinText: stored.protein ?? RecipePresentationFormatter.formatMacro(protein),
                     carbsText: stored.carbs ?? RecipePresentationFormatter.formatMacro(carbs),
-                    fatText: stored.fat ?? RecipePresentationFormatter.formatMacro(fat)
+                    fatText: stored.fat ?? RecipePresentationFormatter.formatMacro(fat),
+                    fiberText: stored.fiber ?? RecipePresentationFormatter.formatMacro(fiber),
+                    sugarText: stored.sugar ?? RecipePresentationFormatter.formatMacro(sugar),
+                    saltText: stored.salt ?? RecipePresentationFormatter.formatMacro(salt),
+                    saturatedFatText: stored.saturatedFat ?? RecipePresentationFormatter.formatMacro(saturatedFat)
                 )
             }
         }
-
-        let estimate = RecipeNutritionEstimator.estimate(
-            recipe: recipe,
-            forPortions: max(RecipeQuantityScaler.baseServings(from: recipe), 1)
-        )
         return RecipeNutritionDisplay(
             calories: estimate.calories,
             protein: estimate.protein,
             carbs: estimate.carbs,
             fat: estimate.fat,
+            fiber: estimate.fiber,
+            sugar: estimate.sugar,
+            salt: estimate.salt,
+            saturatedFat: estimate.saturatedFat,
             caloriesText: RecipePresentationFormatter.formatCalories(estimate.calories),
             proteinText: RecipePresentationFormatter.formatMacro(estimate.protein),
             carbsText: RecipePresentationFormatter.formatMacro(estimate.carbs),
-            fatText: RecipePresentationFormatter.formatMacro(estimate.fat)
+            fatText: RecipePresentationFormatter.formatMacro(estimate.fat),
+            fiberText: RecipePresentationFormatter.formatMacro(estimate.fiber),
+            sugarText: RecipePresentationFormatter.formatMacro(estimate.sugar),
+            saltText: RecipePresentationFormatter.formatMacro(estimate.salt),
+            saturatedFatText: RecipePresentationFormatter.formatMacro(estimate.saturatedFat)
         )
     }
 }
@@ -864,11 +903,237 @@ private extension String {
     }
 }
 
+// MARK: - Step Display Cleanup
+
+enum RecipeStepDisplayBuilder {
+    static func cleanedSteps(from steps: [RecipeStep], ingredients: [RecipeIngredient]) -> [RecipeStep] {
+        var cleanedSteps: [RecipeStep] = []
+        var exactMatches = Set<String>()
+        var signatureTokens: [String: [Set<String>]] = [:]
+
+        for step in steps {
+            let normalizedTitle = normalizedSectionTitle(step.title)
+
+            for detail in splitStepDetail(step.detail) {
+                let cleanedDetail = cleanedStepDetail(detail)
+                let normalizedDetail = normalizedComparableText(cleanedDetail)
+
+                guard !normalizedDetail.isEmpty, !noisePhrases.contains(normalizedDetail) else { continue }
+                guard exactMatches.insert(normalizedDetail).inserted else { continue }
+
+                let refs = mergedIngredientRefs(
+                    explicit: step.ingredientRefs ?? [],
+                    inferred: inferredIngredientRefs(in: cleanedDetail, ingredients: ingredients)
+                )
+
+                if let signature = duplicateSensitiveSignature(for: cleanedDetail, ingredientRefs: refs) {
+                    let tokens = Set(normalizedDetail.split(separator: " ").map(String.init))
+                    let existing = signatureTokens[signature] ?? []
+                    if existing.contains(where: { similarity(between: $0, and: tokens) >= 0.62 }) {
+                        continue
+                    }
+                    signatureTokens[signature, default: []].append(tokens)
+                }
+
+                cleanedSteps.append(
+                    RecipeStep(
+                        id: UUID(),
+                        title: normalizedTitle,
+                        detail: cleanedDetail,
+                        ingredientRefs: refs.isEmpty ? nil : refs
+                    )
+                )
+            }
+        }
+
+        if cleanedSteps.isEmpty {
+            return steps.filter { !$0.detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+
+        return cleanedSteps
+    }
+
+    private static func splitStepDetail(_ detail: String) -> [String] {
+        let normalized = detail
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "•", with: " ")
+            .replacingOccurrences(of: "·", with: " ")
+            .replacingOccurrences(of: #"^\s*(?:step|etape|étape)\s*\d+[:.)-]?\s*"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return [] }
+
+        let sentenceSeparators = CharacterSet(charactersIn: ".;!\n")
+        let sentenceLikeChunks = normalized
+            .components(separatedBy: sentenceSeparators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let candidates = sentenceLikeChunks.isEmpty ? [normalized] : sentenceLikeChunks
+        var splitDetails: [String] = []
+
+        for candidate in candidates {
+            splitDetails.append(contentsOf: splitLongCandidate(candidate))
+        }
+
+        var merged: [String] = []
+        for candidate in splitDetails where !candidate.isEmpty {
+            if let last = merged.last, last.count < 36, (last.count + candidate.count) < 110 {
+                merged[merged.count - 1] = "\(last). \(candidate)"
+            } else {
+                merged.append(candidate)
+            }
+        }
+
+        return merged.isEmpty ? [normalized] : merged
+    }
+
+    private static func splitLongCandidate(_ candidate: String) -> [String] {
+        guard candidate.count > 110 else { return [candidate] }
+
+        let connectors = [
+            " puis ",
+            " then ",
+            " ensuite ",
+            " after that ",
+            " et ajoutez ",
+            " and add "
+        ]
+
+        for connector in connectors {
+            if let range = candidate.range(of: connector, options: .caseInsensitive) {
+                let first = String(candidate[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let second = String(candidate[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let pieces = [first, second].filter { !$0.isEmpty }
+                if pieces.count > 1 {
+                    return pieces
+                }
+            }
+        }
+
+        let words = candidate.split(separator: " ")
+        guard words.count > 12 else { return [candidate] }
+        let midpoint = words.count / 2
+        let left = words[..<midpoint].joined(separator: " ")
+        let right = words[midpoint...].joined(separator: " ")
+        return [left, right]
+    }
+
+    private static func cleanedStepDetail(_ detail: String) -> String {
+        let trimmed = detail
+            .replacingOccurrences(of: #"^\s*[-•\d.)]+\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let first = trimmed.first else { return trimmed }
+        let sentence = String(first).uppercased() + trimmed.dropFirst()
+        return sentence.hasSuffix(".") ? sentence : "\(sentence)."
+    }
+
+    private static func normalizedSectionTitle(_ title: String?) -> String? {
+        guard let title else { return nil }
+        let cleaned = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        guard let first = cleaned.first else { return nil }
+        return String(first).uppercased() + cleaned.dropFirst()
+    }
+
+    private static func inferredIngredientRefs(in detail: String, ingredients: [RecipeIngredient]) -> [String] {
+        let comparableDetail = normalizedComparableText(detail)
+        guard !comparableDetail.isEmpty else { return [] }
+
+        return ingredients.compactMap { ingredient in
+            let normalizedName = IngredientNameNormalizer.normalize(ingredient.name)
+            let candidates = normalizedName.candidateKeys.filter { $0.count >= 3 }
+            guard candidates.contains(where: { containsWholePhrase($0, in: comparableDetail) }) else { return nil }
+            return ingredient.name
+        }
+    }
+
+    private static func mergedIngredientRefs(explicit: [String], inferred: [String]) -> [String] {
+        var seen = Set<String>()
+        var merged: [String] = []
+
+        for ref in explicit + inferred {
+            let cleaned = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { continue }
+            let key = normalizedComparableText(cleaned)
+            if seen.insert(key).inserted {
+                merged.append(cleaned)
+            }
+        }
+
+        return merged
+    }
+
+    private static func duplicateSensitiveSignature(for detail: String, ingredientRefs: [String]) -> String? {
+        let normalizedDetail = normalizedComparableText(detail)
+        guard let action = cookingActionMatch(in: normalizedDetail) else { return nil }
+        guard !ingredientRefs.isEmpty else { return nil }
+
+        let ingredientKey = ingredientRefs
+            .map { normalizedComparableText($0) }
+            .sorted()
+            .joined(separator: "|")
+
+        return "\(action)#\(ingredientKey)"
+    }
+
+    private static func cookingActionMatch(in detail: String) -> String? {
+        for (action, patterns) in duplicateSensitiveActions {
+            if patterns.contains(where: { detail.contains($0) }) {
+                return action
+            }
+        }
+
+        return nil
+    }
+
+    private static func normalizedComparableText(_ value: String) -> String {
+        RecipePresentationFormatter.normalizedSearchText(for: value)
+            .replacingOccurrences(of: "\\b(?:the|a|an|and|with|for|de|des|du|la|le|les|avec|puis|then|ensuite)\\b", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func containsWholePhrase(_ phrase: String, in text: String) -> Bool {
+        let pattern = "(^| )" + NSRegularExpression.escapedPattern(for: phrase) + "( |$)"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(location: 0, length: text.utf16.count)
+        return regex.firstMatch(in: text, options: [], range: range) != nil
+    }
+
+    private static func similarity(between lhs: Set<String>, and rhs: Set<String>) -> Double {
+        let union = lhs.union(rhs).count
+        guard union > 0 else { return 0 }
+        return Double(lhs.intersection(rhs).count) / Double(union)
+    }
+
+    private static let noisePhrases: Set<String> = [
+        "continue reading",
+        "read more",
+        "view post",
+        "voir plus",
+        "voir le post",
+        "watch more"
+    ]
+
+    private static let duplicateSensitiveActions: [String: [String]] = [
+        "bake": ["bake", "roast", "enfourne", "enfourner", "rotir"],
+        "boil": ["boil", "simmer", "mijoter", "porter a ebullition"],
+        "cook": ["cook", "saute", "sauter", "fry", "sear", "brown", "cuire", "saisir", "faire revenir", "grill"]
+    ]
+}
+
 // MARK: - Step Ingredient Highlighter
 
 enum StepIngredientHighlighter {
 
-    static func highlighted(_ text: String, ingredientRefs: [String]?) -> AttributedString {
+    static func highlighted(
+        _ text: String,
+        ingredientRefs: [String]?,
+        fontSize: CGFloat = 15,
+        highlightColor: Color = CooksyTheme.brandBlueDark
+    ) -> AttributedString {
         guard let refs = ingredientRefs, !refs.isEmpty else {
             return AttributedString(text)
         }
@@ -889,8 +1154,8 @@ enum StepIngredientHighlighter {
                         let attrStart = AttributedString.Index(range.lowerBound, within: attributed)
                         let attrEnd = AttributedString.Index(range.upperBound, within: attributed)
                         if let attrStart, let attrEnd {
-                            attributed[attrStart..<attrEnd].foregroundColor = CooksyTheme.accentWarm
-                            attributed[attrStart..<attrEnd].font = .system(size: 15, weight: .bold, design: .rounded)
+                            attributed[attrStart..<attrEnd].foregroundColor = highlightColor
+                            attributed[attrStart..<attrEnd].font = .system(size: fontSize, weight: .bold, design: .rounded)
                         }
                     }
                     searchStart = range.upperBound

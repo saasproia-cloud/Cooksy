@@ -162,13 +162,26 @@ final class RecipeDetailViewModel: ObservableObject {
         )
     }
 
+    var perServingNutritionDisplay: RecipeNutritionDisplay? {
+        guard let recipe else { return nil }
+        return RecipeNutritionDisplayBuilder.displayNutrition(for: recipe, selectedServings: 1)
+    }
+
+    var totalNutritionDisplay: RecipeNutritionDisplay? {
+        nutritionDisplay
+    }
+
     var displayedNutrition: RecipeNutrition? {
         guard let nutritionDisplay else { return nil }
         return RecipeNutrition(
             calories: nutritionDisplay.caloriesText,
             protein: nutritionDisplay.proteinText,
             carbs: nutritionDisplay.carbsText,
-            fat: nutritionDisplay.fatText
+            fat: nutritionDisplay.fatText,
+            fiber: nutritionDisplay.fiberText,
+            sugar: nutritionDisplay.sugarText,
+            salt: nutritionDisplay.saltText,
+            saturatedFat: nutritionDisplay.saturatedFatText
         )
     }
 
@@ -196,7 +209,8 @@ final class RecipeDetailViewModel: ObservableObject {
     }
 
     var instructions: [RecipeStep] {
-        recipe?.steps ?? []
+        guard let recipe else { return [] }
+        return RecipeStepDisplayBuilder.cleanedSteps(from: recipe.steps, ingredients: recipe.ingredients)
     }
 
     var hasNutrition: Bool {
@@ -430,7 +444,7 @@ final class RecipeDetailViewModel: ObservableObject {
         guard let recipe else { return }
 
         if !hasInitializedServings {
-            currentServings = 1
+            currentServings = max(1, RecipeQuantityScaler.baseServings(from: recipe))
             hasInitializedServings = true
         }
 

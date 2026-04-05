@@ -83,17 +83,29 @@ struct RecipeNutrition: Codable, Hashable {
     var protein: String?
     var carbs: String?
     var fat: String?
+    var fiber: String?
+    var sugar: String?
+    var salt: String?
+    var saturatedFat: String?
 
     init(
         calories: String? = nil,
         protein: String? = nil,
         carbs: String? = nil,
-        fat: String? = nil
+        fat: String? = nil,
+        fiber: String? = nil,
+        sugar: String? = nil,
+        salt: String? = nil,
+        saturatedFat: String? = nil
     ) {
         self.calories = calories
         self.protein = protein
         self.carbs = carbs
         self.fat = fat
+        self.fiber = fiber
+        self.sugar = sugar
+        self.salt = salt
+        self.saturatedFat = saturatedFat
     }
 }
 

@@ -18,6 +18,7 @@ struct RecipeDetailView: View {
     @State private var selectedPhotoSource: RecipePhotoSource?
     @State private var showsPhotoOptions = false
     @State private var notice: RecipeDetailNotice?
+    @State private var selectedTab: RecipePresentationTab = .ingredients
 
     init(store: RecipeStore, recipeID: Recipe.ID) {
         self.store = store
@@ -30,28 +31,23 @@ struct RecipeDetailView: View {
                 .ignoresSafeArea()
 
             if let recipe = viewModel.recipe {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        heroSection(recipe: recipe)
+                VStack(spacing: 0) {
+                    heroSection(recipe: recipe)
 
-                        metadataBar
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 16)
+                    VStack(spacing: 14) {
+                        overviewPanel
+                            .offset(y: -26)
+                            .padding(.bottom, -18)
 
-                        sourceLink
-                            .padding(.horizontal, 16)
-                            .padding(.top, 8)
+                        tabBar
 
-                        VStack(spacing: 24) {
-                            ingredientsSection
-                            stepsSection
-                            nutritionSection
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 24)
-                        .padding(.bottom, 120)
+                        selectedTabContent
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 10)
                 }
+                .ignoresSafeArea(edges: .top)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -123,13 +119,12 @@ struct RecipeDetailView: View {
         }
     }
 
-    // MARK: - Hero
-
     private func heroSection(recipe: Recipe) -> some View {
         RecipePresentationHeroCard(
             heroImage: viewModel.heroImage,
             heroStyle: recipe.heroStyle,
             title: viewModel.title,
+            density: .compact,
             creatorHandle: viewModel.creatorHandle,
             difficultyLabel: viewModel.difficultyLabel
         ) {
@@ -163,92 +158,769 @@ struct RecipeDetailView: View {
         }
     }
 
-    // MARK: - Metadata
+    private var overviewPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                RecipeDetailInfoTile(
+                    systemImage: "clock",
+                    title: "Total Time",
+                    value: viewModel.totalTimeLabel ?? "Flexible"
+                )
 
-    private var metadataBar: some View {
-        RecipeMetadataBar(
-            totalTimeLabel: viewModel.totalTimeLabel,
-            servingsLabel: viewModel.servingsLabel
+                RecipeDetailScaleTile(
+                    currentServings: viewModel.currentServings,
+                    baseServings: viewModel.baseServings,
+                    onDecrease: { viewModel.changeServings(by: -1) },
+                    onIncrease: { viewModel.changeServings(by: 1) }
+                )
+            }
+
+            HStack(spacing: 8) {
+                RecipeDetailCapsuleLabel(text: "\(viewModel.displayedIngredients.count) ingredients")
+                RecipeDetailCapsuleLabel(text: "\(viewModel.instructions.count) steps")
+            }
+
+            if let sourceButtonTitle = viewModel.sourceButtonTitle, let sourceURL = viewModel.sourceURL {
+                Button(action: { openURL(sourceURL) }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(CooksyTheme.accentWarm)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(sourceButtonTitle)
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.primaryText)
+
+                            Text(viewModel.sourceHostLabel)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(CooksyTheme.secondaryText)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(CooksyTheme.backgroundCalm)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+        )
+        .shadow(color: CooksyTheme.softShadow, radius: 14, y: 8)
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 8) {
+            ForEach(RecipePresentationTab.allCases) { tab in
+                Button(action: { selectedTab = tab }) {
+                    VStack(spacing: 4) {
+                        Text(tab.rawValue)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(selectedTab == tab ? .white : CooksyTheme.primaryText)
+
+                        if let count = tabCount(for: tab) {
+                            Text(count)
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(selectedTab == tab ? Color.white.opacity(0.82) : CooksyTheme.secondaryText)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(selectedTab == tab ? AnyShapeStyle(CooksyTheme.accentGradient) : AnyShapeStyle(Color.white))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(selectedTab == tab ? Color.clear : CooksyTheme.dividerSubtle, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
         )
     }
 
-    // MARK: - Source Link
-
     @ViewBuilder
-    private var sourceLink: some View {
-        if let sourceButtonTitle = viewModel.sourceButtonTitle, let sourceURL = viewModel.sourceURL {
-            Button(action: { openURL(sourceURL) }) {
-                HStack(spacing: 10) {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(CooksyTheme.accentWarm)
-
-                    Text(sourceButtonTitle)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-
-                    Text("·")
-                        .foregroundStyle(CooksyTheme.dividerSubtle)
-
-                    Text(viewModel.sourceHostLabel)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 10)
-            }
-            .buttonStyle(.plain)
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .ingredients:
+            RecipeIngredientsTabView(
+                ingredients: viewModel.displayedIngredients,
+                currentServings: viewModel.currentServings,
+                baseServings: viewModel.baseServings
+            )
+        case .steps:
+            RecipeStepsTabView(
+                steps: viewModel.instructions,
+                onCookStepByStep: { showsStepByStep = true }
+            )
+        case .nutrition:
+            RecipeNutritionTabView(
+                perServingNutrition: viewModel.perServingNutritionDisplay,
+                totalNutrition: viewModel.totalNutritionDisplay,
+                isEstimated: viewModel.nutritionIsEstimated,
+                currentServings: viewModel.currentServings
+            )
         }
     }
 
-    // MARK: - Ingredients
+    private func tabCount(for tab: RecipePresentationTab) -> String? {
+        switch tab {
+        case .ingredients:
+            return "\(viewModel.displayedIngredients.count)"
+        case .steps:
+            return "\(viewModel.instructions.count)"
+        case .nutrition:
+            return nil
+        }
+    }
+}
 
-    private var ingredientsSection: some View {
-        RecipeIngredientListCard(
-            ingredients: viewModel.displayedIngredients,
-            currentServings: viewModel.currentServings,
-            baseServings: viewModel.baseServings,
-            onDecrease: { viewModel.changeServings(by: -1) },
-            onIncrease: { viewModel.changeServings(by: 1) },
-            editingID: viewModel.editingIngredientID,
-            onTapRow: { ingredient in
-                guard let recipe = viewModel.recipe,
-                      let raw = recipe.ingredients.first(where: { $0.id == ingredient.id }) else { return }
-                viewModel.beginEditingIngredient(raw)
-            },
-            editAmount: $viewModel.editDraftAmount,
-            editUnit: $viewModel.editDraftUnit,
-            editName: $viewModel.editDraftName,
-            onSaveEdit: { viewModel.saveIngredientEdit() },
-            onCancelEdit: { viewModel.cancelEdit() }
+private struct RecipeDetailInfoTile: View {
+    let systemImage: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(CooksyTheme.accentWarm)
+
+            Text(title)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+
+            Text(value)
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(CooksyTheme.backgroundCalm)
+        )
+    }
+}
+
+private struct RecipeDetailScaleTile: View {
+    let currentServings: Int
+    let baseServings: Int
+    let onDecrease: () -> Void
+    let onIncrease: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Scale")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+
+            Text("\(currentServings) servings")
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+
+            HStack(spacing: 8) {
+                stepperButton(systemImage: "minus", action: onDecrease)
+                stepperButton(systemImage: "plus", action: onIncrease)
+            }
+
+            Text("Base recipe: \(baseServings)")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(CooksyTheme.backgroundCalm)
         )
     }
 
-    // MARK: - Steps
+    private func stepperButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(Color.white))
+        }
+        .buttonStyle(.plain)
+    }
+}
 
-    private var stepsSection: some View {
-        RecipeStepListCard(
-            steps: viewModel.instructions,
-            onCookStepByStep: { showsStepByStep = true },
-            editingID: viewModel.editingStepID,
-            onTapRow: { step in viewModel.beginEditingStep(step) },
-            editStepDetail: $viewModel.editDraftStepDetail,
-            onSaveEdit: { viewModel.saveStepEdit() },
-            onCancelEdit: { viewModel.cancelEdit() }
+private struct RecipeDetailCapsuleLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(CooksyTheme.secondaryText)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.backgroundCalm)
+            )
+    }
+}
+
+private struct RecipeIngredientsTabView: View {
+    let ingredients: [RecipeIngredientPresentation]
+    let currentServings: Int
+    let baseServings: Int
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Ingredients")
+                        .font(.system(size: 24, weight: .regular, design: .serif))
+                        .foregroundStyle(CooksyTheme.primaryText)
+
+                    Text("Strict 3-column layout scaled for \(currentServings) servings.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                }
+
+                VStack(spacing: 0) {
+                    HStack(spacing: 10) {
+                        Text("Items")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+
+                        Spacer()
+
+                        Text("Base \(baseServings)")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+
+                    Divider()
+                        .overlay(CooksyTheme.dividerSubtle)
+
+                    ForEach(Array(ingredients.enumerated()), id: \.element.id) { index, ingredient in
+                        RecipeIngredientColumnRow(ingredient: ingredient)
+
+                        if index < ingredients.count - 1 {
+                            Divider()
+                                .overlay(CooksyTheme.dividerSubtle)
+                                .padding(.leading, 14)
+                        }
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+                )
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 120)
+        }
+    }
+}
+
+private struct RecipeIngredientColumnRow: View {
+    let ingredient: RecipeIngredientPresentation
+
+    private let iconColumnWidth: CGFloat = 42
+    private let quantityColumnWidth: CGFloat = 82
+    private let rowHeight: CGFloat = 58
+
+    private var display: IngredientDisplayRow {
+        ingredient.normalizedDisplay
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CooksyTheme.backgroundCalm)
+
+                IngredientLocalIcon(ingredientName: ingredient.name, size: 24)
+            }
+            .frame(width: 34, height: 34)
+            .frame(width: iconColumnWidth, alignment: .leading)
+
+            Text(display.quantityColumn.isEmpty ? " " : display.quantityColumn)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.accentWarm)
+                .frame(width: quantityColumnWidth, alignment: .leading)
+                .lineLimit(1)
+
+            Text(display.nameColumn)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: rowHeight, alignment: .leading)
+        .padding(.horizontal, 14)
+    }
+}
+
+private struct RecipeStepsTabView: View {
+    let steps: [RecipeStep]
+    let onCookStepByStep: () -> Void
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 12) {
+                Button(action: onCookStepByStep) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(CooksyTheme.accentWarm)
+
+                        Text("Start cook mode")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if steps.isEmpty {
+                    RecipeEmptyTabState(
+                        title: "No steps available",
+                        subtitle: "Cooksy needs a structured step list for this recipe."
+                    )
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                            let previousTitle = index > 0 ? steps[index - 1].title : nil
+                            let cleanedTitle = step.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let isNewSection = cleanedTitle?.isEmpty == false && cleanedTitle != previousTitle
+
+                            if isNewSection, let cleanedTitle {
+                                Text(cleanedTitle.uppercased())
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .tracking(0.7)
+                                    .foregroundStyle(CooksyTheme.brandBlueDark)
+                                    .padding(.top, index == 0 ? 2 : 10)
+                            }
+
+                            RecipeStepCard(index: index + 1, step: step)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 120)
+        }
+    }
+}
+
+private struct RecipeStepCard: View {
+    let index: Int
+    let step: RecipeStep
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(CooksyTheme.accentGradient)
+                    .frame(width: 34, height: 34)
+
+                Text("\(index)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+
+            Text(
+                StepIngredientHighlighter.highlighted(
+                    step.detail,
+                    ingredientRefs: step.ingredientRefs,
+                    fontSize: 14,
+                    highlightColor: CooksyTheme.brandBlueDark
+                )
+            )
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(CooksyTheme.primaryText)
+            .lineSpacing(3)
+            .lineLimit(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+        )
+    }
+}
+
+private struct RecipeNutritionTabView: View {
+    let perServingNutrition: RecipeNutritionDisplay?
+    let totalNutrition: RecipeNutritionDisplay?
+    let isEstimated: Bool
+    let currentServings: Int
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                if let perServingNutrition {
+                    nutritionOverviewCard(perServingNutrition)
+
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        RecipeNutritionMetricCard(title: "Calories", value: perServingNutrition.caloriesText, tint: CooksyTheme.accentWarm)
+                        RecipeNutritionMetricCard(title: "Protein", value: perServingNutrition.proteinText, tint: CooksyTheme.brandBlueDark)
+                        RecipeNutritionMetricCard(title: "Carbs", value: perServingNutrition.carbsText, tint: CooksyTheme.sparkleYellow)
+                        RecipeNutritionMetricCard(title: "Fat", value: perServingNutrition.fatText, tint: CooksyTheme.secondaryAccentStrong)
+                    }
+
+                    macroBalanceCard(perServingNutrition)
+                    secondaryMetricsCard(perServingNutrition)
+
+                    if let totalNutrition {
+                        totalRecipeCard(totalNutrition)
+                    }
+
+                    if isEstimated {
+                        Text("Estimated from the ingredient list.")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                            .padding(.horizontal, 2)
+                    }
+                } else {
+                    RecipeEmptyTabState(
+                        title: "Nutrition unavailable",
+                        subtitle: "Add more ingredient detail to unlock richer nutrition insights."
+                    )
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 120)
+        }
+    }
+
+    private func nutritionOverviewCard(_ nutrition: RecipeNutritionDisplay) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Nutrition")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.78))
+
+            Text(nutrition.caloriesText)
+                .font(.system(size: 30, weight: .regular, design: .serif))
+                .foregroundStyle(.white)
+
+            Text("Per serving")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.88))
+
+            Text("Recipe scaled to \(currentServings) servings.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.78))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(CooksyTheme.accentGradient)
         )
     }
 
-    // MARK: - Nutrition
+    private func macroBalanceCard(_ nutrition: RecipeNutritionDisplay) -> some View {
+        let total = max(nutrition.protein + nutrition.carbs + nutrition.fat, 1)
 
-    private var nutritionSection: some View {
-        RecipePresentationNutritionCard(
-            nutrition: viewModel.nutritionDisplay,
-            isEstimated: viewModel.nutritionIsEstimated,
-            currentServings: viewModel.currentServings,
-            baseServings: viewModel.baseServings,
-            onDecrease: { viewModel.changeServings(by: -1) },
-            onIncrease: { viewModel.changeServings(by: 1) }
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Macro balance")
+                .font(.system(size: 18, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+
+            GeometryReader { proxy in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(CooksyTheme.brandBlueDark)
+                        .frame(width: proxy.size.width * CGFloat(nutrition.protein / total))
+
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(CooksyTheme.sparkleYellow)
+                        .frame(width: proxy.size.width * CGFloat(nutrition.carbs / total))
+
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(CooksyTheme.secondaryAccentStrong)
+                        .frame(width: proxy.size.width * CGFloat(nutrition.fat / total))
+                }
+            }
+            .frame(height: 12)
+
+            VStack(spacing: 10) {
+                RecipeNutritionLegendRow(title: "Protein", value: nutrition.proteinText, tint: CooksyTheme.brandBlueDark)
+                RecipeNutritionLegendRow(title: "Carbs", value: nutrition.carbsText, tint: CooksyTheme.sparkleYellow)
+                RecipeNutritionLegendRow(title: "Fat", value: nutrition.fatText, tint: CooksyTheme.secondaryAccentStrong)
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+        )
+    }
+
+    private func secondaryMetricsCard(_ nutrition: RecipeNutritionDisplay) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Secondary values")
+                .font(.system(size: 18, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+
+            VStack(spacing: 12) {
+                RecipeNutritionSecondaryRow(title: "Fiber", value: nutrition.fiberText, tint: CooksyTheme.brandBlueDark.opacity(0.65), fraction: metricFraction(nutrition.fiber, reference: 12))
+                RecipeNutritionSecondaryRow(title: "Sugar", value: nutrition.sugarText, tint: CooksyTheme.accentWarm, fraction: metricFraction(nutrition.sugar, reference: 25))
+                RecipeNutritionSecondaryRow(title: "Salt", value: nutrition.saltText, tint: CooksyTheme.secondaryAccentStrong, fraction: metricFraction(nutrition.salt, reference: 6))
+                RecipeNutritionSecondaryRow(title: "Saturated fat", value: nutrition.saturatedFatText, tint: CooksyTheme.primaryAccentStrong, fraction: metricFraction(nutrition.saturatedFat, reference: 20))
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+        )
+    }
+
+    private func totalRecipeCard(_ nutrition: RecipeNutritionDisplay) -> some View {
+        let totalColumns = [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ]
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Total recipe")
+                .font(.system(size: 18, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+
+            Text("For \(currentServings) servings")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+
+            LazyVGrid(columns: totalColumns, spacing: 12) {
+                RecipeNutritionTotalPill(title: "Calories", value: nutrition.caloriesText)
+                RecipeNutritionTotalPill(title: "Protein", value: nutrition.proteinText)
+                RecipeNutritionTotalPill(title: "Carbs", value: nutrition.carbsText)
+                RecipeNutritionTotalPill(title: "Fat", value: nutrition.fatText)
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+        )
+    }
+
+    private func metricFraction(_ value: Double, reference: Double) -> Double {
+        min(max(value, 0) / max(reference, 1), 1)
+    }
+}
+
+private struct RecipeNutritionMetricCard: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Circle()
+                .fill(tint)
+                .frame(width: 10, height: 10)
+
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+
+            Text(value)
+                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+        )
+    }
+}
+
+private struct RecipeNutritionLegendRow: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+
+            Text(title)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+
+            Spacer(minLength: 0)
+
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+        }
+    }
+}
+
+private struct RecipeNutritionSecondaryRow: View {
+    let title: String
+    let value: String
+    let tint: Color
+    let fraction: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+
+                Spacer(minLength: 0)
+
+                Text(value)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+            }
+
+            GeometryReader { proxy in
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(tint.opacity(0.18))
+                    .overlay(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(tint)
+                            .frame(width: max(8, proxy.size.width * fraction))
+                    }
+            }
+            .frame(height: 8)
+        }
+    }
+}
+
+private struct RecipeNutritionTotalPill: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(CooksyTheme.backgroundCalm)
+        )
+    }
+}
+
+private struct RecipeEmptyTabState: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 22, weight: .regular, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+
+            Text(subtitle)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
         )
     }
 }
