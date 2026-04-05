@@ -17,12 +17,16 @@ const apiIngredientSchema = z.object({
   name: z.string(),
   quantity: z.string(),
   unit: z.string(),
+  quantityValue: z.number().optional(),
+  display: z.string().optional(),
   nutritionQuery: z.string().optional()
 });
 
 const apiStepSchema = z.object({
   stepNumber: z.number().int().positive(),
-  description: z.string()
+  description: z.string(),
+  section: z.string().optional(),
+  ingredientRefs: z.array(z.string()).optional()
 });
 
 const apiNutritionSchema = z.object({
@@ -166,12 +170,18 @@ function normalizeIngredients(
   const seen = new Set<string>();
 
   return ingredients
-    .map((ingredient) => ({
-      name: normalizeIngredientName(ingredient.name),
-      quantity: cleanIngredientText(ingredient.amount),
-      unit: normalizeUnitLabel(ingredient.unit),
-      nutritionQuery: ingredient.nutritionQuery?.trim() || undefined
-    }))
+    .map((ingredient) => {
+      const name = normalizeIngredientName(ingredient.name);
+      const quantity = cleanIngredientText(ingredient.amount);
+      return {
+        name,
+        quantity,
+        unit: normalizeUnitLabel(ingredient.unit),
+        quantityValue: parseQuantityValue(quantity) ?? undefined,
+        display: capitalizeDisplay(name) || undefined,
+        nutritionQuery: ingredient.nutritionQuery?.trim() || undefined
+      };
+    })
     .filter((ingredient) => isUsableIngredientName(ingredient.name, title))
     .filter((ingredient) => {
       const key = normalizeIngredientKey(ingredient.name);
@@ -185,15 +195,23 @@ function normalizeIngredients(
 }
 
 function normalizeSteps(
-  recipe: RecipeImportResult
+  recipe: RecipeImportResult,
+  ingredientNames?: string[]
 ): URLImportSuccessResponse["data"]["steps"] {
   return recipe.stepDrafts
-    .map((step) => cleanStepDescription(step.detail))
-    .filter((description) => isUsableCookingInstruction(description))
-    .filter(Boolean)
-    .map((description, index) => ({
+    .map((step) => ({
+      description: cleanStepDescription(step.detail),
+      section: step.section?.trim() || undefined
+    }))
+    .filter((step) => isUsableCookingInstruction(step.description))
+    .filter((step) => Boolean(step.description))
+    .map((step, index) => ({
       stepNumber: index + 1,
-      description
+      description: step.description,
+      section: step.section,
+      ingredientRefs: ingredientNames?.length
+        ? ingredientNamesForStep(step.description, ingredientNames)
+        : undefined
     }));
 }
 
@@ -202,36 +220,46 @@ function ensureCompleteSteps(
   title: string,
   ingredients: URLImportSuccessResponse["data"]["ingredients"]
 ): URLImportSuccessResponse["data"]["steps"] {
-  const explicitSteps = normalizeSteps(recipe);
+  const ingredientNames = ingredients.map((i) => i.name);
+  const explicitSteps = normalizeSteps(recipe, ingredientNames);
   const requiredStepCount = minimumGeneratedStepCount(title, ingredients);
   const needsCookabilityUpgrade = hasCookabilityGaps({
     ingredientDrafts: recipe.ingredientDrafts,
     stepDrafts: explicitSteps.map((step) => ({ detail: step.description }))
   });
 
+  let steps: URLImportSuccessResponse["data"]["steps"];
+
   if (explicitSteps.length >= requiredStepCount && !needsCookabilityUpgrade) {
-    return explicitSteps;
+    steps = explicitSteps;
+  } else {
+    const rebuiltSteps = dedupeStepDescriptions([
+      ...generatedStepsForRecipe(title, ingredients),
+      ...explicitSteps.map((step) => step.description)
+    ])
+      .filter((description) => isUsableCookingInstruction(description))
+      .slice(0, 20)
+      .map((description, index) => ({
+        stepNumber: index + 1,
+        description,
+        ingredientRefs: ingredientNamesForStep(description, ingredientNames) || undefined
+      }));
+
+    if (rebuiltSteps.length >= requiredStepCount) {
+      steps = rebuiltSteps;
+    } else {
+      steps = generatedStepsForRecipe(title, ingredients).map((description, index) => ({
+        stepNumber: index + 1,
+        description,
+        ingredientRefs: ingredientNamesForStep(description, ingredientNames) || undefined
+      }));
+    }
   }
 
-  const rebuiltSteps = dedupeStepDescriptions([
-    ...generatedStepsForRecipe(title, ingredients),
-    ...explicitSteps.map((step) => step.description)
-  ])
-    .filter((description) => isUsableCookingInstruction(description))
-    .slice(0, 20)
-    .map((description, index) => ({
-      stepNumber: index + 1,
-      description
-    }));
+  steps = splitLongSteps(steps, ingredientNames);
+  steps = ensureIngredientStepCoverage(steps, ingredients);
 
-  if (rebuiltSteps.length >= requiredStepCount) {
-    return rebuiltSteps;
-  }
-
-  return generatedStepsForRecipe(title, ingredients).map((description, index) => ({
-    stepNumber: index + 1,
-    description
-  }));
+  return steps;
 }
 
 function resolveNutrition(recipe: RecipeImportResult): URLImportSuccessResponse["data"]["nutrition"] {
@@ -411,15 +439,23 @@ function normalizeUnitLabel(value: string): string {
   const normalized = cleaned
     .replace(/\bc\.?\s*a\.?\s*s\.?\b/gi, "c. à soupe")
     .replace(/\bc\.?\s*a\.?\s*c\.?\b/gi, "c. à café")
-    .replace(/\bc(?:uill?e?re)?\.?\s*[aà]\s*soupe\b/gi, "c. à soupe")
-    .replace(/\bc(?:uill?e?re)?\.?\s*[aà]\s*caf[ée]\b/gi, "c. à café")
+    .replace(/\bc(?:uill[eè]?re)?s?\.?\s*[aà]\s*soupe\b/gi, "c. à soupe")
+    .replace(/\bc(?:uill[eè]?re)?s?\.?\s*[aà]\s*caf[ée]\b/gi, "c. à café")
     .replace(/\bcas\b/gi, "c. à soupe")
     .replace(/\bcac\b/gi, "c. à café")
+    .replace(/\btbsp\b/gi, "c. à soupe")
+    .replace(/\btsp\b/gi, "c. à café")
+    .replace(/\btablespoons?\b/gi, "c. à soupe")
+    .replace(/\bteaspoons?\b/gi, "c. à café")
     .replace(/\bgrammes?\b/gi, "g")
     .replace(/\bgr\b/gi, "g")
+    .replace(/\bkilogrammes?\b/gi, "kg")
     .replace(/\bmillilit(?:er|re)s?\b/gi, "ml")
+    .replace(/\bcentilitres?\b/gi, "cl")
+    .replace(/\bd[ée]cilitres?\b/gi, "dl")
     .replace(/\blitres?\b/gi, "l")
     .replace(/\bpieces?\b/gi, "")
+    .replace(/\bcups?\b/gi, "tasse")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -716,6 +752,208 @@ function generatedIngredientSignals(
     hasProtein,
     hasAssemblyFillings
   };
+}
+
+function parseQuantityValue(value: string): number | null {
+  const cleaned = value.replace(",", ".").trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const mixedMatch = cleaned.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixedMatch) {
+    const whole = Number(mixedMatch[1]);
+    const num = Number(mixedMatch[2]);
+    const den = Number(mixedMatch[3]);
+    if (den > 0) {
+      return Math.round((whole + num / den) * 100) / 100;
+    }
+  }
+
+  const fractionMatch = cleaned.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fractionMatch) {
+    const num = Number(fractionMatch[1]);
+    const den = Number(fractionMatch[2]);
+    if (den > 0) {
+      return Math.round((num / den) * 100) / 100;
+    }
+  }
+
+  const rangeMatch = cleaned.match(/^(\d+(?:\.\d+)?)\s*[-–à]\s*(\d+(?:\.\d+)?)$/);
+  if (rangeMatch) {
+    const low = Number(rangeMatch[1]);
+    const high = Number(rangeMatch[2]);
+    if (Number.isFinite(low) && Number.isFinite(high)) {
+      return Math.round(((low + high) / 2) * 100) / 100;
+    }
+  }
+
+  const simpleMatch = cleaned.match(/^(\d+(?:\.\d+)?)$/);
+  if (simpleMatch) {
+    const val = Number(simpleMatch[1]);
+    return Number.isFinite(val) ? val : null;
+  }
+
+  return null;
+}
+
+function capitalizeDisplay(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function ingredientNamesForStep(
+  description: string,
+  ingredientNames: string[]
+): string[] | undefined {
+  if (!ingredientNames.length) {
+    return undefined;
+  }
+
+  const normalizedDesc = normalizeIngredientKey(description);
+  const matches: string[] = [];
+
+  for (const name of ingredientNames) {
+    const normalizedName = normalizeIngredientKey(name);
+    if (!normalizedName || normalizedName.length < 2) {
+      continue;
+    }
+
+    const tokens = normalizedName.split(" ").filter(Boolean);
+    const matched = tokens.some((token) =>
+      token.length >= 3 && normalizedDesc.includes(token)
+    );
+
+    if (matched) {
+      matches.push(name);
+    }
+  }
+
+  return matches.length > 0 ? matches : undefined;
+}
+
+function splitLongSteps(
+  steps: URLImportSuccessResponse["data"]["steps"],
+  ingredientNames: string[]
+): URLImportSuccessResponse["data"]["steps"] {
+  const result: URLImportSuccessResponse["data"]["steps"] = [];
+  const splitPatterns = [", puis ", ", ensuite ", ". Ensuite, ", ". Puis, "];
+
+  for (const step of steps) {
+    const desc = step.description;
+    if (desc.length <= 200) {
+      result.push(step);
+      continue;
+    }
+
+    let wasSplit = false;
+    for (const pattern of splitPatterns) {
+      const index = desc.toLowerCase().indexOf(pattern.toLowerCase());
+      if (index > 20 && index < desc.length - 20) {
+        const first = desc.slice(0, index).trim();
+        const rest = desc.slice(index + pattern.length).trim();
+        const capitalizedRest = rest.charAt(0).toUpperCase() + rest.slice(1);
+
+        result.push({
+          stepNumber: 0,
+          description: first,
+          section: step.section,
+          ingredientRefs: ingredientNamesForStep(first, ingredientNames)
+        });
+        result.push({
+          stepNumber: 0,
+          description: capitalizedRest,
+          ingredientRefs: ingredientNamesForStep(capitalizedRest, ingredientNames)
+        });
+        wasSplit = true;
+        break;
+      }
+    }
+
+    if (!wasSplit) {
+      result.push(step);
+    }
+  }
+
+  return result.map((step, index) => ({
+    ...step,
+    stepNumber: index + 1
+  }));
+}
+
+function ensureIngredientStepCoverage(
+  steps: URLImportSuccessResponse["data"]["steps"],
+  ingredients: URLImportSuccessResponse["data"]["ingredients"]
+): URLImportSuccessResponse["data"]["steps"] {
+  const ingredientNames = ingredients.map((i) => i.name);
+  const majorIngredientNames = ingredients
+    .filter((i) => {
+      const key = normalizeIngredientKey(i.name);
+      return !/\b(?:sel|salt|poivre|pepper|huile|oil|eau|water|beurre|butter)\b/.test(key);
+    })
+    .map((i) => i.name);
+
+  if (!majorIngredientNames.length) {
+    return steps;
+  }
+
+  const coveredIngredients = new Set<string>();
+  for (const step of steps) {
+    const refs = ingredientNamesForStep(step.description, majorIngredientNames);
+    if (refs) {
+      for (const ref of refs) {
+        coveredIngredients.add(normalizeIngredientKey(ref));
+      }
+    }
+  }
+
+  const uncoveredIngredients = majorIngredientNames.filter(
+    (name) => !coveredIngredients.has(normalizeIngredientKey(name))
+  );
+
+  if (uncoveredIngredients.length <= 2) {
+    return steps;
+  }
+
+  const batch1 = uncoveredIngredients.slice(0, 3);
+  const extraSteps: URLImportSuccessResponse["data"]["steps"] = [];
+
+  if (batch1.length > 0) {
+    const ingredientList = batch1.join(", ");
+    const desc = `Ajoutez ${ingredientList} et incorporez au reste de la préparation.`;
+    extraSteps.push({
+      stepNumber: 0,
+      description: desc,
+      ingredientRefs: batch1
+    });
+  }
+
+  const batch2 = uncoveredIngredients.slice(3);
+  if (batch2.length > 0) {
+    const ingredientList = batch2.join(", ");
+    const desc = `Ajoutez ${ingredientList} et mélangez bien.`;
+    extraSteps.push({
+      stepNumber: 0,
+      description: desc,
+      ingredientRefs: batch2
+    });
+  }
+
+  const lastCookingStepIndex = steps.length > 1 ? steps.length - 1 : steps.length;
+  const combined = [
+    ...steps.slice(0, lastCookingStepIndex),
+    ...extraSteps,
+    ...steps.slice(lastCookingStepIndex)
+  ];
+
+  return combined.map((step, index) => ({
+    ...step,
+    stepNumber: index + 1
+  }));
 }
 
 const instructionVerbPattern = /\b(?:preparez|préparez|assaisonnez|faites|chauffez|cuisez|ajoutez|melangez|mélangez|versez|disposez|repartissez|répartissez|montez|assemblez|rabattez|roulez|etalez|étalez|rechauffez|réchauffez|toastez|fouettez|incorporez|laissez|servez|garnissez|saisissez|rectifiez|poursuivez|dressez|enfournez|coupez|emincez|émincez|detaillez|détaillez|petrir|pétrir|façonnez|faconnez|formez|divisez|boulez|filmer|filmerz|saupoudrez|singer|degazez|dégazez|couvrez|decoupez|découpez|decouper|découper|former|former|plongez|portez|ebullition|ébullition|refroidir|refroidissez|egouttez|égouttez|saler|poivrer|dorez|dorez|griller|grillez|prechauffez|préchauffez|etalez|plier|pliez|farcir|farcissez|aplatir|aplatissez|mariner|marinez|deglacer|déglacer|deglacer|flamber|flambez|dresser|pocher|pochez|blanchir|blanchissez|saisir|faire revenir|revenir|depouillez|filtrez|assaisonner|reserver|réserver|reservez|réservez|sortez|retirer|retirez|ajouter|melanger|melangez|continuer|continuez|terminez|finir|finissez|couvrir)\b/;

@@ -517,6 +517,27 @@ struct RecipeStepListCard: View {
             if !steps.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                        let previousTitle = index > 0 ? steps[index - 1].title : nil
+                        let isNewSection = step.title != nil
+                            && !step.title!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            && step.title != previousTitle
+
+                        if isNewSection {
+                            if index > 0 {
+                                Divider()
+                                    .overlay(CooksyTheme.dividerSubtle)
+                                    .padding(.vertical, density == .compact ? 4 : 6)
+                            }
+
+                            Text(step.title!)
+                                .font(.system(size: density == .compact ? 13 : 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.accentWarm)
+                                .padding(.horizontal, density == .compact ? 4 : 8)
+                                .padding(.top, index > 0 ? (density == .compact ? 6 : 10) : 0)
+                                .padding(.bottom, density == .compact ? 2 : 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
                         if editingID == step.id,
                            let editStepDetail, let onSaveEdit, let onCancelEdit {
                             InlineStepEditRow(
@@ -536,7 +557,7 @@ struct RecipeStepListCard: View {
                             .onTapGesture { onTapRow?(step) }
                         }
 
-                        if index < steps.count - 1 {
+                        if index < steps.count - 1 && !isNewSection {
                             Divider()
                                 .overlay(CooksyTheme.dividerSubtle)
                         }
@@ -569,17 +590,11 @@ private struct StepFlatRow: View {
             .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(step.detail)
+                Text(StepIngredientHighlighter.highlighted(step.detail, ingredientRefs: step.ingredientRefs))
                     .font(.system(size: density == .compact ? 14 : 15, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .lineSpacing(density == .compact ? 2 : 4)
                     .fixedSize(horizontal: false, vertical: true)
-
-                if let title = step.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
-                    Text(title)
-                        .font(.system(size: density == .compact ? 11 : 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

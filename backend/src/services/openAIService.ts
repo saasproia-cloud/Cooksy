@@ -63,9 +63,10 @@ const recipeJsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["detail"],
+        required: ["detail", "section"],
         properties: {
-          detail: { type: "string" }
+          detail: { type: "string" },
+          section: { type: "string" }
         }
       }
     },
@@ -164,7 +165,12 @@ export async function normalizeRecipeFromContext(
       "Renseigne flags.generatedSteps à true si tu réécris ou reconstruis les étapes.",
       "Renseigne flags.generatedNutrition à true pour toute recette alimentaire.",
       "Si le contenu est partiel, reconstruis une recette plausible mais honnête.",
-      "N'utilise pas needsWebFallback comme échappatoire à un contenu culinaire incomplet: livre d'abord une vraie recette exploitable."
+      "N'utilise pas needsWebFallback comme échappatoire à un contenu culinaire incomplet: livre d'abord une vraie recette exploitable.",
+      "Si la recette comporte des sous-préparations distinctes (marinade, sauce, pâte, garniture, dressage), renseigne le champ section de la première étape de chaque sous-préparation avec un label court comme 'Marinade', 'Sauce', 'Pâte', 'Garniture', 'Dressage'. Les étapes suivantes de la même sous-préparation ont section vide.",
+      "Ne force pas de section si la recette suit un déroulé linéaire simple.",
+      "Chaque étape de cuisson doit inclure la température ou l'intensité du feu quand c'est pertinent (par ex. 'à feu moyen', '180 °C').",
+      "Chaque étape impliquant une durée doit mentionner un temps indicatif (par ex. '5 minutes', 'environ 10 min').",
+      "Chaque ingrédient principal doit apparaître nommément dans au moins une étape. Vérifie cette règle avant de finaliser le JSON."
     ]
   });
 
@@ -214,7 +220,12 @@ export async function reviewRecipeCookability(
       "Déduis prudemment les portions ou petites quantités implicites si cela rend la recette et la nutrition plus cohérentes.",
       "Renseigne confidenceScore entre 0 et 1 et mets à jour les flags pour refléter les ingrédients explicites, les ingrédients inférés, les étapes générées et la nutrition générée.",
       "Ne laisse jamais une recette alimentaire sans nutrition: estime toujours calories, protéines, glucides et lipides à partir de la version finale.",
-      "Vérifie aussi que calories, protéines, glucides et lipides restent cohérents entre eux; si les macros ne collent pas raisonnablement avec les calories, corrige-les au lieu de vider la nutrition."
+      "Vérifie aussi que calories, protéines, glucides et lipides restent cohérents entre eux; si les macros ne collent pas raisonnablement avec les calories, corrige-les au lieu de vider la nutrition.",
+      "Si la recette comporte des sous-préparations distinctes (marinade, sauce, pâte, garniture, dressage), renseigne le champ section de la première étape de chaque sous-préparation avec un label court comme 'Marinade', 'Sauce', 'Pâte', 'Garniture', 'Dressage'. Les étapes suivantes de la même sous-préparation ont section vide.",
+      "Ne force pas de section si la recette suit un déroulé linéaire simple.",
+      "Chaque étape de cuisson doit inclure la température ou l'intensité du feu quand c'est pertinent (par ex. 'à feu moyen', '180 °C').",
+      "Chaque étape impliquant une durée doit mentionner un temps indicatif (par ex. '5 minutes', 'environ 10 min').",
+      "Chaque ingrédient principal doit apparaître nommément dans au moins une étape. Vérifie cette règle avant de finaliser le JSON."
     ]
   });
 

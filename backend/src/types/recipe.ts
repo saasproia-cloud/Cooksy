@@ -10,7 +10,8 @@ export const recipeIngredientSchema = z.object({
 });
 
 export const recipeStepSchema = z.object({
-  detail: z.string().default("")
+  detail: z.string().default(""),
+  section: z.string().optional()
 });
 
 export const recipeImportFlagsSchema = z.object({
@@ -169,7 +170,8 @@ export function sanitizeRecipeImport(input: RecipeImportResult): RecipeImportRes
   const stepDrafts = dedupeSteps(
     input.stepDrafts
       .map((step) => ({
-        detail: sanitizeStepDetail(step.detail)
+        detail: sanitizeStepDetail(step.detail),
+        ...(step.section ? { section: normalizeWhitespace(step.section) } : {})
       }))
       .filter((step) => isPlausibleCookingStep(step.detail) && !looksLikeIncompleteStepFragment(step.detail))
   );
@@ -206,8 +208,8 @@ export function sanitizeRecipeImport(input: RecipeImportResult): RecipeImportRes
   });
   const cookabilityGap = cookabilitySignals.majorIngredientCount >= 4 &&
     (
-      cookabilitySignals.majorIngredientCoverage < 0.45 ||
-      cookabilitySignals.uncoveredMajorIngredientCount >= 3
+      cookabilitySignals.majorIngredientCoverage < 0.55 ||
+      cookabilitySignals.uncoveredMajorIngredientCount >= 2
     );
   const strongStructuredImport = !titleLooksArticleLike &&
     title.length > 2 &&
@@ -888,9 +890,9 @@ function dedupeIngredients(ingredients: RecipeIngredientDraft[]): RecipeIngredie
   return result;
 }
 
-function dedupeSteps(steps: Array<{ detail: string }>): Array<{ detail: string }> {
+function dedupeSteps<T extends { detail: string }>(steps: T[]): T[] {
   const seen = new Set<string>();
-  const result: Array<{ detail: string }> = [];
+  const result: T[] = [];
 
   for (const step of steps) {
     const key = normalizeLookup(step.detail);

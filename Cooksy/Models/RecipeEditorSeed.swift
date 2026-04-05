@@ -114,7 +114,7 @@ struct RecipeEditorSeed: Codable, Hashable {
             ingredientDrafts: recipe.ingredients.map {
                 IngredientDraft(amount: $0.amount ?? "", unit: $0.unit ?? "", name: $0.name)
             },
-            stepDrafts: recipe.steps.map { StepDraft(detail: $0.detail) },
+            stepDrafts: recipe.steps.map { StepDraft(detail: $0.detail, section: $0.title, ingredientRefs: $0.ingredientRefs) },
             notesText: recipe.notes ?? "",
             prepTimeText: recipe.details.prepTimeMinutes.map(String.init) ?? "",
             cookTimeText: recipe.details.cookTimeMinutes.map(String.init) ?? "",
@@ -183,7 +183,12 @@ struct RecipeEditorSeed: Codable, Hashable {
         stepDrafts.compactMap { draft in
             let detail = trimmed(draft.detail)
             guard let detail else { return nil }
-            return RecipeStep(title: nil, detail: detail)
+            let sectionTitle = draft.section?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return RecipeStep(
+                title: sectionTitle?.isEmpty == false ? sectionTitle : nil,
+                detail: detail,
+                ingredientRefs: draft.ingredientRefs
+            )
         }
     }
 
@@ -309,9 +314,13 @@ struct IngredientDraft: Identifiable, Codable, Hashable {
 struct StepDraft: Identifiable, Codable, Hashable {
     let id: UUID
     var detail: String
+    var section: String?
+    var ingredientRefs: [String]?
 
-    init(id: UUID = UUID(), detail: String = "") {
+    init(id: UUID = UUID(), detail: String = "", section: String? = nil, ingredientRefs: [String]? = nil) {
         self.id = id
         self.detail = detail
+        self.section = section
+        self.ingredientRefs = ingredientRefs
     }
 }

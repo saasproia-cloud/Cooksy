@@ -122,10 +122,12 @@ struct RecipeStep: Identifiable, Codable, Hashable {
     let id: UUID
     var title: String?
     var detail: String
+    var ingredientRefs: [String]?
 
-    init(id: UUID = UUID(), title: String? = nil, detail: String) {
+    init(id: UUID = UUID(), title: String? = nil, detail: String, ingredientRefs: [String]? = nil) {
         self.id = id
         self.title = title
         self.detail = detail
+        self.ingredientRefs = ingredientRefs
     }
 }

@@ -863,3 +863,55 @@ private extension String {
         isEmpty ? nil : self
     }
 }
+
+// MARK: - Step Ingredient Highlighter
+
+enum StepIngredientHighlighter {
+
+    static func highlighted(_ text: String, ingredientRefs: [String]?) -> AttributedString {
+        guard let refs = ingredientRefs, !refs.isEmpty else {
+            return AttributedString(text)
+        }
+
+        var attributed = AttributedString(text)
+        let lowerText = text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr"))
+
+        for ref in refs {
+            let tokens = tokenize(ref)
+            for token in tokens where token.count >= 3 {
+                let lowerToken = token.lowercased()
+                    .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr"))
+                var searchStart = lowerText.startIndex
+                while let range = lowerText.range(of: lowerToken, range: searchStart..<lowerText.endIndex) {
+                    let isWordBoundary = (range.lowerBound == lowerText.startIndex || !lowerText[lowerText.index(before: range.lowerBound)].isLetter)
+                    if isWordBoundary {
+                        let attrStart = AttributedString.Index(range.lowerBound, within: attributed)
+                        let attrEnd = AttributedString.Index(range.upperBound, within: attributed)
+                        if let attrStart, let attrEnd {
+                            attributed[attrStart..<attrEnd].foregroundColor = CooksyTheme.accentWarm
+                            attributed[attrStart..<attrEnd].font = .system(size: 15, weight: .bold, design: .rounded)
+                        }
+                    }
+                    searchStart = range.upperBound
+                }
+            }
+        }
+
+        return attributed
+    }
+
+    private static func tokenize(_ name: String) -> [String] {
+        let normalized = name
+            .lowercased()
+            .replacingOccurrences(of: "'", with: " ")
+            .replacingOccurrences(of: "'", with: " ")
+        return normalized.split(separator: " ")
+            .map(String.init)
+            .filter { !stopWords.contains($0) }
+    }
+
+    private static let stopWords: Set<String> = [
+        "a", "au", "aux", "d", "de", "des", "du", "la", "le", "les", "ou", "the", "to", "un", "une"
+    ]
+}

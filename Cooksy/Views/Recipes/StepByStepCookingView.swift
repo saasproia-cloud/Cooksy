@@ -65,7 +65,7 @@ struct StepByStepCookingView: View {
                                         )
                                 }
 
-                                Text(currentStep.detail)
+                                Text(StepIngredientHighlighter.highlighted(currentStep.detail, ingredientRefs: currentStep.ingredientRefs))
                                     .font(.system(size: 26, weight: .regular, design: .serif))
                                     .foregroundStyle(CooksyTheme.primaryText)
                                     .lineSpacing(5)
@@ -216,30 +216,24 @@ struct StepByStepCookingView: View {
 
     private var stepOverviewSheet: some View {
         NavigationStack {
-            List(Array(steps.enumerated()), id: \.element.id) { index, step in
-                Button(action: {
-                    currentIndex = index
-                    showsOverview = false
-                }) {
-                    HStack(alignment: .top, spacing: 14) {
-                        Text("\(index + 1)")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(index == currentIndex ? CooksyTheme.ctaOrange : CooksyTheme.brandBlueDark)
-                            .frame(width: 28, alignment: .leading)
+            List {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                    let previousTitle = index > 0 ? steps[index - 1].title : nil
+                    let isNewSection = step.title != nil
+                        && !step.title!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && step.title != previousTitle
 
-                        Text(step.detail)
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                            .lineLimit(3)
-
-                        Spacer(minLength: 0)
-
-                        if index == currentIndex {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(CooksyTheme.ctaOrange)
+                    if isNewSection {
+                        Section {
+                            stepOverviewRow(index: index, step: step)
+                        } header: {
+                            Text(step.title!)
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.accentWarm)
                         }
+                    } else {
+                        stepOverviewRow(index: index, step: step)
                     }
-                    .padding(.vertical, 8)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -248,6 +242,33 @@ struct StepByStepCookingView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func stepOverviewRow(index: Int, step: RecipeStep) -> some View {
+        Button(action: {
+            currentIndex = index
+            showsOverview = false
+        }) {
+            HStack(alignment: .top, spacing: 14) {
+                Text("\(index + 1)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(index == currentIndex ? CooksyTheme.ctaOrange : CooksyTheme.brandBlueDark)
+                    .frame(width: 28, alignment: .leading)
+
+                Text(step.detail)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(3)
+
+                Spacer(minLength: 0)
+
+                if index == currentIndex {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(CooksyTheme.ctaOrange)
+                }
+            }
+            .padding(.vertical, 8)
+        }
     }
 
     private func previousStep() {
