@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		04F2E80AE2B5FF9E255EDD28 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8DB57AEA49DE637230A6D3 /* ShareViewController.swift */; };
+		076B51B332BCB74CD8519710 /* SplashVideo.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 4E0ABA5BB741822E66B28EC3 /* SplashVideo.mp4 */; };
 		07AD92797580D27AFD485DD0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 47CB694822ECE64E22547AA2 /* Assets.xcassets */; };
 		08F3B41177D07292DEE51D95 /* PlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */; };
 		0A516B3735420DAB941A709B /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BDF91DC0D5EE665EBA20B3 /* AppConfiguration.swift */; };
@@ -65,6 +66,7 @@
 		D66E5382CB61F6BCC307F937 /* CooksyShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DF9D5C4EB2EE74782AA2994D /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		E4E9A669F8A587355B41ABD6 /* SharedImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A178E636136507ED9665AA0A /* SharedImportDraft.swift */; };
+		E86461F22F82EF5800DCF323 /* Cooksy-2.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */; };
 		EB03BB00745A6F42077168F0 /* RecipeValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* RecipeValidationService.swift */; };
 		EF6766BBFB2920DA16C208E8 /* RecipeBookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */; };
 		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
@@ -116,6 +118,7 @@
 		3FB4CA7CE5D942CD8FC2E1A0 /* RecipeImportFlowHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeImportFlowHost.swift; sourceTree = "<group>"; };
 		47CB694822ECE64E22547AA2 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4B8E5E722E7E46B2A2B1C1F4 /* RecipeTextParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeTextParser.swift; sourceTree = "<group>"; };
+		4E0ABA5BB741822E66B28EC3 /* SplashVideo.mp4 */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = SplashVideo.mp4; sourceTree = "<group>"; };
 		509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeBookCard.swift; sourceTree = "<group>"; };
 		5A4B9C10D2E34F56A7B8C901 /* SystemImagePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SystemImagePicker.swift; sourceTree = "<group>"; };
 		5B98F0C3A2D3481EBE2D57B2 /* ImportedRecipeReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportedRecipeReviewView.swift; sourceTree = "<group>"; };
@@ -152,6 +155,7 @@
 		DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyBackendService.swift; sourceTree = "<group>"; };
 		E295B4D72656690C64670ED8 /* RecipeBook.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeBook.swift; sourceTree = "<group>"; };
 		E76937A97BDE51B26E1F365F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Cooksy-2.mp4"; sourceTree = "<group>"; };
 		EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedLinkInbox.swift; sourceTree = "<group>"; };
 		EF7DA30D65C0C079B9DF09F4 /* RecipeOCRService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeOCRService.swift; sourceTree = "<group>"; };
 		F402E2B31A2FB4C0776646C4 /* CooksyLogoMark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyLogoMark.swift; sourceTree = "<group>"; };
@@ -354,6 +358,7 @@
 		BEFF8E79044DB072549ACEA6 = {
 			isa = PBXGroup;
 			children = (
+				E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */,
 				B112FB767A46FF60171FF77D /* Products */,
 				8B5A25527D785C0CAB526183 /* Frameworks */,
 				DBF22409252D66CE309B8A32 /* Cooksy */,
@@ -393,6 +398,7 @@
 				90F9645C3743FAF7EC347947 /* ViewModels */,
 				C6AF990E060790D549F2444E /* Views */,
 				821D6C90EF4BC4C36A31028D /* Resources */,
+				4E0ABA5BB741822E66B28EC3 /* SplashVideo.mp4 */,
 			);
 			path = Cooksy;
 			sourceTree = "<group>";
@@ -534,6 +540,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				07AD92797580D27AFD485DD0 /* Assets.xcassets in Resources */,
+				E86461F22F82EF5800DCF323 /* Cooksy-2.mp4 in Resources */,
+				076B51B332BCB74CD8519710 /* SplashVideo.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
