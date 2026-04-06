@@ -578,18 +578,20 @@ function reconstructDishFirstRecipe(
   const intent = detectDishIntent(input, parsed);
 
   if (!intent.dishName) {
+    const preservedTitle = parsed.title || input.socialTitle || input.socialCaption || "";
     return {
       ...parsed,
-      title: "",
+      title: preservedTitle,
       ingredientDrafts: [],
       stepDrafts: [],
       confidence: "low",
       confidenceScore: Math.min(0.2, intent.confidenceScore),
       needsWebFallback: true,
-      searchQuery: "",
+      searchQuery: preservedTitle,
       flags: {
         ...baseFlags,
-        usedExplicitIngredients: false
+        usedExplicitIngredients: false,
+        usedInferredIngredients: false
       }
     };
   }
@@ -2921,11 +2923,11 @@ const prioritizedDishPatterns: Array<{
 const genericDishPhrasePatterns = [
   /\b(?:sandwich|wrap)\s+(?:naan|pita|bagel|focaccia|ciabatta|brioche)\b/i,
   /\b(?:naan|pita|bagel|focaccia|ciabatta|brioche)\s+(?:sandwich|wrap)\b/i,
-  /\b(?:truffle|truffe|smash|crispy|spicy|creamy|chicken|poulet|fish|poisson|beef|boeuf|bœuf|veggie|vegan|mushroom|champignon|thai|bbq|salmon|saumon|garlic|ail|hot|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?)\b/i,
-  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?)\s+(?:a\s+la|au|aux|de|du|des|with)\s+[a-z]+(?:\s+[a-z]+)?\b/i
+  /\b(?:truffle|truffe|smash|crispy|spicy|creamy|chicken|poulet|fish|poisson|beef|boeuf|bœuf|veggie|vegan|mushroom|champignon|thai|bbq|salmon|saumon|garlic|ail|hot|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\s+(?:a\s+la|au|aux|de|du|des|with)\s+[a-z]+(?:\s+[a-z]+)?\b/i
 ];
 
-const genericDishPattern = /\b(?:burger|tacos?|pasta|pizza|omelette|quiche|salad|salade|wrap|sandwich|toast|curry|brownies?|cookies?|cake|ramen|risotto|falafel|shawarma|kebab|bowl|crepes?|pancakes?)\b/i;
+const genericDishPattern = /\b(?:burger|tacos?|pasta|pizza|omelette|quiche|salad|salade|wrap|sandwich|toast|curry|brownies?|cookies?|cake|ramen|risotto|falafel|shawarma|kebab|bowl|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|poke|bibimbap|gnocchi|hummus|taboul[eé]|couscous|gyoza)\b/i;
 
 const genericDishWords = new Set([
   "burger",
@@ -2955,7 +2957,19 @@ const genericDishWords = new Set([
   "crepe",
   "crepes",
   "pancake",
-  "pancakes"
+  "pancakes",
+  "bruschetta",
+  "focaccia",
+  "tartare",
+  "carpaccio",
+  "crostini",
+  "poke",
+  "bibimbap",
+  "gnocchi",
+  "hummus",
+  "taboule",
+  "couscous",
+  "gyoza"
 ]);
 
 const foodSignalPatterns = [
@@ -2971,10 +2985,22 @@ const foodSignalPatterns = [
   /\b(?:salad|salade)\b/i,
   /\b(?:crepes?|pancakes?)\b/i,
   /\bchicken\b/i,
+  /\bpoulet\b/i,
   /\bbeef\b/i,
+  /\bboeuf\b/i,
   /\bfish\b/i,
+  /\bsaumon\b/i,
   /\b(?:recipe|recette)\b/i,
-  /\bingredients?\b/i
+  /\bingredients?\b/i,
+  /\bbruschetta\b/i,
+  /\bfocaccia\b/i,
+  /\bgnocchi\b/i,
+  /\bhummus\b/i,
+  /\bcouscous\b/i,
+  /\btartare\b/i,
+  /\bcarpaccio\b/i,
+  /\bpoke\b/i,
+  /\bbibimbap\b/i
 ];
 
 const likelyDishTitlePatterns = [
@@ -2994,7 +3020,18 @@ const likelyDishTitlePatterns = [
   /\bfalafel\b/i,
   /\bshawarma\b/i,
   /\bkebab\b/i,
-  /\bbowl\b/i
+  /\bbowl\b/i,
+  /\bbruschetta\b/i,
+  /\bfocaccia\b/i,
+  /\btartare\b/i,
+  /\bcarpaccio\b/i,
+  /\bcrostini\b/i,
+  /\bpoke\b/i,
+  /\bbibimbap\b/i,
+  /\bgnocchi\b/i,
+  /\bhummus\b/i,
+  /\bcouscous\b/i,
+  /\bgyoza\b/i
 ];
 
 const ingredientCatalog: Array<{

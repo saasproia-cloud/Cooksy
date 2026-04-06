@@ -1361,7 +1361,18 @@ const likelyFoodTitlePatterns = [
   /\bcabillaud\b/,
   /\bfalafel\b/,
   /\bshawarma\b/,
-  /\bkebab\b/
+  /\bkebab\b/,
+  /\bbruschetta\b/,
+  /\bfocaccia\b/,
+  /\btartare\b/,
+  /\bcarpaccio\b/,
+  /\bcrostini\b/,
+  /\bpoke\b/,
+  /\bbibimbap\b/,
+  /\bgnocchi\b/,
+  /\bhummus\b/,
+  /\bcouscous\b/,
+  /\bgyoza\b/
 ];
 
 const cookingVerbPatterns = [

@@ -1949,7 +1949,17 @@ const dishHeadSearchTerms = new Set([
   "cookies",
   "gateau",
   "gâteau",
-  "cake"
+  "cake",
+  "bruschetta",
+  "focaccia",
+  "tartare",
+  "carpaccio",
+  "gnocchi",
+  "hummus",
+  "couscous",
+  "poke",
+  "bibimbap",
+  "gyoza"
 ]);
 
 const dishPhrasePatterns = [
@@ -1959,8 +1969,8 @@ const dishPhrasePatterns = [
   /\bchicken burger\b/i,
   /\b(?:crepes?|pancakes?)\b/i,
   /\b(?:hot tenders?|crispy chicken|poulet croustillant)\s+burger\b/i,
-  /\b(?:smash|double|crispy|spicy|veggie|vegan|chicken|fish|filet o fish|hot tenders?|pulled|bbq|bacon|cheese|cheesy|poulet|boeuf|bœuf|beef|poisson|cabillaud|saumon|salmon|halloumi|falafel|shawarma|kebab|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|sandwich|wrap|crepes?|pancakes?)\b/i,
-  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|crepes?|pancakes?|sandwich|wrap|salade|salad|omelette|quiche|gratin|risotto|ramen|curry|bowl|falafel|shawarma|kebab|brownie|cookies?|gateau|gâteau|cake)\b/i
+  /\b(?:smash|double|crispy|spicy|veggie|vegan|chicken|fish|filet o fish|hot tenders?|pulled|bbq|bacon|cheese|cheesy|poulet|boeuf|bœuf|beef|poisson|cabillaud|saumon|salmon|halloumi|falafel|shawarma|kebab|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|sandwich|wrap|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|crepes?|pancakes?|sandwich|wrap|salade|salad|omelette|quiche|gratin|risotto|ramen|curry|bowl|falafel|shawarma|kebab|brownie|cookies?|gateau|gâteau|cake|bruschetta|focaccia|tartare|carpaccio|crostini|poke|bibimbap|gnocchi|hummus|couscous|gyoza)\b/i
 ];
 
 function shouldAttemptFinalNormalization(input: {

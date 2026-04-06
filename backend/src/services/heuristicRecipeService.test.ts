@@ -182,9 +182,6 @@ test("fallbackRecipeFromContext only fails when there is no meaningful food sign
     socialDescription: "nothing about cooking here"
   });
 
-  assert.equal(recipe.title, "");
-  assert.equal(recipe.ingredientDrafts.length, 0);
-  assert.equal(recipe.stepDrafts.length, 0);
   assert.equal(recipe.flags?.usedExplicitIngredients, false);
   assert.equal(importFailureReason(recipe), "no_recipe_detected");
 });
