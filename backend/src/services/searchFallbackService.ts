@@ -20,9 +20,13 @@ export async function searchRecipePages(
   }
 
   if (providerStatus.serpApi) {
-    const serpResults = await searchRecipePagesViaSerpApi(query, options);
-    if (serpResults.length) {
-      return serpResults;
+    try {
+      const serpResults = await searchRecipePagesViaSerpApi(query, options);
+      if (serpResults.length) {
+        return serpResults;
+      }
+    } catch {
+      // SerpAPI timeout or network error — fall through to DuckDuckGo.
     }
   }
 

@@ -356,12 +356,17 @@ export async function importFromUrl(input: {
     }
 
     for (const query of queries) {
-      const searchPages = await fetchFallbackPages(
-        query,
-        sharedMode
-          ? { timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS) }
-          : undefined
-      );
+      let searchPages: Awaited<ReturnType<typeof fetchFallbackPages>>;
+      try {
+        searchPages = await fetchFallbackPages(
+          query,
+          sharedMode
+            ? { timeoutMs: boundedExecutionTimeout(executionDeadline, SHARED_WEB_TIMEOUT_MS, SHARED_RESERVE_MS) }
+            : undefined
+        );
+      } catch {
+        continue;
+      }
 
       if (!searchPages.length) {
         continue;
