@@ -164,3 +164,88 @@ The output must feel like a premium cooking app:
 * no inconsistencies
 
 The user must be able to cook successfully using only this recipe.
+
+BACKEND PIPELINE LOGIC:
+
+The system must follow a multi-source reconstruction pipeline when generating recipes from video imports.
+
+---
+
+## MULTI-SOURCE EXTRACTION
+
+Always extract information from all available sources:
+
+* caption (text)
+* audio (speech-to-text)
+* metadata (title)
+
+The system must combine all sources, not rely on only one.
+
+---
+
+## RECONSTRUCTION STRATEGY
+
+If data is incomplete:
+
+* generate missing ingredients logically
+* generate missing steps from scratch
+* complete the recipe using cooking knowledge
+
+The system must never return incomplete recipes.
+
+---
+
+## FALLBACK STRATEGY
+
+If caption and audio contain no usable information:
+
+* infer the dish from context
+* generate a full recipe based on known cooking patterns
+
+If still impossible:
+→ return "not_food"
+
+---
+
+## CRITICAL VALIDATION STEP (MANDATORY)
+
+After generating the recipe, the system MUST validate:
+
+### Ingredient consistency:
+
+* every ingredient is used at least once
+* no step references missing ingredients
+
+### Logical cooking flow:
+
+* correct step order
+* no duplicated or contradictory steps
+
+### Completeness:
+
+* all phases are present (prep → cook → assemble → serve)
+* no vague or missing instructions
+
+### Real-world feasibility:
+
+* the recipe must be realistically cookable
+
+---
+
+## AUTO-CORRECTION
+
+If validation fails:
+
+* fix inconsistencies automatically
+  OR
+* regenerate the instructions
+
+This step is mandatory before returning output.
+
+---
+
+## FINAL OUTPUT RULE
+
+The system must ONLY return a recipe after validation has passed.
+
+Incomplete or incoherent recipes are strictly forbidden.

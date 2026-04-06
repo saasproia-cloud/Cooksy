@@ -1155,7 +1155,7 @@ function minimumStepCountForRecipeTitle(title: string): number {
   return 4;
 }
 
-function isLikelyMajorIngredient(name: string): boolean {
+export function isLikelyMajorIngredient(name: string): boolean {
   const normalized = normalizeLookup(name);
   if (!normalized) {
     return false;

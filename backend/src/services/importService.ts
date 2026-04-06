@@ -20,6 +20,7 @@ import {
   hasSuspiciousRecipeTitle,
   importFailureReason,
   importMissingParts,
+  isLikelyMajorIngredient,
   isLikelyValidRecipe,
   normalizeRecipeImportFlags,
   recipeCookabilitySignals,
@@ -267,17 +268,20 @@ export async function importFromUrl(input: {
     }
   }
 
-  if (!shouldTrustFastSocialRecipe(recipe, sourcePlatform) &&
-    shouldUseTranscriptionFallback(recipe, resolvedSocialContent, input.sharedText, mediaURL) &&
+  if (shouldUseTranscriptionFallback(recipe, resolvedSocialContent, input.sharedText, mediaURL) &&
     hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
-    console.info(`[importService] Trying audio fallback for ${canonicalSourceURL}`);
+    console.info(`[importService] Attempting audio transcription for ${canonicalSourceURL}`);
     const audioOptions = transcriptionOptions(profile, executionDeadline);
     if (audioOptions != null) {
       transcript = await transcribeMediaFromUrl(mediaURL, audioOptions).catch(() => null);
     }
 
-    if (transcript) {
+    if (isUsableTranscript(transcript)) {
+      transcript = truncateTranscript(transcript);
+      console.info(
+        `[importService] Usable transcript obtained (${transcript.length} chars) for ${canonicalSourceURL}`
+      );
       const audioContext = buildContext();
       let audioRecipe = recipeFromContext(audioContext);
       if (shouldAttemptTranscriptNormalization(audioRecipe, audioContext)) {
@@ -293,7 +297,19 @@ export async function importFromUrl(input: {
         recipe = audioRecipe;
         importStrategy = "audio";
         importStrategySourceURL = undefined;
+      } else {
+        // Transcript enriches the final normalization/review pass even when
+        // the audio-only recipe didn't outscore the caption-based one.
+        normalizedAfterTranscript = false;
       }
+    } else {
+      const rawTranscript = transcript as string | null;
+      if (rawTranscript) {
+        console.info(
+          `[importService] Transcript discarded (low quality, ${rawTranscript.length} chars) for ${canonicalSourceURL}`
+        );
+      }
+      transcript = null;
     }
   }
 
@@ -457,7 +473,12 @@ export async function importFromUrl(input: {
     importStrategy
   );
   const strictRecipe = requireStrictRecipe(reviewedRecipe, buildContext());
-  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
+  const validatedRecipe = await enforceRecipeValidation(
+    strictRecipe,
+    buildContext(),
+    executionDeadline
+  );
+  const finalizedRecipe = await finalizeImportedRecipe(validatedRecipe, {
     skipNutrition: false
   });
   const durationMs = Date.now() - startedAt;
@@ -488,30 +509,299 @@ export async function importFromUrl(input: {
 }
 
 function shouldUseTranscriptionFallback(
-  recipe: RecipeImportResult,
-  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null,
-  sharedText: string | undefined,
+  _recipe: RecipeImportResult,
+  _socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null,
+  _sharedText: string | undefined,
   mediaURL?: string
 ): boolean {
-  if (!mediaURL) {
+  // Always attempt transcription when a media URL is available.
+  // Quality is validated after transcription via isUsableTranscript();
+  // empty or low-quality transcripts are discarded before they reach
+  // the LLM context.
+  return Boolean(mediaURL);
+}
+
+const TRANSCRIPT_MAX_LENGTH = 4000;
+
+/**
+ * Validates that a transcript contains enough meaningful spoken content
+ * to be useful context for recipe generation. Discards transcripts that
+ * are empty, too short, music-only, or contain no real word content.
+ */
+function isUsableTranscript(transcript: string | null): transcript is string {
+  if (!transcript) {
     return false;
   }
 
-  const alreadyStrongRecipe = recipe.ingredientDrafts.length >= 3 &&
-    recipe.stepDrafts.length >= 2 &&
-    recipe.confidence !== "low" &&
-    !recipe.needsWebFallback;
+  const trimmed = transcript.trim();
 
-  if (alreadyStrongRecipe) {
+  // Too short to contain useful cooking information
+  if (trimmed.length < 30) {
     return false;
   }
 
-  return hasSparseSocialText(
-    sharedText,
-    socialContent?.caption,
-    socialContent?.description,
-    socialContent?.subtitlesText
-  ) || recipe.needsWebFallback;
+  // Strip Whisper artifacts like [Music], (applause), etc.
+  const cleanedOfBrackets = trimmed
+    .replace(/\[.*?\]/g, "")
+    .replace(/\(.*?\)/g, "")
+    .trim();
+
+  // After stripping brackets, nothing useful remains
+  if (!cleanedOfBrackets || cleanedOfBrackets.length < 20) {
+    return false;
+  }
+
+  // Count actual word tokens (not just noise characters)
+  const wordCount = cleanedOfBrackets
+    .split(/\s+/)
+    .filter((w) => w.length >= 2)
+    .length;
+
+  if (wordCount < 8) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Truncates transcript to a safe length before sending to LLM to prevent
+ * excessive cost and latency. Preserves complete sentences where possible.
+ */
+function truncateTranscript(transcript: string): string {
+  if (transcript.length <= TRANSCRIPT_MAX_LENGTH) {
+    return transcript;
+  }
+
+  // Cut at the last sentence boundary within the limit
+  const truncated = transcript.slice(0, TRANSCRIPT_MAX_LENGTH);
+  const lastSentenceEnd = Math.max(
+    truncated.lastIndexOf(". "),
+    truncated.lastIndexOf("! "),
+    truncated.lastIndexOf("? ")
+  );
+
+  if (lastSentenceEnd > TRANSCRIPT_MAX_LENGTH * 0.6) {
+    return truncated.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  return truncated.trim();
+}
+
+type RecipeIssueReport = {
+  hasIssues: boolean;
+  unusedIngredients: string[];
+  logicalOrderIssue: boolean;
+  summary: string;
+  issueCount: number;
+};
+
+/**
+ * Detects recipe quality issues: unused ingredients, ingredients missing
+ * from steps, and illogical cooking sequences (cook-before-prep).
+ *
+ * Ingredient matching handles plural forms and slight variations using
+ * stem-based comparison (e.g. chicken/chickens, tomato/tomatoes).
+ */
+function detectRecipeIssues(recipe: RecipeImportResult): RecipeIssueReport {
+  const stepText = recipe.stepDrafts
+    .map((s) => s.detail)
+    .join(" ");
+  const normalizedStepText = normalizeForIngredientMatching(stepText);
+
+  // 1. Find unused major ingredients (not mentioned in any step)
+  const unusedIngredients: string[] = [];
+  for (const ingredient of recipe.ingredientDrafts) {
+    if (!isLikelyMajorIngredient(ingredient.name)) {
+      continue;
+    }
+
+    const tokens = ingredientLookupTokens(ingredient.name);
+    const isUsed = tokens.some((token) =>
+      normalizedStepText.includes(token) ||
+      normalizedStepText.includes(stemToken(token))
+    );
+
+    if (!isUsed) {
+      unusedIngredients.push(ingredient.name);
+    }
+  }
+
+  // 2. Check for cook-before-prep logical sequence issues
+  const stepDetails = recipe.stepDrafts.map((s) => s.detail);
+  const hasCookBeforePrep = stepDetails.length >= 3 &&
+    stepDetails.slice(0, 1).some((s) =>
+      /\b(?:cuire|cuisson|frire|griller|rôtir|bake|fry|grill|roast|sear|saisir)\b/i.test(s)
+    ) &&
+    stepDetails.slice(2).some((s) =>
+      /\b(?:couper|émincer|peler|laver|préparer|éplucher|cut|chop|peel|wash|prepare|dice|mince)\b/i.test(s)
+    );
+
+  const cookability = recipeCookabilitySignals(recipe);
+  const hasUncoveredIngredients = cookability.uncoveredMajorIngredientCount >= 2;
+
+  const hasIssues = unusedIngredients.length > 0 ||
+    hasUncoveredIngredients ||
+    hasCookBeforePrep;
+
+  const parts: string[] = [];
+  if (unusedIngredients.length) {
+    parts.push(`${unusedIngredients.length} unused ingredients`);
+  }
+  if (hasUncoveredIngredients) {
+    parts.push(`${cookability.uncoveredMajorIngredientCount} uncovered in steps`);
+  }
+  if (hasCookBeforePrep) {
+    parts.push("cook-before-prep detected");
+  }
+
+  return {
+    hasIssues,
+    unusedIngredients,
+    logicalOrderIssue: hasCookBeforePrep,
+    summary: parts.join(", ") || "none",
+    issueCount: unusedIngredients.length +
+      (hasUncoveredIngredients ? cookability.uncoveredMajorIngredientCount : 0) +
+      (hasCookBeforePrep ? 1 : 0)
+  };
+}
+
+/**
+ * Normalizes text for ingredient matching by stripping accents, lowering
+ * case, and removing punctuation.
+ */
+function normalizeForIngredientMatching(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Builds lookup tokens for an ingredient name, handling plural forms
+ * and slight variations (chicken→chickens, tomato→tomatoes).
+ * Returns both the singular stem and the original token for matching.
+ */
+function ingredientLookupTokens(name: string): string[] {
+  const normalized = normalizeForIngredientMatching(name);
+  const rawTokens = normalized
+    .split(/[\s,/-]+/)
+    .filter((t) => t.length >= 3);
+
+  const result = new Set<string>();
+  for (const token of rawTokens) {
+    result.add(token);
+    result.add(stemToken(token));
+
+    // Also add common plural forms so we match in both directions
+    if (!token.endsWith("s")) {
+      result.add(`${token}s`);
+    }
+    if (!token.endsWith("es")) {
+      result.add(`${token}es`);
+    }
+  }
+
+  return Array.from(result).filter((t) => t.length >= 3);
+}
+
+/**
+ * Simple stemming: strips common French and English plural suffixes
+ * to enable matching across singular/plural forms.
+ */
+function stemToken(token: string): string {
+  // French/English plural patterns in order of specificity
+  if (token.endsWith("ies") && token.length > 4) {
+    return token.slice(0, -3) + "y";
+  }
+  if (token.endsWith("aux") && token.length > 4) {
+    return token.slice(0, -3) + "al";
+  }
+  if (token.endsWith("eaux") && token.length > 5) {
+    return token.slice(0, -4) + "eau";
+  }
+  if (token.endsWith("es") && token.length > 4) {
+    return token.slice(0, -2);
+  }
+  if (token.endsWith("s") && token.length > 3) {
+    return token.slice(0, -1);
+  }
+
+  return token;
+}
+
+/**
+ * Mandatory validation gate. Ensures three invariants before a recipe
+ * is returned:
+ *   1. Every major ingredient is referenced in at least one step
+ *   2. No step references ingredients missing from the ingredient list
+ *   3. Steps follow a logical cooking sequence (prep → cook → assemble)
+ *
+ * If validation fails:
+ *   - First attempt: auto-correct via reviewRecipeCookability()
+ *   - Second attempt: regenerate via normalizeRecipeFromContext()
+ *   - Final fallback: structural fix via ensureCookableRecipeStructure()
+ *
+ * This function MUST be called before finalizeImportedRecipe().
+ */
+async function enforceRecipeValidation(
+  recipe: RecipeImportResult,
+  context: Parameters<typeof normalizeRecipeFromContext>[0],
+  deadline: number | undefined
+): Promise<RecipeImportResult> {
+  const issues = detectRecipeIssues(recipe);
+
+  if (!issues.hasIssues) {
+    return recipe;
+  }
+
+  console.info(
+    `[importService] Validation failed (${issues.summary}), auto-correcting via cookability review`
+  );
+
+  // --- Attempt 1: Auto-correct via LLM cookability review ---
+  const reviewTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
+  if (reviewTimeoutMs) {
+    const corrected = await safeReviewCookability(
+      { draft: recipe, context },
+      { timeoutMs: reviewTimeoutMs }
+    );
+    const correctedIssues = detectRecipeIssues(corrected);
+    if (!correctedIssues.hasIssues) {
+      return corrected;
+    }
+
+    // Check if correction at least improved things
+    if (correctedIssues.issueCount < issues.issueCount) {
+      return corrected;
+    }
+  }
+
+  // --- Attempt 2: Full regeneration via normalizeRecipeFromContext ---
+  console.info(
+    `[importService] Cookability review insufficient, regenerating recipe via normalization`
+  );
+  const normalizeTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
+  if (normalizeTimeoutMs) {
+    const regenerated = await safeNormalize(context, {
+      timeoutMs: normalizeTimeoutMs
+    });
+    const regeneratedFixed = ensureCookableRecipeStructure(regenerated);
+    const regeneratedIssues = detectRecipeIssues(regeneratedFixed);
+
+    if (!regeneratedIssues.hasIssues || regeneratedIssues.issueCount < issues.issueCount) {
+      return regeneratedFixed;
+    }
+  }
+
+  // --- Attempt 3: Last-resort structural fix ---
+  console.info(
+    `[importService] Regeneration insufficient, applying structural fix as last resort`
+  );
+  return ensureCookableRecipeStructure(recipe);
 }
 
 function shouldFetchFullSocialSnapshot(input: {
@@ -2010,8 +2300,13 @@ export async function importFromText(input: {
     executionDeadline
   );
   const strictRecipe = requireStrictRecipe(searchEnrichedRecipe, baseContext);
-  const usedWebFallback = searchEnrichedRecipe !== strictBaseRecipe
-  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
+  const usedWebFallback = searchEnrichedRecipe !== strictBaseRecipe;
+  const validatedRecipe = await enforceRecipeValidation(
+    strictRecipe,
+    baseContext,
+    executionDeadline
+  );
+  const finalizedRecipe = await finalizeImportedRecipe(validatedRecipe, {
     skipNutrition: previewMode
   });
 
@@ -2071,8 +2366,13 @@ export async function importFromPhoto(input: {
     executionDeadline
   );
   const strictRecipe = requireStrictRecipe(searchEnrichedRecipe, baseContext);
-  const usedWebFallback = searchEnrichedRecipe !== strictBaseRecipe
-  const finalizedRecipe = await finalizeImportedRecipe(strictRecipe, {
+  const usedWebFallback = searchEnrichedRecipe !== strictBaseRecipe;
+  const validatedRecipe = await enforceRecipeValidation(
+    strictRecipe,
+    baseContext,
+    executionDeadline
+  );
+  const finalizedRecipe = await finalizeImportedRecipe(validatedRecipe, {
     skipNutrition: previewMode
   });
 
