@@ -363,7 +363,7 @@ private struct IngredientFlatRow: View {
             Text(quantityColumn)
                 .font(.system(size: density == .compact ? 13 : 14, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.accentWarm)
-                .frame(width: quantityWidth, alignment: .trailing)
+                .frame(width: quantityWidth, alignment: .leading)
                 .lineLimit(1)
 
             Text(nameColumn)

@@ -269,13 +269,208 @@ enum RecipeImportLoadingSource {
     case text
 }
 
+// MARK: - Animated Noodle Bowl
+
+private struct AnimatedNoodleBowl: View {
+    @State private var floatOffset: CGFloat = 0
+    @State private var chopstickAngle: Double = 0
+    @State private var noodleLift: CGFloat = 0
+    @State private var steamPhase: CGFloat = 0
+
+    private let bowlSize: CGFloat = 90
+
+    var body: some View {
+        ZStack {
+            // Steam particles
+            ForEach(0..<3, id: \.self) { i in
+                SteamParticle(delay: Double(i) * 0.6, phase: steamPhase)
+            }
+
+            // Bowl emoji base
+            Text("🍜")
+                .font(.system(size: 72))
+
+            // Animated chopsticks + noodle strand
+            ChopsticksView(angle: chopstickAngle, noodleLift: noodleLift)
+                .offset(x: 8, y: -20)
+        }
+        .offset(y: floatOffset)
+        .onAppear {
+            // Gentle float
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                floatOffset = -8
+            }
+            // Steam
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                steamPhase = 1
+            }
+            // Chopstick pick cycle
+            startChopstickCycle()
+        }
+    }
+
+    private func startChopstickCycle() {
+        // Phase 1: open chopsticks and dip down
+        withAnimation(.easeInOut(duration: 0.6)) {
+            chopstickAngle = 8
+            noodleLift = 0
+        }
+
+        // Phase 2: close and lift noodles
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                chopstickAngle = 2
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation(.easeOut(duration: 0.8)) {
+                noodleLift = -18
+                chopstickAngle = 0
+            }
+        }
+
+        // Phase 3: release and reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+            withAnimation(.easeIn(duration: 0.4)) {
+                noodleLift = 0
+                chopstickAngle = 3
+            }
+        }
+
+        // Repeat
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            startChopstickCycle()
+        }
+    }
+}
+
+private struct ChopsticksView: View {
+    let angle: Double
+    let noodleLift: CGFloat
+
+    var body: some View {
+        ZStack {
+            // Noodle strands being lifted
+            NoodleStrands(lift: noodleLift)
+                .offset(y: min(noodleLift + 6, 0))
+
+            // Left chopstick
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x8B6914), Color(hex: 0xC49A3C)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .frame(width: 3.5, height: 50)
+                .rotationEffect(.degrees(-15 - angle), anchor: .top)
+                .offset(x: -4, y: -14)
+
+            // Right chopstick
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x8B6914), Color(hex: 0xC49A3C)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .frame(width: 3.5, height: 50)
+                .rotationEffect(.degrees(-15 + angle), anchor: .top)
+                .offset(x: 4, y: -14)
+        }
+    }
+}
+
+private struct NoodleStrands: View {
+    let lift: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            let cx = size.width / 2
+            let startY = size.height * 0.55
+            let strands: [(CGFloat, CGFloat)] = [(-6, 0.8), (0, 1.0), (5, 0.7)]
+
+            for (offsetX, opacity) in strands {
+                var path = Path()
+                path.move(to: CGPoint(x: cx + offsetX, y: startY))
+                // Wavy noodle strand
+                let endY = startY + 16
+                path.addCurve(
+                    to: CGPoint(x: cx + offsetX + 2, y: endY),
+                    control1: CGPoint(x: cx + offsetX + 5, y: startY + 5),
+                    control2: CGPoint(x: cx + offsetX - 4, y: startY + 11)
+                )
+                context.opacity = lift < -2 ? opacity : 0
+                context.stroke(
+                    path,
+                    with: .color(Color(hex: 0xF5DEB3)),
+                    lineWidth: 2.2
+                )
+            }
+        }
+        .frame(width: 40, height: 40)
+    }
+}
+
+private struct SteamParticle: View {
+    let delay: Double
+    let phase: CGFloat
+
+    @State private var opacity: Double = 0
+    @State private var yOffset: CGFloat = 0
+    @State private var xOffset: CGFloat = 0
+
+    private var randomX: CGFloat {
+        CGFloat([-8, 0, 7][Int(delay / 0.6) % 3])
+    }
+
+    var body: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.15))
+            .frame(width: 8, height: 8)
+            .blur(radius: 3)
+            .offset(x: randomX + xOffset, y: -50 + yOffset)
+            .opacity(opacity)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    startSteamLoop()
+                }
+            }
+    }
+
+    private func startSteamLoop() {
+        // Reset
+        opacity = 0
+        yOffset = 0
+        xOffset = 0
+
+        // Animate up and fade
+        withAnimation(.easeOut(duration: 1.8)) {
+            opacity = 0.6
+            yOffset = -20
+            xOffset = CGFloat.random(in: -4...4)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.easeIn(duration: 0.8)) {
+                opacity = 0
+                yOffset = -30
+            }
+        }
+        // Repeat
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            startSteamLoop()
+        }
+    }
+}
+
+// MARK: - Recipe Import Loading View
+
 struct RecipeImportLoadingView: View {
     let source: RecipeImportLoadingSource
     var title: String? = nil
     var showsBackdrop = true
 
     @State private var messageIndex = 0
-    @State private var floatOffset: CGFloat = 0
     @State private var progressPhase: CGFloat = 0
 
     private let messages = [
@@ -294,10 +489,9 @@ struct RecipeImportLoadingView: View {
             VStack(spacing: 32) {
                 Spacer()
 
-                // Illustration — floating bowl
-                Text("🍜")
-                    .font(.system(size: 72))
-                    .offset(y: floatOffset)
+                // Animated noodle bowl with chopsticks
+                AnimatedNoodleBowl()
+                    .frame(width: 120, height: 120)
 
                 // Title + subtitle
                 VStack(spacing: 10) {
@@ -337,18 +531,12 @@ struct RecipeImportLoadingView: View {
             }
             .padding(.horizontal, 40)
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                floatOffset = -8
-            }
-        }
         .task {
             await runMessageLoop()
         }
     }
 
     private func runMessageLoop() async {
-        // Animate progress smoothly over ~15 seconds
         withAnimation(.easeInOut(duration: 15)) {
             progressPhase = 0.92
         }
