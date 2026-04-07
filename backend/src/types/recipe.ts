@@ -440,9 +440,12 @@ function hasCompactCompleteStructure(
   return substantialIngredientCount >= minimumIngredientCountForRecipeTitle(normalizedTitle);
 }
 
-export function isLikelyValidRecipe(recipe: RecipeImportResult): boolean {
+export function isLikelyValidRecipe(
+  recipe: RecipeImportResult,
+  options?: { transcript?: string }
+): boolean {
   const normalizedTitle = clean(recipe.title);
-  return hasMeaningfulFoodSignal(recipe) &&
+  return hasMeaningfulFoodSignal(recipe, options) &&
     normalizedTitle.length > 2 &&
     normalizedTitle.length <= 90 &&
     !hasSuspiciousRecipeTitle(normalizedTitle) &&
@@ -454,13 +457,14 @@ export function importFailureReason(
   options?: {
     preferWeakMetadata?: boolean;
     timedOut?: boolean;
+    transcript?: string;
   }
 ): ImportFailureReason | undefined {
   if (options?.timedOut) {
     return "import_too_slow";
   }
 
-  if (!hasMeaningfulFoodSignal(recipe)) {
+  if (!hasMeaningfulFoodSignal(recipe, { transcript: options?.transcript })) {
     return options?.preferWeakMetadata
       ? "weak_tiktok_metadata"
       : "no_recipe_detected";
@@ -1020,14 +1024,17 @@ function isLikelyArticleTitle(title: string): boolean {
     /\b(?:roundup|list|listicle|news|celebrity|fashion|travel)\b/.test(normalized);
 }
 
-function containsLikelyFoodTitleTerm(normalized: string): boolean {
+export function containsLikelyFoodTitleTerm(normalized: string): boolean {
   return likelyFoodTitlePatterns.some((pattern) => pattern.test(normalized));
 }
 
 export function hasMeaningfulFoodSignal(
-  recipe: Pick<RecipeImportResult, "title" | "ingredientDrafts" | "searchQuery" | "flags" | "confidenceScore">
+  recipe: Pick<RecipeImportResult, "title" | "ingredientDrafts" | "searchQuery" | "flags" | "confidenceScore">,
+  options?: { transcript?: string }
 ): boolean {
   const titleCandidates = [clean(recipe.title), clean(recipe.searchQuery)];
+  let titleHasContent = false;
+
   for (const candidate of titleCandidates) {
     if (!candidate || hasSuspiciousRecipeTitle(candidate)) {
       continue;
@@ -1036,6 +1043,8 @@ export function hasMeaningfulFoodSignal(
     if (containsLikelyFoodTitleTerm(normalizeLookup(candidate))) {
       return true;
     }
+
+    titleHasContent = titleHasContent || candidate.length > 3;
   }
 
   const plausibleIngredients = recipe.ingredientDrafts
@@ -1045,10 +1054,23 @@ export function hasMeaningfulFoodSignal(
     return true;
   }
 
+  // A single plausible ingredient combined with a non-trivial title is enough
+  if (plausibleIngredients >= 1 && titleHasContent) {
+    return true;
+  }
+
+  // Check transcript for food terms when other signals are weak
+  if (options?.transcript) {
+    const normalizedTranscript = normalizeLookup(clean(options.transcript));
+    if (normalizedTranscript && containsLikelyFoodTitleTerm(normalizedTranscript)) {
+      return true;
+    }
+  }
+
   const flags = normalizeRecipeImportFlags(recipe.flags);
   return flags.usedExplicitIngredients ||
     flags.usedInferredIngredients ||
-    (recipe.confidenceScore ?? 0) >= 0.45;
+    (recipe.confidenceScore ?? 0) >= 0.35;
 }
 
 function containsArticleNoise(value: string): boolean {
@@ -1218,7 +1240,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function normalizeLookup(value: string): string {
+export function normalizeLookup(value: string): string {
   return clean(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

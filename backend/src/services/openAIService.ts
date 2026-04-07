@@ -146,8 +146,9 @@ export async function normalizeRecipeFromContext(
       "La recette doit contenir au minimum 8 étapes détaillées pour un plat standard, 10-12 pour un plat complexe. Ne compresse jamais plusieurs actions en une seule étape.",
       "Décompose les étapes longues en micro-étapes: par exemple, 'Préparez la pâte' doit devenir 'Mélanger la farine et le sel', 'Ajouter les œufs un à un', 'Pétrir jusqu'à obtenir une pâte lisse'.",
       "Ne recopie jamais d'horodatage, de flèches VTT, de hashtags, de phrases d'intro/outro ou de phrases comme 'bon app' dans les étapes.",
-      "Utilise la légende, la description, les sous-titres, la photo et l'audio uniquement comme indices pour identifier le plat, ses composants et les quantités implicites.",
-      "La transcription audio ne doit jamais dicter le texte final des étapes: ne recopie pas les phrases prononcées et ne suis pas aveuglément l'ordre parlé.",
+      "Utilise la légende, la description, les sous-titres et la photo comme indices pour identifier le plat, ses composants et les quantités implicites.",
+      "Quand une transcription audio est présente et que le texte social est court ou absent, traite l'audio comme source principale pour identifier le plat, les ingrédients et les étapes.",
+      "La transcription audio ne doit pas être recopiée mot pour mot dans les étapes: reformule dans un style culinaire clair, mais respecte le plat, les ingrédients et les proportions mentionnés à l'oral.",
       "Après avoir établi la liste finale des ingrédients, réécris toutes les étapes depuis zéro à partir de cette liste: chaque ingrédient principal doit être utilisé dans une étape logique.",
       "Avant de finaliser le JSON, vérifie qu'une personne peut réellement cuisiner le plat du début à la fin avec les ingrédients et les étapes fournis.",
       "Si des ingrédients essentiels ou des étapes essentielles sont clairement implicites dans le contexte, ajoute-les au lieu de laisser une recette inutilisable.",
@@ -307,6 +308,8 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
   const primarySocialText = socialTextBlocks[0];
   const secondarySocialText = socialTextBlocks[1];
   const tertiarySocialText = socialTextBlocks[2];
+  const isSparseSocialText = !primarySocialText || primarySocialText.length < 50;
+  const transcriptLabel = isSparseSocialText ? "Source principale (audio)" : "Transcription audio";
 
   return [
     `Mode d'import : ${input.mode}`,
@@ -319,7 +322,7 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     primarySocialText ? `Texte social principal : ${truncate(primarySocialText, 1800)}` : "",
     secondarySocialText ? `Contexte social secondaire : ${truncate(secondarySocialText, 900)}` : "",
     tertiarySocialText ? `Contexte social additionnel : ${truncate(tertiarySocialText, 700)}` : "",
-    input.transcript ? `Transcription audio : ${truncate(input.transcript, 2600)}` : "",
+    input.transcript ? `${transcriptLabel} : ${truncate(input.transcript, 2600)}` : "",
     input.pageTextContent ? `Texte web / sources : ${truncate(input.pageTextContent, 2200)}` : "",
     structuredDataText ? `Données structurées : ${structuredDataText}` : "",
     [
@@ -331,7 +334,7 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
       "- Donne des étapes actionnables, numérotables et pas trop longues.",
       "- Avant de t'arrêter, vérifie qu'une personne peut vraiment refaire la recette avec ce que tu fournis.",
       "- Si la recette n'est pas faisable telle quelle, ajoute les ingrédients ou étapes essentiels qui sont clairement implicites dans le contexte.",
-      "- La transcription audio sert seulement d'indice pour reconnaître le plat, les composants ou quelques quantités: n'utilise jamais ses phrases comme texte final des étapes.",
+      "- La transcription audio sert d'indice principal quand le texte social est court ou absent: identifie le plat, les ingrédients et les quantités mentionnés à l'oral, puis reformule les étapes dans un style culinaire propre.",
       "- Une fois la liste des ingrédients finalisée, réécris les étapes depuis zéro en fonction de ces ingrédients et d'un déroulé culinaire logique.",
       "- Si des quantités ménagères simples ou le nombre de portions sont évidents, complète-les prudemment au lieu de laisser une recette inutilisable.",
       "- Si tu déduis un ingrédient ou une quantité absente du texte brut, signale-le brièvement dans notesText.",

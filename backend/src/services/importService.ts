@@ -15,6 +15,7 @@ import {
 } from "./heuristicRecipeService.js";
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
+  containsLikelyFoodTitleTerm,
   hasMeaningfulFoodSignal,
   hasCookabilityGaps,
   hasSuspiciousRecipeTitle,
@@ -23,6 +24,7 @@ import {
   isLikelyMajorIngredient,
   isLikelyValidRecipe,
   normalizeRecipeImportFlags,
+  normalizeLookup,
   recipeCookabilitySignals,
   sanitizeRecipeImport,
   scoreRecipe,
@@ -355,7 +357,8 @@ export async function importFromUrl(input: {
       recipe,
       sourcePlatform,
       captionWasSparse,
-      hasTranscript: Boolean(transcript)
+      hasTranscript: Boolean(transcript),
+      transcript: transcript ?? undefined
     }) &&
     hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
@@ -493,7 +496,8 @@ export async function importFromUrl(input: {
     usedUsda: finalizedRecipe.usedUsda,
     nutritionCoverage: finalizedRecipe.nutritionCoverage,
     matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
-    preferWeakMetadataReason: sourcePlatform !== "web" && captionWasSparse
+    preferWeakMetadataReason: sourcePlatform !== "web" && captionWasSparse,
+    transcript: transcript ?? undefined
   });
 
   logImportDebug(finalizedRecipe.recipe, debug);
@@ -535,8 +539,8 @@ function isUsableTranscript(transcript: string | null): transcript is string {
 
   const trimmed = transcript.trim();
 
-  // Too short to contain useful cooking information
-  if (trimmed.length < 30) {
+  // Too short to contain any useful information at all
+  if (trimmed.length < 15) {
     return false;
   }
 
@@ -547,7 +551,7 @@ function isUsableTranscript(transcript: string | null): transcript is string {
     .trim();
 
   // After stripping brackets, nothing useful remains
-  if (!cleanedOfBrackets || cleanedOfBrackets.length < 20) {
+  if (!cleanedOfBrackets || cleanedOfBrackets.length < 10) {
     return false;
   }
 
@@ -557,7 +561,13 @@ function isUsableTranscript(transcript: string | null): transcript is string {
     .filter((w) => w.length >= 2)
     .length;
 
-  if (wordCount < 8) {
+  // Accept short transcripts (3+ words) that contain food-related terms
+  if (wordCount >= 3 && containsLikelyFoodTitleTerm(normalizeLookup(cleanedOfBrackets))) {
+    return true;
+  }
+
+  // General threshold: need enough spoken content to be useful
+  if (wordCount < 4) {
     return false;
   }
 
@@ -936,7 +946,12 @@ function hasSparseSocialText(...values: Array<string | undefined>): boolean {
     .replace(/\s+/g, " ")
     .trim();
 
-  return combined.length < 90;
+  // If text is short but contains a food term, it's still meaningful
+  if (combined.length < 50 && combined.length >= 10) {
+    return !containsLikelyFoodTitleTerm(normalizeLookup(combined));
+  }
+
+  return combined.length < 50;
 }
 
 function attemptDishRescue(
@@ -984,8 +999,9 @@ function shouldAttemptSearchEnrichment(input: {
   sourcePlatform: ReturnType<typeof platformFromUrl>;
   captionWasSparse: boolean;
   hasTranscript?: boolean;
+  transcript?: string;
 }): boolean {
-  if (!hasMeaningfulFoodSignal(input.recipe)) {
+  if (!hasMeaningfulFoodSignal(input.recipe, { transcript: input.transcript })) {
     // When we have a transcript the video likely contains food content that
     // the heuristic recipe extraction couldn't capture.  Allow search
     // enrichment so we can still find the recipe online.
@@ -2107,15 +2123,17 @@ function buildImportDebug(
     matchedNutritionIngredients?: number;
     preferWeakMetadataReason: boolean;
     timedOut?: boolean;
+    transcript?: string;
   }
 ): ImportDebug {
   const missing = importMissingParts(recipe);
-  const isLikelyValid = isLikelyValidRecipe(recipe);
+  const isLikelyValid = isLikelyValidRecipe(recipe, { transcript: context.transcript });
   const failureReason = isLikelyValid
     ? undefined
     : importFailureReason(recipe, {
       preferWeakMetadata: context.preferWeakMetadataReason,
-      timedOut: context.timedOut
+      timedOut: context.timedOut,
+      transcript: context.transcript
     });
 
   return {
@@ -2572,7 +2590,7 @@ export function resolveAcceptedRecipeCandidate(
     return strictRecipe;
   }
 
-  if (isLikelyValidRecipe(sanitizedRecipe)) {
+  if (isLikelyValidRecipe(sanitizedRecipe, { transcript: context.transcript })) {
     return sanitizedRecipe;
   }
 

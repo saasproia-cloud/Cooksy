@@ -101,6 +101,7 @@ export function fallbackRecipeFromContext(input: NormalizerInput): RecipeImportR
     input.socialDescription,
     input.socialPageText,
     input.socialSubtitles,
+    input.transcript,
     input.socialTitle,
     input.pageTitle,
     input.pageDescription,
@@ -224,8 +225,7 @@ function combinedContextRecipeText(input: NormalizerInput): string {
     input.socialTitle,
     input.pageTitle,
     input.pageDescription,
-    input.pageTextContent,
-    input.transcript
+    input.pageTextContent
   ]
     .filter((value): value is string => Boolean(value?.trim()))
     .join("\n\n");
@@ -259,27 +259,34 @@ function fallbackDishNameFromSignals(
   input: NormalizerInput,
   recipe: RecipeImportResult
 ): string | undefined {
-  const candidates = [
-    recipe.title,
-    recipe.searchQuery,
-    input.socialTitle,
-    input.pageTitle,
-    input.sharedText,
-    input.socialCaption,
-    input.socialDescription,
-    input.pageDescription,
-    input.pageTextContent,
-    input.transcript
+  const candidates: Array<{ text: string | undefined; weight: number }> = [
+    { text: recipe.title, weight: 0.20 },
+    { text: recipe.searchQuery, weight: 0.15 },
+    { text: input.socialTitle, weight: 0.22 },
+    { text: input.pageTitle, weight: 0.18 },
+    { text: input.sharedText, weight: 0.14 },
+    { text: input.socialCaption, weight: 0.16 },
+    { text: input.socialDescription, weight: 0.12 },
+    { text: input.pageDescription, weight: 0.10 },
+    { text: input.pageTextContent, weight: 0.08 },
+    { text: input.transcript, weight: 0.24 }
   ];
 
+  let bestDishName: string | undefined;
+  let bestScore = 0;
+
   for (const candidate of candidates) {
-    const extracted = candidate ? extractDishCandidate(candidate)?.dishName : undefined;
+    const extracted = candidate.text ? extractDishCandidate(candidate.text) : undefined;
     if (extracted) {
-      return extracted;
+      const score = extracted.baseScore + candidate.weight;
+      if (score > bestScore) {
+        bestScore = score;
+        bestDishName = extracted.dishName;
+      }
     }
   }
 
-  return undefined;
+  return bestDishName;
 }
 
 function collectExplicitCookingSteps(
@@ -742,7 +749,7 @@ function buildDishIntentCandidates(
     {
       text: input.transcript,
       source: "transcript",
-      weight: 0.18
+      weight: 0.24
     }
   ]);
 }
