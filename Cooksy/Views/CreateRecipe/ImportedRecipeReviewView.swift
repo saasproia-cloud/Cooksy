@@ -35,27 +35,40 @@ struct ImportedRecipeReviewView: View {
         )
     }
 
+    @State private var selectedTab: RecipePresentationTab = .ingredients
+    @State private var checkedIngredients: Set<UUID> = []
+
     var body: some View {
         ZStack {
-            Color(hex: 0xFCF9F4)
+            Color(hex: 0xFAF8F5)
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    reviewTopBar
-                    reviewHeaderSection
+                VStack(spacing: 0) {
+                    // MARK: – Immersive Hero
+                    heroSection
 
-                    // Import notice removed — no blocking messages
+                    // MARK: – Content Body
+                    VStack(spacing: 20) {
+                        titleCard
 
-                    if viewModel.showsNutrition {
-                        reviewNutritionSection
+                        quickActionsRow
+
+                        if let sourceButtonTitle = viewModel.sourceButtonTitle, let sourceURL = viewModel.sourceURL {
+                            sourceRow(title: sourceButtonTitle, url: sourceURL)
+                        }
+
+                        tabSelector
+
+                        selectedTabContent
+                            .frame(maxWidth: .infinity)
                     }
-                    reviewContentSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 120)
+                    .offset(y: -32)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 132)
             }
+            .ignoresSafeArea(edges: .top)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
@@ -96,28 +109,62 @@ struct ImportedRecipeReviewView: View {
         }
     }
 
-    private var reviewHeroSection: some View {
-        RecipePresentationHeroCard(
-            heroImage: viewModel.heroImage,
-            heroStyle: .ocean,
-            title: viewModel.title,
-            density: .compact,
-            creatorHandle: viewModel.creatorHandle,
-            difficultyLabel: viewModel.difficultyLabel
-        ) {
-            RecipePresentationActionIconButton(systemImage: "chevron.left") {
-                dismiss()
+    // MARK: - Hero Section
+
+    private var heroSection: some View {
+        ZStack(alignment: .top) {
+            Group {
+                if let heroImage = viewModel.heroImage {
+                    Image(uiImage: heroImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    RecipePresentationHeroPlaceholder(heroStyle: .ocean)
+                }
             }
-        } trailingActions: {
-            HStack(spacing: 8) {
-                RecipePresentationActionIconButton(systemImage: "square.and.arrow.up") {
+            .frame(maxWidth: .infinity)
+            .frame(height: 380)
+            .clipped()
+
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.35),
+                        Color.black.opacity(0.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 120)
+
+                Spacer(minLength: 0)
+
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.0),
+                        Color.black.opacity(0.55),
+                        Color.black.opacity(0.75)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 200)
+            }
+            .frame(height: 380)
+
+            HStack {
+                heroActionButton(systemImage: "chevron.left") {
+                    dismiss()
+                }
+
+                Spacer()
+
+                heroActionButton(systemImage: "square.and.arrow.up") {
                     showsShareSheet = true
                 }
 
                 Menu {
-                    Button("Modifier") {
-                        showsEditor = true
-                    }
+                    Button("Modifier") { showsEditor = true }
 
                     if let sourceURL = viewModel.sourceURL {
                         Button("Ouvrir la source") {
@@ -129,599 +176,376 @@ struct ImportedRecipeReviewView: View {
                         showsReportAlert = true
                     }
                 } label: {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.9))
-                        .frame(width: 38, height: 38)
-                        .overlay {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                        }
+                    heroActionButton(systemImage: "ellipsis")
                 }
                 .buttonStyle(.plain)
             }
-        }
-    }
+            .padding(.horizontal, 20)
+            .padding(.top, 60)
 
-    private var reviewSummarySection: some View {
-        RecipePresentationSummaryCard(
-            summaryText: viewModel.summaryText,
-            sourceButtonTitle: viewModel.sourceButtonTitle,
-            sourceHostLabel: viewModel.sourceHostLabel,
-            sourceAction: viewModel.sourceURL.map { sourceURL in
-                { openURL(sourceURL) }
-            },
-            density: .compact
-        )
-    }
+            VStack(alignment: .leading, spacing: 10) {
+                Spacer()
 
-    private var reviewNutritionSection: some View {
-        RecipePresentationNutritionCard(
-            nutrition: viewModel.nutritionDisplay,
-            isEstimated: viewModel.nutritionIsEstimated,
-            currentServings: viewModel.currentServings,
-            baseServings: viewModel.baseServings,
-            onDecrease: { viewModel.changeServings(by: -1) },
-            onIncrease: { viewModel.changeServings(by: 1) },
-            density: .compact
-        )
-    }
-
-    private var reviewContentSection: some View {
-        VStack(spacing: 12) {
-            RecipeIngredientListCard(
-                ingredients: viewModel.displayedIngredients,
-                currentServings: viewModel.currentServings,
-                baseServings: viewModel.baseServings,
-                onDecrease: { viewModel.changeServings(by: -1) },
-                onIncrease: { viewModel.changeServings(by: 1) },
-                density: .compact
-            )
-
-            RecipeStepListCard(
-                steps: viewModel.instructions,
-                onCookStepByStep: { showsStepByStep = true },
-                density: .compact
-            )
-        }
-    }
-
-    private var reviewTopBar: some View {
-        HStack(spacing: 10) {
-            RecipePresentationActionIconButton(systemImage: "chevron.left") {
-                dismiss()
-            }
-
-            Spacer(minLength: 0)
-
-            RecipePresentationActionIconButton(systemImage: "square.and.arrow.up") {
-                showsShareSheet = true
-            }
-
-            Menu {
-                Button("Modifier") {
-                    showsEditor = true
-                }
-
-                if let sourceURL = viewModel.sourceURL {
-                    Button("Ouvrir la source") {
-                        openURL(sourceURL)
-                    }
-                }
-
-                Button("Signaler une erreur d'importation") {
-                    showsReportAlert = true
-                }
-            } label: {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.92))
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                    }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var reviewHeaderSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                CompactImportedRecipeThumbnail(
-                    image: viewModel.heroImage,
-                    creatorHandle: viewModel.creatorHandle,
-                    difficultyLabel: viewModel.difficultyLabel
-                )
-
-                VStack(alignment: .leading, spacing: 8) {
-                    if let sourceLabel = viewModel.sourceLabel {
-                        Text(sourceLabel.uppercased())
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .tracking(0.8)
-                            .foregroundStyle(CooksyTheme.brandBlueDark)
+                HStack(spacing: 8) {
+                    if let handle = viewModel.creatorHandle {
+                        Text(handle)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule(style: .continuous).fill(.ultraThinMaterial.opacity(0.6)))
+                            .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
                     }
 
-                    Text(viewModel.title)
-                        .font(.system(size: 26, weight: .bold, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
 
-                    Text(viewModel.summaryText)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .lineSpacing(2)
-                        .lineLimit(3)
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) {
-                            headerMetricPill(text: viewModel.servingsLabel, systemImage: "person.2")
-                            headerMetricPill(text: "\(viewModel.ingredientCount) ingrédients", systemImage: "list.bullet")
-                            headerMetricPill(text: "\(viewModel.instructionCount) étapes", systemImage: "text.justify.left")
-
-                            if let totalCaloriesLabel = viewModel.totalCaloriesLabel {
-                                headerMetricPill(text: totalCaloriesLabel, systemImage: "flame.fill")
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 6) {
-                                headerMetricPill(text: viewModel.servingsLabel, systemImage: "person.2")
-                                headerMetricPill(text: "\(viewModel.ingredientCount) ingrédients", systemImage: "list.bullet")
-                            }
-
-                            HStack(spacing: 6) {
-                                headerMetricPill(text: "\(viewModel.instructionCount) étapes", systemImage: "text.justify.left")
-
-                                if let totalCaloriesLabel = viewModel.totalCaloriesLabel {
-                                    headerMetricPill(text: totalCaloriesLabel, systemImage: "flame.fill")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let sourceButtonTitle = viewModel.sourceButtonTitle, let sourceURL = viewModel.sourceURL {
-                Button(action: { openURL(sourceURL) }) {
-                    HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(CooksyTheme.blush.opacity(0.92))
-                                .frame(width: 38, height: 38)
-
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                        }
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(sourceButtonTitle)
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundStyle(CooksyTheme.primaryText)
-
-                            Text(viewModel.sourceHostLabel)
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 48)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(CooksyTheme.surface)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.97))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-        .shadow(color: CooksyTheme.softShadow, radius: 10, y: 4)
-    }
-
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            heroIconButton(systemImage: "chevron.left") {
-                dismiss()
-            }
-
-            Spacer(minLength: 0)
-
-            Button("Modifier") {
-                showsEditor = true
-            }
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
-            .foregroundStyle(CooksyTheme.primaryText)
-            .padding(.horizontal, 16)
-            .frame(height: 40)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.92))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-            )
-            .buttonStyle(.plain)
-
-            Menu {
-                if let sourceURL = viewModel.sourceURL {
-                    Button("Ouvrir la source") {
-                        openURL(sourceURL)
-                    }
-                }
-
-                Button("Signaler une erreur d'importation") {
-                    showsReportAlert = true
-                }
-            } label: {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.92))
-                    .frame(width: 40, height: 40)
-                    .overlay {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                    }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.top, 4)
-    }
-
-    private var heroSection: some View {
-        VStack(spacing: 0) {
-            ImportedRecipeHeroMedia(image: viewModel.heroImage)
-                .frame(height: 212)
-                .overlay(alignment: .bottomTrailing) {
-                    if viewModel.heroImage != nil {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.96))
-                                .frame(width: 34, height: 34)
-
-                            Image(systemName: "camera")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                        }
-                        .padding(12)
-                    }
-                }
-
-            VStack(alignment: .leading, spacing: 12) {
-                if let sourceLabel = viewModel.sourceLabel {
-                    Text(sourceLabel.uppercased())
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    Text(viewModel.difficultyLabel)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule(style: .continuous).fill(.ultraThinMaterial.opacity(0.5)))
+                        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
                 }
 
                 Text(viewModel.title)
-                    .font(.system(size: 28, weight: .regular, design: .serif))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) {
-                        if let calories = viewModel.caloriesSummary {
-                            titleSummaryPill(label: "Calories", value: calories)
-                        }
-
-                        if let protein = viewModel.proteinSummary {
-                            titleSummaryPill(label: "Protéines", value: protein)
-                        }
-
-                        if let totalTimeLabel = viewModel.totalTimeLabel {
-                            titleSummaryPill(label: "Temps", value: totalTimeLabel)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let calories = viewModel.caloriesSummary {
-                            titleSummaryPill(label: "Calories", value: calories)
-                        }
-
-                        HStack(spacing: 8) {
-                            if let protein = viewModel.proteinSummary {
-                                titleSummaryPill(label: "Protéines", value: protein)
-                            }
-
-                            if let totalTimeLabel = viewModel.totalTimeLabel {
-                                titleSummaryPill(label: "Temps", value: totalTimeLabel)
-                            }
-                        }
-                    }
-                }
-
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) {
-                        heroInfoBadge(text: "\(viewModel.ingredientCount) ingrédients", systemImage: "list.bullet")
-                        heroInfoBadge(text: "\(viewModel.instructionCount) étapes", systemImage: "text.justify.left")
-
-                        if let servings = viewModel.heroServingsLabel {
-                            heroInfoBadge(text: servings, systemImage: "person.2")
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            heroInfoBadge(text: "\(viewModel.ingredientCount) ingrédients", systemImage: "list.bullet")
-                            heroInfoBadge(text: "\(viewModel.instructionCount) étapes", systemImage: "text.justify.left")
-                        }
-
-                        if let servings = viewModel.heroServingsLabel {
-                            heroInfoBadge(text: servings, systemImage: "person.2")
-                        }
-                    }
-                }
+                    .font(.system(size: 28, weight: .bold, design: .serif))
+                    .foregroundStyle(.white)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.8)
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 16)
-
-            Divider()
-                .overlay(CooksyTheme.stroke.opacity(0.9))
-
-            HStack(spacing: 0) {
-                ImportedQuickActionButton(
-                    title: "Modifier",
-                    systemImage: "square.and.pencil",
-                    action: { showsEditor = true }
-                )
-
-                Divider()
-                    .frame(height: 44)
-
-                ImportedQuickActionButton(
-                    title: "Plan",
-                    systemImage: "calendar.badge.plus",
-                    action: { showsPlanSheet = true }
-                )
-                .disabled(!viewModel.canSave)
-                .opacity(viewModel.canSave ? 1 : 0.45)
-
-                Divider()
-                    .frame(height: 44)
-
-                ImportedQuickActionButton(
-                    title: "Partager",
-                    systemImage: "square.and.arrow.up",
-                    action: { showsShareSheet = true }
-                )
-            }
-            .padding(.vertical, 10)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 52)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.95))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: CooksyTheme.softShadow, radius: 14, y: 6)
+        .frame(height: 380)
     }
 
-    private var sourceNotesSection: some View {
-        ImportedReviewSectionCard {
-            VStack(alignment: .leading, spacing: 12) {
-                sectionEyebrow("Notes de recette")
+    @ViewBuilder
+    private func heroActionButton(systemImage: String, action: (() -> Void)? = nil) -> some View {
+        Group {
+            if let action {
+                Button(action: action) {
+                    heroButtonLabel(systemImage: systemImage)
+                }
+                .buttonStyle(.plain)
+            } else {
+                heroButtonLabel(systemImage: systemImage)
+            }
+        }
+    }
 
-                if let sourceURL = viewModel.sourceURL, let sourceButtonTitle = viewModel.sourceButtonTitle {
-                    Button(action: { openURL(sourceURL) }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                                .frame(width: 28)
+    private func heroButtonLabel(systemImage: String) -> some View {
+        Circle()
+            .fill(.ultraThinMaterial)
+            .frame(width: 42, height: 42)
+            .overlay {
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+    }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(sourceButtonTitle)
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(CooksyTheme.primaryText)
+    // MARK: - Title Card
 
-                                Text(viewModel.sourceHostLabel)
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(CooksyTheme.secondaryText)
-                            }
+    private var titleCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 0) {
+                quickStat(icon: "clock", label: viewModel.totalTimeLabel ?? "—")
 
-                            Spacer(minLength: 0)
+                statDivider
 
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                        }
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                quickStat(icon: "person.2", label: "\(viewModel.currentServings) portions")
+
+                statDivider
+
+                quickStat(icon: "chart.bar", label: viewModel.difficultyLabel)
+            }
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(hex: 0xFAF8F5))
+            )
+
+            HStack {
+                Text("Portions")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Button { viewModel.changeServings(by: -1) } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(Color(hex: 0xFAF8F5)))
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("\(viewModel.currentServings)")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .frame(minWidth: 24)
+
+                    Button { viewModel.changeServings(by: 1) } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(CooksyTheme.accentWarm))
                     }
                     .buttonStyle(.plain)
                 }
+            }
 
-                if viewModel.sourceURL != nil, viewModel.noteText != nil {
-                    Divider()
-                        .overlay(CooksyTheme.stroke.opacity(0.9))
-                }
+            HStack(spacing: 8) {
+                summaryCapsule(text: "\(viewModel.displayedIngredients.count) ingrédients", icon: "leaf")
+                summaryCapsule(text: "\(viewModel.instructions.count) étapes", icon: "list.number")
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.08), radius: 20, y: 10)
+        )
+    }
 
-                if let noteText = viewModel.noteText {
-                    Text(noteText)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+    private func quickStat(icon: String, label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(CooksyTheme.accentWarm)
+
+            Text(label)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statDivider: some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(CooksyTheme.dividerSubtle)
+            .frame(width: 1, height: 22)
+    }
+
+    private func summaryCapsule(text: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(CooksyTheme.accentWarm)
+
+            Text(text)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color(hex: 0xFAF8F5))
+        )
+    }
+
+    // MARK: - Quick Actions
+
+    private var quickActionsRow: some View {
+        HStack(spacing: 10) {
+            quickActionButton(icon: "pencil", label: "Modifier") {
+                showsEditor = true
+            }
+
+            quickActionButton(icon: "calendar.badge.plus", label: "Plan") {
+                showsPlanSheet = true
+            }
+
+            quickActionButton(icon: "square.and.arrow.up", label: "Partager") {
+                showsShareSheet = true
+            }
+        }
+    }
+
+    private func quickActionButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(CooksyTheme.accentWarm)
+
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Source Row
+
+    private func sourceRow(title: String, url: URL) -> some View {
+        Button(action: { openURL(url) }) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CooksyTheme.accentWarm.opacity(0.12))
+                    .frame(width: 38, height: 38)
+                    .overlay {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(CooksyTheme.accentWarm)
+                    }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
-                        .lineSpacing(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if viewModel.sourceURL != nil {
-                    Text("Aucune note importée pour le moment.")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .lineLimit(1)
+
+                    Text(viewModel.sourceHostLabel)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(CooksyTheme.secondaryText)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+            )
         }
+        .buttonStyle(.plain)
     }
 
-    private var ingredientsSection: some View {
-        ImportedReviewSectionCard {
-            VStack(alignment: .leading, spacing: 14) {
-                sectionEyebrow("Ingrédients")
+    // MARK: - Tab Selector
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) {
-                        servingsStepper
-                        Spacer(minLength: 0)
-                        servingsHelperPill
+    private var tabSelector: some View {
+        HStack(spacing: 4) {
+            ForEach(RecipePresentationTab.allCases) { tab in
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        selectedTab = tab
                     }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: tabIcon(for: tab))
+                            .font(.system(size: 12, weight: .bold))
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        servingsStepper
-                        servingsHelperPill
-                    }
-                }
+                        Text(tabLabel(for: tab))
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
 
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.displayedIngredients.enumerated()), id: \.element.id) { index, ingredient in
-                        ImportedIngredientRow(ingredient: ingredient)
-
-                        if index != viewModel.displayedIngredients.count - 1 {
-                            Divider()
-                                .overlay(CooksyTheme.stroke.opacity(0.9))
-                                .padding(.leading, 54)
+                        if let count = tabCount(for: tab) {
+                            Text(count)
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(selectedTab == tab ? Color.white.opacity(0.25) : CooksyTheme.dividerSubtle)
+                                )
                         }
                     }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.white.opacity(0.76))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(CooksyTheme.stroke, lineWidth: 1)
-                )
-            }
-        }
-    }
-
-    private var instructionsSection: some View {
-        ImportedReviewSectionCard {
-            VStack(alignment: .leading, spacing: 14) {
-                sectionEyebrow("Instructions")
-
-                Button(action: { showsStepByStep = true }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color(hex: 0xB489D9))
-                            .frame(width: 24)
-
-                        Text("Cuisiner pas à pas")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
-
-                        Spacer(minLength: 0)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                    }
-                    .padding(.horizontal, 14)
+                    .foregroundStyle(selectedTab == tab ? .white : CooksyTheme.primaryText)
+                    .frame(maxWidth: .infinity)
                     .frame(height: 46)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.white.opacity(0.88))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                            .fill(selectedTab == tab
+                                  ? AnyShapeStyle(LinearGradient(
+                                      colors: [Color(hex: 0xD98C5F), Color(hex: 0xC47040)],
+                                      startPoint: .topLeading,
+                                      endPoint: .bottomTrailing
+                                  ))
+                                  : AnyShapeStyle(Color.clear))
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.instructions.isEmpty)
-                .opacity(viewModel.instructions.isEmpty ? 0.55 : 1)
-
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.instructions.enumerated()), id: \.element.id) { index, step in
-                        ImportedInstructionRow(index: index + 1, step: step)
-
-                        if index != viewModel.instructions.count - 1 {
-                            Divider()
-                                .overlay(CooksyTheme.stroke.opacity(0.9))
-                                .padding(.leading, 28)
-                        }
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.white.opacity(0.76))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(CooksyTheme.stroke, lineWidth: 1)
-                )
             }
+        }
+        .padding(5)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(hex: 0xF3F0EC))
+        )
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .ingredients:
+            RecipeIngredientsTabView(
+                ingredients: viewModel.displayedIngredients,
+                currentServings: viewModel.currentServings,
+                checkedIngredients: $checkedIngredients
+            )
+        case .steps:
+            RecipeStepsTabView(
+                steps: viewModel.instructions,
+                onCookStepByStep: { showsStepByStep = true }
+            )
+        case .nutrition:
+            RecipeNutritionTabView(
+                perServingNutrition: viewModel.perServingNutritionDisplay,
+                totalNutrition: viewModel.totalNutritionDisplay,
+                isEstimated: viewModel.nutritionIsEstimated,
+                currentServings: viewModel.currentServings
+            )
         }
     }
 
-    private func nutritionSection(_ nutrition: RecipeNutrition) -> some View {
-        ImportedReviewSectionCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        sectionEyebrow("Nutrition")
-                        Text(viewModel.nutritionServingLabel)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    if viewModel.nutritionIsEstimated {
-                        Text("Estimation Cooksy")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(CooksyTheme.blush)
-                            )
-                    }
-                }
-
-                ImportedNutritionPanel(
-                    nutrition: nutrition,
-                    servingLabel: viewModel.nutritionServingLabel
-                )
-            }
+    private func tabIcon(for tab: RecipePresentationTab) -> String {
+        switch tab {
+        case .ingredients: return "leaf"
+        case .steps: return "list.number"
+        case .nutrition: return "flame"
         }
     }
+
+    private func tabLabel(for tab: RecipePresentationTab) -> String {
+        switch tab {
+        case .ingredients: return "Ingrédients"
+        case .steps: return "Étapes"
+        case .nutrition: return "Nutrition"
+        }
+    }
+
+    private func tabCount(for tab: RecipePresentationTab) -> String? {
+        switch tab {
+        case .ingredients:
+            return "\(viewModel.displayedIngredients.count)"
+        case .steps:
+            return "\(viewModel.instructions.count)"
+        case .nutrition:
+            return nil
+        }
+    }
+
+    // MARK: - Save Area
 
     private var saveArea: some View {
         VStack(spacing: 0) {
@@ -786,147 +610,6 @@ struct ImportedRecipeReviewView: View {
         .background(CooksyTheme.background.opacity(0.96))
     }
 
-    private var servingsStepper: some View {
-        HStack(spacing: 4) {
-            Button(action: { viewModel.changeServings(by: -1) }) {
-                Image(systemName: "minus")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    .frame(width: 34, height: 34)
-                    .background(
-                        Circle()
-                            .fill(Color.white)
-                    )
-            }
-            .buttonStyle(.plain)
-
-            VStack(spacing: 1) {
-                Text("\(viewModel.currentServings)")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-
-                Text(viewModel.currentServings > 1 ? "portions" : "portion")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-            }
-            .frame(minWidth: 72)
-
-            Button(action: { viewModel.changeServings(by: 1) }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    .frame(width: 34, height: 34)
-                    .background(
-                        Circle()
-                            .fill(Color.white)
-                    )
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(4)
-        .background(
-            Capsule(style: .continuous)
-                .fill(CooksyTheme.surface)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-    }
-
-    private func heroIconButton(systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.92))
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(CooksyTheme.stroke, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var servingsHelperPill: some View {
-        Group {
-            if viewModel.currentServings != viewModel.baseServings {
-                Button(action: viewModel.resetServings) {
-                    Label("Base \(viewModel.baseServings)", systemImage: "arrow.counterclockwise")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .padding(.horizontal, 12)
-                        .frame(height: 38)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(CooksyTheme.surface)
-                        )
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(CooksyTheme.stroke, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            } else {
-                Label("Ajustement auto", systemImage: "arrow.left.arrow.right")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                    .padding(.horizontal, 12)
-                    .frame(height: 38)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(CooksyTheme.surface)
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 1)
-                    )
-            }
-        }
-    }
-
-    private func heroInfoBadge(text: String, systemImage: String) -> some View {
-        Label(text, systemImage: systemImage)
-            .font(.system(size: 12, weight: .bold, design: .rounded))
-            .foregroundStyle(CooksyTheme.secondaryText)
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(CooksyTheme.surface)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-            )
-    }
-
-    private func titleSummaryPill(label: String, value: String) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-
-            Text(value)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 34)
-        .background(
-            Capsule(style: .continuous)
-                .fill(CooksyTheme.surface)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-    }
-
     private func inlineMessageCard(text: String, tint: Color, icon: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
@@ -971,28 +654,6 @@ struct ImportedRecipeReviewView: View {
         }
     }
 
-    private func sectionEyebrow(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(.system(size: 13, weight: .black, design: .rounded))
-            .tracking(0.9)
-            .foregroundStyle(CooksyTheme.brandBlueDark)
-    }
-
-    private func headerMetricPill(text: String, systemImage: String) -> some View {
-        Label(text, systemImage: systemImage)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(CooksyTheme.secondaryText)
-            .padding(.horizontal, 8)
-            .frame(height: 28)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(CooksyTheme.surface)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-            )
-    }
 }
 
 @MainActor
@@ -1168,6 +829,15 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         return RecipeNutritionDisplayBuilder.isEstimated(for: previewRecipe)
     }
 
+    var perServingNutritionDisplay: RecipeNutritionDisplay? {
+        guard showsNutrition else { return nil }
+        return RecipeNutritionDisplayBuilder.displayNutrition(for: previewRecipe, selectedServings: 1)
+    }
+
+    var totalNutritionDisplay: RecipeNutritionDisplay? {
+        nutritionDisplay
+    }
+
     var nutrition: RecipeNutrition? {
         displayedNutrition
     }
@@ -1282,387 +952,6 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     private func nonEmpty(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-}
-
-private struct CompactImportedRecipeThumbnail: View {
-    let image: UIImage?
-    let creatorHandle: String?
-    let difficultyLabel: String
-
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            Group {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    CooksyTheme.heroGlowGradient
-                        .overlay {
-                            Image(systemName: "fork.knife")
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundStyle(Color.white.opacity(0.9))
-                        }
-                }
-            }
-            .frame(width: 112, height: 112)
-            .clipped()
-
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.02),
-                    Color.black.opacity(0.18),
-                    Color.black.opacity(0.56)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(alignment: .leading, spacing: 6) {
-                if let creatorHandle {
-                    Text(creatorHandle)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .frame(height: 22)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.black.opacity(0.36))
-                        )
-                }
-
-                Spacer(minLength: 0)
-
-                HStack {
-                    Spacer(minLength: 0)
-
-                    Text(difficultyLabel)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .frame(height: 22)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.white.opacity(0.2))
-                        )
-                }
-            }
-            .padding(10)
-            .frame(width: 112, height: 112)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-        )
-    }
-}
-
-private struct ImportedReviewSectionCard<Content: View>: View {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(0.94))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-            )
-            .shadow(color: CooksyTheme.softShadow, radius: 10, y: 4)
-    }
-}
-
-private struct ImportedRecipeHeroMedia: View {
-    let image: UIImage?
-
-    var body: some View {
-        ZStack {
-            CooksyTheme.heroGlowGradient
-
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                VStack(spacing: 14) {
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 68))
-                        .foregroundStyle(Color.white.opacity(0.92))
-
-                    Text("Recette importée")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.86))
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-    }
-}
-
-private struct ImportedQuickActionButton: View {
-    let title: String
-    let systemImage: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 42, height: 42)
-                        .overlay(
-                            Circle()
-                                .stroke(CooksyTheme.stroke, lineWidth: 1)
-                        )
-
-                    Image(systemName: systemImage)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                }
-
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct ImportedIngredientRow: View {
-    let ingredient: ImportedRecipeReviewViewModel.DisplayIngredient
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            IngredientLocalIcon(ingredientName: ingredient.name, size: 42)
-
-            VStack(alignment: .leading, spacing: 4) {
-                if let quantityText = ingredient.quantityText {
-                    Text(quantityText)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
-
-                Text(ingredient.name)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-}
-
-private struct ImportedInstructionRow: View {
-    let index: Int
-    let step: RecipeStep
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(index)")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-                .frame(width: 18, alignment: .leading)
-
-            Text(step.detail)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-                .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-}
-
-private struct ImportedNutritionPanel: View {
-    let nutrition: RecipeNutrition
-    let servingLabel: String
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 18) {
-                ImportedNutritionRingView(
-                    calories: parsedNumber(from: nutrition.calories),
-                    protein: parsedNumber(from: nutrition.protein),
-                    carbs: parsedNumber(from: nutrition.carbs),
-                    fat: parsedNumber(from: nutrition.fat)
-                )
-
-                VStack(alignment: .leading, spacing: 10) {
-                    ImportedMacroLegendRow(
-                        color: CooksyTheme.ctaOrange,
-                        title: "Protéines",
-                        value: nutrition.protein ?? "—"
-                    )
-                    ImportedMacroLegendRow(
-                        color: CooksyTheme.sparkleYellow,
-                        title: "Glucides",
-                        value: nutrition.carbs ?? "—"
-                    )
-                    ImportedMacroLegendRow(
-                        color: CooksyTheme.brandBlue,
-                        title: "Lipides",
-                        value: nutrition.fat ?? "—"
-                    )
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Spacer(minLength: 0)
-                    ImportedNutritionRingView(
-                        calories: parsedNumber(from: nutrition.calories),
-                        protein: parsedNumber(from: nutrition.protein),
-                        carbs: parsedNumber(from: nutrition.carbs),
-                        fat: parsedNumber(from: nutrition.fat)
-                    )
-                    Spacer(minLength: 0)
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    ImportedMacroLegendRow(
-                        color: CooksyTheme.ctaOrange,
-                        title: "Protéines",
-                        value: nutrition.protein ?? "—"
-                    )
-                    ImportedMacroLegendRow(
-                        color: CooksyTheme.sparkleYellow,
-                        title: "Glucides",
-                        value: nutrition.carbs ?? "—"
-                    )
-                    ImportedMacroLegendRow(
-                        color: CooksyTheme.brandBlue,
-                        title: "Lipides",
-                        value: nutrition.fat ?? "—"
-                    )
-                }
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(CooksyTheme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-    }
-
-    private func parsedNumber(from text: String?) -> Double {
-        let digits = text?
-            .replacingOccurrences(of: ",", with: ".")
-            .components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted)
-            .joined()
-
-        return Double(digits ?? "") ?? 0
-    }
-}
-
-private struct ImportedMacroLegendRow: View {
-    let color: Color
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(color)
-                .frame(width: 10, height: 10)
-
-            Text(title)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-
-            Spacer(minLength: 0)
-
-            Text(value)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-    }
-}
-
-private struct ImportedNutritionRingView: View {
-    let calories: Double
-    let protein: Double
-    let carbs: Double
-    let fat: Double
-
-    private var proteinCalories: Double { max(protein, 0) * 4 }
-    private var carbCalories: Double { max(carbs, 0) * 4 }
-    private var fatCalories: Double { max(fat, 0) * 9 }
-    private var totalMacroCalories: Double { max(proteinCalories + carbCalories + fatCalories, 1) }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(CooksyTheme.stroke, lineWidth: 12)
-
-            ImportedNutritionSegment(
-                value: fatCalories / totalMacroCalories,
-                color: CooksyTheme.brandBlue,
-                rotation: -90
-            )
-            ImportedNutritionSegment(
-                value: carbCalories / totalMacroCalories,
-                color: CooksyTheme.sparkleYellow,
-                rotation: -90 + (fatCalories / totalMacroCalories * 360)
-            )
-            ImportedNutritionSegment(
-                value: proteinCalories / totalMacroCalories,
-                color: CooksyTheme.ctaOrange,
-                rotation: -90 + ((fatCalories + carbCalories) / totalMacroCalories * 360)
-            )
-
-            VStack(spacing: 2) {
-                Text(RecipeQuantityScaler.formattedNumber(calories))
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-
-                Text("kcal")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-            }
-        }
-        .frame(width: 112, height: 112)
-    }
-}
-
-private struct ImportedNutritionSegment: View {
-    let value: Double
-    let color: Color
-    let rotation: Double
-
-    var body: some View {
-        Circle()
-            .trim(from: 0, to: max(min(value, 1), 0))
-            .stroke(
-                color,
-                style: StrokeStyle(lineWidth: 12, lineCap: .round)
-            )
-            .rotationEffect(.degrees(rotation))
     }
 }
 

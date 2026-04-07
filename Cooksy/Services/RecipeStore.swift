@@ -217,35 +217,15 @@ final class RecipeStore: ObservableObject {
 
     private func seedLibrary() {
         let uncategorizedBookID = UUID()
-        let sampleRecipeID = UUID()
 
-        let sampleRecipe = Recipe(
-            id: sampleRecipeID,
-            title: "Tarte au chocolat, praline et grue de cacao",
-            sourceURL: URL(string: "https://www.tiktok.com/@cooksy/video/demo"),
-            heroStyle: .warmCocoa,
-            ingredients: [
-                RecipeIngredient(amount: "200", unit: "g", name: "farine"),
-                RecipeIngredient(amount: "100", unit: "g", name: "beurre"),
-                RecipeIngredient(amount: "70", unit: "g", name: "sucre glace"),
-                RecipeIngredient(amount: "1", unit: nil, name: "oeuf")
-            ],
-            steps: [
-                RecipeStep(title: "Base", detail: "Melangez les ingredients secs puis sablez avec le beurre."),
-                RecipeStep(title: "Cuisson", detail: "Cuisez le fond de tarte puis ajoutez la ganache praline.")
-            ],
-            notes: "Recette de demonstration pour le MVP.",
-            bookID: uncategorizedBookID
-        )
-
-        recipes = [sampleRecipe]
+        recipes = []
         books = [
             RecipeBook(
                 id: uncategorizedBookID,
                 title: "Non classees",
                 kind: .uncategorized,
                 previewStyle: .featured,
-                recipeIDs: [sampleRecipeID]
+                recipeIDs: []
             ),
             RecipeBook(
                 title: "Diner",

@@ -175,7 +175,9 @@ struct RootTabView: View {
                 }
             }
 
-            Button("OK", role: .cancel) {}
+            Button("OK", role: .cancel) {
+                sharedLinkInbox.clear()
+            }
         } message: {
             Text(sharedImportErrorMessage)
         }

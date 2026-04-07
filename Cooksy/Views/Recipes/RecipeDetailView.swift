@@ -576,7 +576,7 @@ struct RecipeDetailView: View {
 
 // MARK: - Ingredients Tab
 
-private struct RecipeIngredientsTabView: View {
+struct RecipeIngredientsTabView: View {
     let ingredients: [RecipeIngredientPresentation]
     let currentServings: Int
     @Binding var checkedIngredients: Set<UUID>
@@ -656,7 +656,7 @@ private struct RecipeIngredientsTabView: View {
     }
 }
 
-private struct RecipeIngredientRow: View {
+struct RecipeIngredientRow: View {
     let ingredient: RecipeIngredientPresentation
     let isChecked: Bool
     let isFirst: Bool
@@ -724,7 +724,7 @@ private struct RecipeIngredientRow: View {
 
 // MARK: - Steps Tab
 
-private struct RecipeStepsTabView: View {
+struct RecipeStepsTabView: View {
     let steps: [RecipeStep]
     let onCookStepByStep: () -> Void
 
@@ -813,7 +813,7 @@ private struct RecipeStepsTabView: View {
     }
 }
 
-private struct RecipeStepCard: View {
+struct RecipeStepCard: View {
     let index: Int
     let step: RecipeStep
     let isLast: Bool
@@ -877,7 +877,7 @@ private struct RecipeStepCard: View {
 
 // MARK: - Nutrition Tab
 
-private struct RecipeNutritionTabView: View {
+struct RecipeNutritionTabView: View {
     let perServingNutrition: RecipeNutritionDisplay?
     let totalNutrition: RecipeNutritionDisplay?
     let isEstimated: Bool
@@ -1076,7 +1076,7 @@ private struct RecipeNutritionTabView: View {
 
 // MARK: - Nutrition Sub-components
 
-private struct RecipeNutritionMetricCard: View {
+struct RecipeNutritionMetricCard: View {
     let title: String
     let value: String
     let tint: Color
@@ -1115,7 +1115,7 @@ private struct RecipeNutritionMetricCard: View {
     }
 }
 
-private struct RecipeNutritionLegendRow: View {
+struct RecipeNutritionLegendRow: View {
     let title: String
     let value: String
     let tint: Color
@@ -1139,7 +1139,7 @@ private struct RecipeNutritionLegendRow: View {
     }
 }
 
-private struct RecipeNutritionSecondaryRow: View {
+struct RecipeNutritionSecondaryRow: View {
     let title: String
     let value: String
     let tint: Color
@@ -1173,7 +1173,7 @@ private struct RecipeNutritionSecondaryRow: View {
     }
 }
 
-private struct RecipeNutritionTotalPill: View {
+struct RecipeNutritionTotalPill: View {
     let title: String
     let value: String
 
@@ -1201,7 +1201,7 @@ private struct RecipeNutritionTotalPill: View {
 
 // MARK: - Empty State
 
-private struct RecipeEmptyTabState: View {
+struct RecipeEmptyTabState: View {
     let title: String
     let subtitle: String
 
