@@ -777,11 +777,19 @@ function extractDishCandidate(
 
   const genericPhrase = extractGenericDishPhrase(normalized);
   if (genericPhrase) {
-    const dishName = prettifyDishName(genericPhrase);
+    // When the input text is a short title (< 60 chars) and the generic phrase
+    // is only a single food word (e.g., "pizza"), keep the full normalized text
+    // as the dish name if it's likely a compound dish title.
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const isShortTitle = text.trim().length < 60 && words.length <= 8;
+    const genericWords = genericPhrase.split(/\s+/).filter(Boolean).length;
+    const dishName = isShortTitle && genericWords === 1 && words.length >= 2
+      ? prettifyDishName(normalized)
+      : prettifyDishName(genericPhrase);
     return {
       dishName,
       templateId: templateIdForDishName(dishName),
-      baseScore: genericPhrase.split(" ").length >= 2 ? 0.5 : 0.42
+      baseScore: genericPhrase.split(" ").length >= 2 ? 0.5 : (isShortTitle && words.length >= 2 ? 0.5 : 0.42)
     };
   }
 
@@ -790,11 +798,17 @@ function extractDishCandidate(
     return null;
   }
 
-  const dishName = prettifyDishName(genericMatch[0]);
+  // Same logic: if the input is a short title and we only matched a single generic
+  // food word, prefer the full normalized text as the dish name.
+  const titleWords = normalized.split(/\s+/).filter(Boolean);
+  const isShortTitle = text.trim().length < 60 && titleWords.length <= 8;
+  const dishName = isShortTitle && titleWords.length >= 2
+    ? prettifyDishName(normalized)
+    : prettifyDishName(genericMatch[0]);
   return {
     dishName,
     templateId: templateIdForDishName(dishName),
-    baseScore: 0.42
+    baseScore: isShortTitle && titleWords.length >= 2 ? 0.5 : 0.42
   };
 }
 
@@ -2930,8 +2944,9 @@ const prioritizedDishPatterns: Array<{
 const genericDishPhrasePatterns = [
   /\b(?:sandwich|wrap)\s+(?:naan|pita|bagel|focaccia|ciabatta|brioche)\b/i,
   /\b(?:naan|pita|bagel|focaccia|ciabatta|brioche)\s+(?:sandwich|wrap)\b/i,
-  /\b(?:truffle|truffe|smash|crispy|spicy|creamy|chicken|poulet|fish|poisson|beef|boeuf|bœuf|veggie|vegan|mushroom|champignon|thai|bbq|salmon|saumon|garlic|ail|hot|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\b/i,
-  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\s+(?:a\s+la|au|aux|de|du|des|with)\s+[a-z]+(?:\s+[a-z]+)?\b/i
+  /\b(?:truffle|truffe|smash|crispy|spicy|creamy|chicken|poulet|fish|poisson|beef|boeuf|bœuf|veggie|vegan|mushroom|champignon|thai|bbq|salmon|saumon|garlic|ail|hot|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat|tartiflette|raclette|carbonara|bolognaise|bolognese|hawaienne|hawaiian|margherita|calzone|flambe|flambee|royale|chevre)\s+(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\s+(?:tartiflette|raclette|carbonara|bolognaise|bolognese|hawaienne|hawaiian|margherita|calzone|flambe|flambee|royale|chevre)\b/i,
+  /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|salad|salade|wrap|sandwich|curry|ramen|risotto|falafel|shawarma|kebab|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\s+(?:a\s+la|au|aux|de|du|des|with)\s+[a-z]+(?:\s+[a-z]+){0,2}\b/i
 ];
 
 const genericDishPattern = /\b(?:burger|tacos?|pasta|pizza|omelette|quiche|salad|salade|wrap|sandwich|toast|curry|brownies?|cookies?|cake|ramen|risotto|falafel|shawarma|kebab|bowl|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|poke|bibimbap|gnocchi|hummus|taboul[eé]|couscous|gyoza)\b/i;

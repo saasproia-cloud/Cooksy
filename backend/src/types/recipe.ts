@@ -368,6 +368,11 @@ export function scoreRecipe(recipe: RecipeImportResult): number {
   const thinStructurePenalty = hasThinRecipeStructure(recipe) ? 8 : 0;
   const cookabilityGapPenalty = hasCookabilityGaps(recipe) ? 14 : 0;
 
+  // Bonus for specific/compound dish titles (e.g., "Pizza Tartiflette à la Poêle"
+  // scores higher than a generic "Pizza")
+  const titleWords = clean(recipe.title).split(/\s+/).filter(Boolean).length;
+  const titleSpecificityBonus = titleWords >= 3 ? Math.min(titleWords * 3, 15) : 0;
+
   return recipe.ingredientDrafts.length * 6 +
     recipe.stepDrafts.length * 7 +
     (recipe.title.length > 0 ? 10 : 0) +
@@ -376,6 +381,7 @@ export function scoreRecipe(recipe: RecipeImportResult): number {
     nutritionScore +
     (recipe.confidence === "high" ? 8 : recipe.confidence === "medium" ? 4 : 0) +
     cookabilityBonus +
+    titleSpecificityBonus +
     titlePenalty -
     missingPenalty -
     uncoveredPenalty -
@@ -1130,8 +1136,8 @@ function containsNarrativeIngredientNoise(value: string): boolean {
     return false;
   }
 
-  return /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a)\b/.test(normalized) ||
-    /^(?:et|ensuite|puis|alors|du coup|on a|voila|voilà)\b/.test(normalized);
+  return /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a|bien sur|bien sûr|franchement|tu sais|vous savez|en fait|tout simplement|c est parti|allez|allons y|c est bon|parfait|exactement|attention|normalement|genial|trop bon|incroyable|magnifique|regardez|ecoutez|n hesitez pas|abonnez vous|likez|partagez|commentez|suivez moi)\b/.test(normalized) ||
+    /^(?:et|ensuite|puis|alors|du coup|on a|voila|voilà|hop|bon|bref|donc|ok|ouais|hein|quoi)\b/.test(normalized);
 }
 
 function containsNarrativeStepNoise(value: string): boolean {

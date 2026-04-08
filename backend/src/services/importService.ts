@@ -352,7 +352,13 @@ export async function importFromUrl(input: {
     }
   }
 
+  // Skip web search when the audio-derived recipe is already valid — the audio
+  // content is more faithful to the actual video than a generic web recipe.
+  const skipWebForAudio = importStrategy === "audio" &&
+    isLikelyValidRecipe(recipe, { transcript: transcript ?? undefined });
+
   if (
+    !skipWebForAudio &&
     shouldAttemptSearchEnrichment({
       recipe,
       sourcePlatform,
@@ -1567,9 +1573,17 @@ function searchQueryCandidates(input: {
   sharedText?: string;
   transcript?: string | null;
 }): string[] {
+  // When the recipe title is generic (single word like "Pizza") and a transcript
+  // is available, try to extract a more specific dish phrase from the transcript
+  // to produce better search queries (e.g., "pizza tartiflette recette").
+  const transcriptDishQuery = input.transcript
+    ? decorateRecipeSearchQuery(extractDishPhraseFromText(input.transcript) ?? "")
+    : undefined;
+
   const candidates = [
     decorateRecipeSearchQuery(input.recipe.searchQuery),
     decorateRecipeSearchQuery(keywordRichRecipeQuery(input)),
+    transcriptDishQuery,
     inferredDishSearchTitle(input),
     ...searchTextCandidates(input)
       .map(nonGenericSearchCandidate)
