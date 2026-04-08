@@ -98,6 +98,7 @@ export type NormalizerInput = {
   socialAuthor?: string;
   socialSubtitles?: string;
   transcript?: string;
+  transcriptDigest?: string;
   imageDataUrl?: string;
 };
 
@@ -593,7 +594,7 @@ function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngre
 }
 
 function sanitizeIngredientName(value: string): string {
-  return stripLeadingIngredientMeasurement(
+  const stripped = stripLeadingIngredientMeasurement(
     stripIngredientNarrativeFragments(
       clean(value)
         .replace(/^\s*(?:[-•*]|\d+[\).\-\s]+)\s*/u, "")
@@ -606,6 +607,13 @@ function sanitizeIngredientName(value: string): string {
         .trim()
     )
   );
+
+  // Collapse accidental word duplication from noisy transcripts, e.g. "Oeufs oeufs",
+  // "Farine farine", "Poulet poulet".
+  return stripped
+    .replace(/\b(\p{L}+)\s+\1\b/giu, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function stripIngredientNarrativeFragments(value: string): string {
@@ -635,6 +643,18 @@ function stripLeadingIngredientMeasurement(value: string): string {
       ""
     )
     .replace(/^\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛]|a|an|one|un|une|two|deux|three|trois|half|demi)\s+/i, "")
+    // Orphan French measurement phrases left over by bad transcription, e.g.
+    // "À café le sel" (cuillère à café), "À soupe de mayonnaise", "Une pincée de sel".
+    // These slip through the numeric/unit match above because the quantity is missing.
+    .replace(
+      /^\s*(?:à|a)\s+(?:café|cafe|soupe|thé|the)\s+(?:de\s+|d['’]\s*|le\s+|la\s+|les\s+|l['’]\s*)?/i,
+      ""
+    )
+    .replace(
+      /^\s*(?:une?\s+)?(?:pincée|pincee|poignée|poignee|cuillerée|cuilleree|louche)\s+(?:de\s+|d['’]\s*)?/i,
+      ""
+    )
+    .replace(/^\s*(?:de|du|des|d['’])\s+/i, "")
     .trim();
 }
 
@@ -883,21 +903,148 @@ function clampConfidenceScore(
   return Math.max(0, Math.min(0.99, Math.round(score * 100) / 100));
 }
 
+// Small seed map of French/English ingredient synonyms that should be merged
+// during deduplication. Keys are canonical tokens, values are arrays of
+// alternative spellings (already passed through normalizeLookup, so no
+// accents, lowercase, ascii).
+const ingredientSynonymGroups: readonly (readonly string[])[] = [
+  ["pain plat", "pain plat", "pains plats", "flatbread", "flat bread", "naan", "naans", "pain naan", "pita", "pitas", "tortilla", "tortillas", "wrap", "wraps", "galette", "galettes"],
+  ["oeuf", "oeufs", "egg", "eggs", "oeufs oeufs"],
+  ["poulet", "blanc de poulet", "blancs de poulet", "escalope de poulet", "escalopes de poulet", "filet de poulet", "filets de poulet", "poitrine de poulet", "chicken", "chicken breast"],
+  ["farine", "flour", "farine de ble", "farine ble", "farine de blé"],
+  ["sucre", "sugar"],
+  ["sel", "salt"],
+  ["poivre", "pepper", "poivre noir", "black pepper"],
+  ["beurre", "butter"],
+  ["huile d olive", "huile olive", "olive oil", "extra virgin olive oil"],
+  ["huile", "oil", "huile vegetale", "huile neutre", "huile de tournesol"],
+  ["yaourt", "yaourt grec", "greek yogurt", "yogurt", "yoghurt"],
+  ["kiri", "fromage kiri", "vache qui rit", "laughing cow"],
+  ["chapelure", "panko", "breadcrumbs", "bread crumbs"],
+  ["oignon", "oignons", "onion", "onions"],
+  ["oignons rouges", "oignon rouge", "red onion", "red onions"],
+  ["ail", "garlic", "gousse d ail", "gousses d ail"],
+  ["paprika", "paprika doux"],
+  ["paprika fume", "smoked paprika"],
+  ["sriracha", "sauce sriracha"],
+  ["miel", "honey"],
+  ["mayonnaise", "mayo"],
+  ["tomate", "tomates", "tomato", "tomatoes"],
+  ["tomates cerises", "cherry tomato", "cherry tomatoes"],
+  ["salade", "laitue", "lettuce"],
+  ["fromage rape", "cheese", "grated cheese", "shredded cheese"],
+  ["levure", "levure boulangere", "levure de boulanger", "yeast", "dried yeast", "instant yeast"],
+  ["eau", "water"]
+];
+
+const ingredientSynonymIndex: Map<string, string> = (() => {
+  const index = new Map<string, string>();
+  for (const group of ingredientSynonymGroups) {
+    const canonical = group[0];
+    for (const variant of group) {
+      index.set(normalizeLookup(variant), canonical);
+    }
+  }
+  return index;
+})();
+
+function canonicalIngredientKey(name: string): string {
+  const normalized = normalizeLookup(name);
+  if (!normalized) {
+    return "";
+  }
+
+  const direct = ingredientSynonymIndex.get(normalized);
+  if (direct) {
+    return direct;
+  }
+
+  // Fall back to a fuzzier match: if the full normalized name *contains*
+  // a known synonym as a whole token, use its canonical form. This catches
+  // things like "farine de ble t45" -> "farine".
+  for (const [variant, canonical] of ingredientSynonymIndex.entries()) {
+    if (variant.length < 4) {
+      continue;
+    }
+    if (normalized === variant || normalized.startsWith(`${variant} `) || normalized.endsWith(` ${variant}`) || normalized.includes(` ${variant} `)) {
+      return canonical;
+    }
+  }
+
+  return normalized;
+}
+
+function parseAmountNumber(amount?: string): number | null {
+  if (!amount) {
+    return null;
+  }
+  const cleaned = amount.trim().replace(",", ".");
+  const match = cleaned.match(/-?\d+(?:\.\d+)?/);
+  if (!match) {
+    return null;
+  }
+  const value = Number.parseFloat(match[0]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function mergeIngredientDrafts(
+  existing: RecipeIngredientDraft,
+  incoming: RecipeIngredientDraft
+): RecipeIngredientDraft {
+  // Merge quantities when both sides have the same unit and a numeric amount.
+  // Otherwise keep whichever side has richer data.
+  const existingAmount = parseAmountNumber(existing.amount);
+  const incomingAmount = parseAmountNumber(incoming.amount);
+  const existingUnit = (existing.unit ?? "").trim().toLowerCase();
+  const incomingUnit = (incoming.unit ?? "").trim().toLowerCase();
+  const unitsMatch = existingUnit === incomingUnit;
+
+  let mergedAmount = existing.amount;
+  let mergedUnit = existing.unit;
+
+  if (unitsMatch && existingAmount != null && incomingAmount != null) {
+    const total = existingAmount + incomingAmount;
+    mergedAmount = Number.isInteger(total) ? String(total) : total.toFixed(2).replace(/\.?0+$/, "");
+  } else if (!existingAmount && incomingAmount != null) {
+    mergedAmount = incoming.amount;
+    mergedUnit = incoming.unit;
+  }
+
+  // Prefer the longer / more descriptive name, and keep the richer nutrition query.
+  const mergedName = existing.name.length >= incoming.name.length ? existing.name : incoming.name;
+  const mergedQuery = (existing.nutritionQuery?.length ?? 0) >= (incoming.nutritionQuery?.length ?? 0)
+    ? existing.nutritionQuery
+    : incoming.nutritionQuery;
+
+  return {
+    amount: mergedAmount,
+    unit: mergedUnit,
+    name: mergedName,
+    nutritionQuery: mergedQuery
+  };
+}
+
 function dedupeIngredients(ingredients: RecipeIngredientDraft[]): RecipeIngredientDraft[] {
-  const seen = new Set<string>();
-  const result: RecipeIngredientDraft[] = [];
+  const canonicalOrder: string[] = [];
+  const byKey = new Map<string, RecipeIngredientDraft>();
 
   for (const ingredient of ingredients) {
-    const key = normalizeLookup(ingredient.name);
-    if (!key || seen.has(key)) {
+    const key = canonicalIngredientKey(ingredient.name);
+    if (!key) {
       continue;
     }
 
-    seen.add(key);
-    result.push(ingredient);
+    const existing = byKey.get(key);
+    if (existing) {
+      byKey.set(key, mergeIngredientDrafts(existing, ingredient));
+      continue;
+    }
+
+    byKey.set(key, ingredient);
+    canonicalOrder.push(key);
   }
 
-  return result;
+  return canonicalOrder.map((key) => byKey.get(key)!).filter(Boolean);
 }
 
 function dedupeSteps<T extends { detail: string }>(steps: T[]): T[] {
@@ -952,6 +1099,25 @@ function isPlausibleCookingStep(detail: string): boolean {
 
   if (detail.length < 8 || detail.length > 220) {
     return false;
+  }
+
+  // Raw transcript chunks often contain "à ce moment-là" (temporal marker) and
+  // double-comma artifacts like "Ajoutez À ce moment-là,, pain, farine".
+  // Reject those — they are never legitimate cooking instructions.
+  if (/\bà\s+ce\s+moment(?:\s*[-\s]*là)?\b/i.test(detail) || /,,/.test(detail)) {
+    return false;
+  }
+
+  // Steps whose content is mostly a comma-separated shopping list
+  // ("ajoutez pain, farine, sucre, paprika, œufs, mayonnaise et mélangez")
+  // are transcript paraphrase artifacts, not real cooking actions. Drop them
+  // when the comma list dominates the sentence.
+  const commaFragments = detail.split(",").map((fragment) => fragment.trim()).filter(Boolean);
+  if (commaFragments.length >= 4) {
+    const shortFragments = commaFragments.filter((fragment) => fragment.split(" ").length <= 3).length;
+    if (shortFragments >= commaFragments.length - 1) {
+      return false;
+    }
   }
 
   const normalized = normalizeLookup(detail);
@@ -1134,6 +1300,19 @@ function containsNarrativeIngredientNoise(value: string): boolean {
   const normalized = normalizeLookup(value);
   if (!normalized) {
     return false;
+  }
+
+  // Hard blocklist for known transcript artifacts and non-food items that
+  // slipped through as "ingredients" in previous imports.
+  if (
+    /^(?:a|à)\s+(?:cafe|café|soupe|the|thé)\b/.test(normalized) ||
+    /^(?:ce|à ce|a ce)\s+moment(?:\s*la|\s*là)?\b/.test(normalized) ||
+    /\bce\s+moment\s*la\b/.test(normalized) ||
+    /^papier\s+(?:journal|cuisson|alu|aluminium|sulfurise|sulfurisé)\b/.test(normalized) ||
+    /^(?:film\s+(?:alimentaire|plastique)|assiette|poele|poêle|casserole|bol|saladier|cuillere|cuillère|fourchette|couteau|planche|rouleau|spatule|fouet|passoire|verre|moule|plat)\b/.test(normalized) ||
+    /^(?:ce|cet|cette|ces|celui|celle|ceux|celles)\s+/.test(normalized)
+  ) {
+    return true;
   }
 
   return /\b(?:je vais|on va|tu vas|vous allez|en plusieurs fois|fois en tout|toute petite louche|c est super simple|c est delicieux|et ensuite|on a|bien sur|bien sûr|franchement|tu sais|vous savez|en fait|tout simplement|c est parti|allez|allons y|c est bon|parfait|exactement|attention|normalement|genial|trop bon|incroyable|magnifique|regardez|ecoutez|n hesitez pas|abonnez vous|likez|partagez|commentez|suivez moi)\b/.test(normalized) ||

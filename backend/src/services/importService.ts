@@ -1,5 +1,6 @@
 import { fetchPageSummary, resolveRemoteURL } from "./generalPageService.js";
 import {
+  distillTranscriptForRecipe,
   normalizeRecipeFromContext,
   reviewRecipeCookability,
   transcribeMediaFromUrl
@@ -68,11 +69,12 @@ const PREVIEW_RESERVE_MS = 700;
 const SHARED_TOTAL_LIMIT_MS = 75_000;
 const SHARED_RESOLVE_TIMEOUT_MS = 2_500;
 const SHARED_SOCIAL_TIMEOUT_MS = 5_000;
-const SHARED_SOCIAL_NORMALIZE_TIMEOUT_MS = 12_000;
+const SHARED_SOCIAL_NORMALIZE_TIMEOUT_MS = 25_000;
+const SHARED_TRANSCRIPT_DISTILL_TIMEOUT_MS = 8_000;
 const SHARED_APIFY_TIMEOUT_MS = 45_000;
-const SHARED_AUDIO_FETCH_TIMEOUT_MS = 8_000;
-const SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS = 12_000;
-const SHARED_AUDIO_MAX_DURATION_SECONDS = 75;
+const SHARED_AUDIO_FETCH_TIMEOUT_MS = 12_000;
+const SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS = 20_000;
+const SHARED_AUDIO_MAX_DURATION_SECONDS = 180;
 const SHARED_WEB_TIMEOUT_MS = 5_000;
 const SHARED_RESERVE_MS = 1_200;
 const FULL_TOTAL_LIMIT_MS = 120_000;
@@ -198,6 +200,7 @@ export async function importFromUrl(input: {
     pageSummary?.description
   );
   let transcript: string | null = null;
+  let transcriptDigest: string | null = null;
   let importStrategy: ImportStrategy = sourcePlatform === "web" ? "web" : "social";
   let importStrategySourceURL: string | undefined;
   let fallbackPages: ImportedPageSummary[] = [];
@@ -212,6 +215,7 @@ export async function importFromUrl(input: {
     pageSummary,
     socialContent: resolvedSocialContent,
     transcript,
+    transcriptDigest,
     fallbackPages
   });
 
@@ -284,6 +288,29 @@ export async function importFromUrl(input: {
       console.info(
         `[importService] Usable transcript obtained (${transcript.length} chars) for ${canonicalSourceURL}`
       );
+
+      const distillTimeoutMs = boundedExecutionTimeout(
+        executionDeadline,
+        SHARED_TRANSCRIPT_DISTILL_TIMEOUT_MS,
+        sharedMode ? SHARED_RESERVE_MS : 0
+      );
+      if (distillTimeoutMs && distillTimeoutMs > 2_000) {
+        try {
+          transcriptDigest = await distillTranscriptForRecipe(transcript, {
+            timeoutMs: distillTimeoutMs,
+            sourceUrl: canonicalSourceURL,
+            socialTitle: resolvedSocialContent?.title
+          });
+          if (transcriptDigest) {
+            console.info(
+              `[importService] Transcript digest produced (${transcriptDigest.length} chars) for ${canonicalSourceURL}`
+            );
+          }
+        } catch {
+          transcriptDigest = null;
+        }
+      }
+
       const audioContext = buildContext();
       let audioRecipe = recipeFromContext(audioContext);
       if (shouldAttemptTranscriptNormalization(audioRecipe, audioContext)) {
@@ -608,9 +635,95 @@ type RecipeIssueReport = {
   hasIssues: boolean;
   unusedIngredients: string[];
   logicalOrderIssue: boolean;
+  missingPhases: string[];
   summary: string;
   issueCount: number;
 };
+
+/**
+ * Detects entire cooking phases that are implied by the ingredient list but
+ * absent from the steps. Covers the common Cooksy failure mode where the
+ * audio transcript is cut short and the LLM only reconstructs the tail end
+ * of the recipe (e.g. ships a sandwich recipe with no dough prep, no
+ * breading, no frying, no sauce).
+ *
+ * Uses simple keyword heuristics on the normalized ingredient list + step
+ * text — no ML. Each phase is inferred from a distinctive ingredient signal
+ * and verified against cooking verbs/nouns in the step text.
+ */
+function detectMissingPhases(recipe: RecipeImportResult): string[] {
+  const ingredientText = normalizeForIngredientMatching(
+    recipe.ingredientDrafts.map((ingredient) => ingredient.name).join(" ")
+  );
+  const stepText = normalizeForIngredientMatching(
+    recipe.stepDrafts.map((step) => step.detail).join(" ")
+  );
+
+  const has = (haystack: string, needles: string[]): boolean =>
+    needles.some((needle) => haystack.includes(needle));
+
+  const missing: string[] = [];
+
+  // Dough-prep phase: if ingredients include flour + yeast/baking or egg,
+  // expect steps covering mixing + resting/kneading.
+  const hasFlour = has(ingredientText, ["farine", "flour"]);
+  const hasYeast = has(ingredientText, ["levure", "yeast"]);
+  if (hasFlour && hasYeast) {
+    const hasDoughStep = has(stepText, [
+      "petrir", "petri", "pate", "reposer", "repos", "lever", "leve",
+      "knead", "dough", "rest", "rise"
+    ]);
+    if (!hasDoughStep) {
+      missing.push("dough-prep");
+    }
+  }
+
+  // Breading phase: raw protein + breadcrumbs implies a coat step.
+  const hasProtein = has(ingredientText, [
+    "poulet", "chicken", "boeuf", "beef", "porc", "pork", "poisson", "fish",
+    "crevette", "shrimp"
+  ]);
+  const hasBreadcrumbs = has(ingredientText, ["chapelure", "panko", "breadcrumb", "bread crumb"]);
+  if (hasProtein && hasBreadcrumbs) {
+    const hasCoatStep = has(stepText, [
+      "chapelur", "paner", "pane", "enrober", "enrobe", "tremper", "trempe",
+      "coat", "bread", "dredge", "dip"
+    ]);
+    if (!hasCoatStep) {
+      missing.push("breading");
+    }
+  }
+
+  // Frying phase: oil + breadcrumbs or raw protein + mention of friture
+  // context suggests frying should appear.
+  if (hasProtein && hasBreadcrumbs) {
+    const hasFryStep = has(stepText, [
+      "frire", "friture", "frit", "friterie", "huile chaude", "huile bien chaude",
+      "fry", "deep fry", "pan fry", "saisir"
+    ]);
+    if (!hasFryStep) {
+      missing.push("frying");
+    }
+  }
+
+  // Sauce phase: signature "hot sauce + honey + butter" or similar sauce
+  // ingredient combos imply a sauce-making step.
+  const sauceBases = ["sriracha", "tabasco", "gochujang", "harissa", "buffalo"];
+  const hasHotSauce = has(ingredientText, sauceBases);
+  const hasSweetener = has(ingredientText, ["miel", "honey", "sirop"]);
+  const hasButter = has(ingredientText, ["beurre", "butter"]);
+  if ((hasHotSauce && hasSweetener) || (hasHotSauce && hasButter)) {
+    const hasSauceStep = has(stepText, [
+      "sauce", "melange", "mélange", "mix", "chauffer", "tiedir", "tiédir",
+      "fondre", "emulsion", "émulsion", "whisk", "combine"
+    ]);
+    if (!hasSauceStep) {
+      missing.push("sauce-prep");
+    }
+  }
+
+  return missing;
+}
 
 /**
  * Detects recipe quality issues: unused ingredients, ingredients missing
@@ -655,10 +768,12 @@ function detectRecipeIssues(recipe: RecipeImportResult): RecipeIssueReport {
 
   const cookability = recipeCookabilitySignals(recipe);
   const hasUncoveredIngredients = cookability.uncoveredMajorIngredientCount >= 2;
+  const missingPhases = detectMissingPhases(recipe);
 
   const hasIssues = unusedIngredients.length > 0 ||
     hasUncoveredIngredients ||
-    hasCookBeforePrep;
+    hasCookBeforePrep ||
+    missingPhases.length > 0;
 
   const parts: string[] = [];
   if (unusedIngredients.length) {
@@ -670,15 +785,20 @@ function detectRecipeIssues(recipe: RecipeImportResult): RecipeIssueReport {
   if (hasCookBeforePrep) {
     parts.push("cook-before-prep detected");
   }
+  if (missingPhases.length) {
+    parts.push(`missing phases: ${missingPhases.join("+")}`);
+  }
 
   return {
     hasIssues,
     unusedIngredients,
     logicalOrderIssue: hasCookBeforePrep,
+    missingPhases,
     summary: parts.join(", ") || "none",
     issueCount: unusedIngredients.length +
       (hasUncoveredIngredients ? cookability.uncoveredMajorIngredientCount : 0) +
-      (hasCookBeforePrep ? 1 : 0)
+      (hasCookBeforePrep ? 1 : 0) +
+      missingPhases.length * 2
   };
 }
 
@@ -1346,6 +1466,7 @@ function buildUrlNormalizationContext(input: {
   pageSummary: ImportedPageSummary | null;
   socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
   transcript?: string | null;
+  transcriptDigest?: string | null;
   fallbackPages?: ImportedPageSummary[];
 }) {
   const fallbackPages = input.fallbackPages ?? [];
@@ -1371,7 +1492,8 @@ function buildUrlNormalizationContext(input: {
     socialPageText: input.socialContent?.pageText,
     socialAuthor: input.socialContent?.authorName,
     socialSubtitles: input.socialContent?.subtitlesText,
-    transcript: input.transcript ?? undefined
+    transcript: input.transcript ?? undefined,
+    transcriptDigest: input.transcriptDigest ?? undefined
   };
 }
 
@@ -2656,10 +2778,10 @@ function transcriptionOptions(
   }
 
   return {
-    mediaFetchTimeoutMs: 10_000,
-    transcriptionTimeoutMs: 15_000,
-    maxDurationSeconds: 75,
-    maxFileBytes: 12 * 1024 * 1024
+    mediaFetchTimeoutMs: 12_000,
+    transcriptionTimeoutMs: 20_000,
+    maxDurationSeconds: 180,
+    maxFileBytes: 14 * 1024 * 1024
   };
 }
 

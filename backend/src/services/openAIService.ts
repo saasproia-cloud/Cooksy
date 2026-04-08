@@ -125,55 +125,73 @@ export async function normalizeRecipeFromContext(
     imageDataUrl,
     timeoutMs: options?.timeoutMs,
     systemInstructions: [
-      "Tu transformes du contenu social, des photos et des textes libres en recette exploitable.",
-      "Réponds uniquement avec un JSON valide respectant strictement le schéma.",
-      "Écris en français.",
-      "Commence toujours par décider s'il s'agit de contenu culinaire et, si oui, identifie d'abord un nom de plat précis.",
-      "Si le contenu n'est clairement pas alimentaire, ne fabrique pas de recette: renvoie un résultat vide, confidence='low' et aucun ingrédient ni aucune étape exploitables.",
-      "Dès qu'un plat crédible est identifié, n'échoue jamais tôt: reconstruis une recette exploitable autour de ce plat.",
-      "Le titre doit contenir uniquement le nom court de la recette, sans liste d'ingrédients, sans hashtags, sans URL et sans texte social.",
-      "Si l'auteur social est connu, renseigne creatorHandle au format @nom.",
-      "Normalise les ingrédients en amount / unit / name.",
-      "Chaque objet ingredientDraft doit représenter un seul ingrédient. N'écris jamais plusieurs ingrédients dans name, même avec '/', ',', '+', '&', 'et' ou '...'.",
-      "Chaque ingrédient doit aussi contenir nutritionQuery, une requête USDA courte en anglais comme 'olive oil' ou 'chicken breast'.",
-      "Utilise d'abord les ingrédients explicitement mentionnés dans le texte partagé, la légende, les hashtags, les métadonnées sociales et le texte de page.",
-      "Si le plat est identifié mais que des ingrédients manquent, complète-les intelligemment avec des ingrédients crédibles et standards pour ce plat.",
-      "Si l'extraction explicite donne moins de 3 ingrédients valides ou moins de 2 étapes valides, jette cette extraction faible et reconstruis la recette complète à partir du plat détecté.",
-      "La recette finale doit toujours contenir un titre propre, des ingrédients structurés réalistes, au moins 3 étapes utiles et un déroulé cohérent.",
-      "Pour les plats non triviaux, vise au moins 5 ingrédients réalistes.",
-      "N'utilise jamais du texte d'article, des appels à l'action ou des éléments sociaux comme ingrédients ou étapes.",
-      "Les étapes doivent être courtes, actionnables et purement culinaires. Chaque étape doit décrire une seule action concrète.",
-      "La recette doit contenir au minimum 8 étapes détaillées pour un plat standard, 10-12 pour un plat complexe. Ne compresse jamais plusieurs actions en une seule étape.",
-      "Décompose les étapes longues en micro-étapes: par exemple, 'Préparez la pâte' doit devenir 'Mélanger la farine et le sel', 'Ajouter les œufs un à un', 'Pétrir jusqu'à obtenir une pâte lisse'.",
-      "Ne recopie jamais d'horodatage, de flèches VTT, de hashtags, de phrases d'intro/outro ou de phrases comme 'bon app' dans les étapes.",
-      "Utilise la légende, la description, les sous-titres et la photo comme indices pour identifier le plat, ses composants et les quantités implicites.",
-      "Quand une transcription audio est présente et que le texte social est court ou absent, traite l'audio comme source principale pour identifier le plat, les ingrédients et les étapes.",
-      "Si le transcript audio mentionne un nom de plat précis (ex: 'pizza tartiflette', 'smash burger au cheddar', 'poulet à la crème', 'pâtes carbonara maison'), utilise ce nom exact comme titre final, pas une version simplifiée ou générique comme 'pizza' ou 'burger'.",
-      "Si le transcript audio décrit des ingrédients spécifiques (lardons, reblochon, crème fraîche, cheddar, oignons caramélisés), utilise exactement ces ingrédients dans la recette finale, pas des ingrédients génériques du plat de base (par ex. ne mets pas tomate/basilic sur une pizza tartiflette).",
-      "La transcription audio ne doit pas être recopiée mot pour mot dans les étapes: reformule dans un style culinaire clair, mais respecte le plat, les ingrédients et les proportions mentionnés à l'oral.",
-      "Après avoir établi la liste finale des ingrédients, réécris toutes les étapes depuis zéro à partir de cette liste: chaque ingrédient principal doit être utilisé dans une étape logique.",
-      "Avant de finaliser le JSON, vérifie qu'une personne peut réellement cuisiner le plat du début à la fin avec les ingrédients et les étapes fournis.",
-      "Si des ingrédients essentiels ou des étapes essentielles sont clairement implicites dans le contexte, ajoute-les au lieu de laisser une recette inutilisable.",
-      "Les étapes doivent couvrir au minimum la préparation, la cuisson et l'assemblage ou le dressage si le plat l'exige.",
-      "Si les étapes manquent mais que le contexte culinaire est clair, reconstruis des étapes plausibles et concrètes sans inventer n'importe quoi.",
-      "Si des quantités ménagères simples ou un nombre de portions sont évidents à déduire du plat ou des ingrédients, complète-les prudemment pour obtenir une recette exploitable et une nutrition cohérente.",
-      "Si les ingrédients ou les étapes manquent mais que le plat est identifiable via le titre, l'audio, les sous-titres, la photo ou le contexte social, reconstruis d'abord la recette complète avant d'activer un éventuel fallback.",
-      "Quand plusieurs sources web sont présentes dans le contexte, compare-les et retiens la version la plus cohérente et la plus commune du plat au lieu de recopier la source la plus courte.",
-      "Les valeurs nutritionnelles doivent venir de la recette finale et de ses quantités, jamais du texte social ou de l'audio seul.",
-      "Vérifie que calories, protéines, glucides et lipides restent cohérents entre eux; si les macros ne collent pas raisonnablement avec les calories, corrige-les au lieu de laisser une nutrition vide.",
-      "La nutrition est obligatoire pour tout contenu alimentaire: renseigne caloriesText/proteinText/carbsText/fatText avec une estimation réaliste cohérente avec les ingrédients, les quantités et les portions.",
-      "Renseigne confidenceScore entre 0 et 1 selon la solidité du plat détecté, des ingrédients explicites et des déductions nécessaires.",
-      "Renseigne flags.usedExplicitIngredients à true si tu conserves au moins un ingrédient explicitement mentionné.",
-      "Renseigne flags.usedInferredIngredients à true si tu ajoutes des ingrédients plausibles non listés explicitement.",
-      "Renseigne flags.generatedSteps à true si tu réécris ou reconstruis les étapes.",
-      "Renseigne flags.generatedNutrition à true pour toute recette alimentaire.",
-      "Si le contenu est partiel, reconstruis une recette plausible mais honnête.",
-      "N'utilise pas needsWebFallback comme échappatoire à un contenu culinaire incomplet: livre d'abord une vraie recette exploitable.",
-      "Si la recette comporte des sous-préparations distinctes (marinade, sauce, pâte, garniture, dressage), renseigne le champ section de la première étape de chaque sous-préparation avec un label court comme 'Marinade', 'Sauce', 'Pâte', 'Garniture', 'Dressage'. Les étapes suivantes de la même sous-préparation ont section vide.",
-      "Ne force pas de section si la recette suit un déroulé linéaire simple.",
-      "Chaque étape de cuisson doit inclure la température ou l'intensité du feu quand c'est pertinent (par ex. 'à feu moyen', '180 °C').",
-      "Chaque étape impliquant une durée doit mentionner un temps indicatif (par ex. '5 minutes', 'environ 10 min').",
-      "Chaque ingrédient principal doit apparaître nommément dans au moins une étape. Vérifie cette règle avant de finaliser le JSON."
+      "# RÔLE",
+      "Tu transformes du contenu social (TikTok, Instagram), des photos et des textes libres en recettes de cuisine réellement exploitables.",
+      "Réponds uniquement avec un JSON valide respectant strictement le schéma. Écris en français.",
+      "",
+      "# PRINCIPE FONDAMENTAL",
+      "Ta sortie doit permettre à un utilisateur de cuisiner le plat de A à Z SANS regarder la vidéo source. Tu RECONSTRUIS une recette propre, tu ne résumes pas le transcript.",
+      "Si le contenu n'est clairement pas alimentaire, renvoie un résultat vide avec confidence='low'.",
+      "Dès qu'un plat crédible est identifié, reconstruis une recette complète autour de ce plat — n'abandonne jamais au milieu.",
+      "",
+      "# SOURCES (ORDRE DE PRIORITÉ)",
+      "1. Digest audio nettoyé (`Digest audio nettoyé` dans le contexte) : c'est la source PRIORITAIRE quand il est présent. Il contient déjà le plat, les ingrédients et les actions dans l'ordre.",
+      "2. Légende / description / sous-titres / hashtags sociaux : confirment le plat et les quantités.",
+      "3. Transcript audio brut : référence SECONDAIRE quand le digest est présent. N'utilise le transcript brut comme source principale QUE si le digest est absent.",
+      "4. Titre / image / données structurées page : complètent quand le reste est sparse.",
+      "",
+      "# RÈGLE ANTI-COPIE (CRITIQUE)",
+      "Ne copie JAMAIS un fragment textuel brut du transcript audio dans `ingredientDraft.name` ou `stepDraft.detail`.",
+      "Si un nom d'ingrédient ressemble à une phrase parlée ('à café', 'à soupe', 'ce moment-là', 'en plusieurs fois', 'papier journal', 'et après ça'), c'est un artefact de transcription : corrige-le ou jette-le.",
+      "Interprète 'à café' comme 'cuillère à café', 'à soupe' comme 'cuillère à soupe', et reconstitue les quantités correctement.",
+      "Les ustensiles (papier, film, assiette, poêle, rouleau) ne sont JAMAIS des ingrédients.",
+      "",
+      "# TITRE",
+      "Court, naturel, limité au nom du plat. Pas de liste d'ingrédients, pas de hashtags, pas d'URL.",
+      "Si le transcript audio mentionne un nom composé précis ('pizza tartiflette à la poêle', 'sandwich naan au poulet frit', 'smash burger au cheddar'), utilise ce nom EXACT, pas une version simplifiée comme 'pizza' ou 'burger'.",
+      "Si un auteur social est connu, renseigne `creatorHandle` au format @nom.",
+      "",
+      "# INGRÉDIENTS",
+      "Normalise chaque ingrédient en `{amount, unit, name, nutritionQuery}`.",
+      "Un seul ingrédient par objet `ingredientDraft`. Jamais '/', ',', '+', '&', 'et' ou '...' dans le `name`.",
+      "`nutritionQuery` = requête USDA courte en anglais (ex: 'olive oil', 'chicken breast', 'smoked paprika').",
+      "D'abord les ingrédients explicitement mentionnés dans le digest / la légende / les sous-titres. Ensuite seulement, complète avec des ingrédients standards crédibles pour le plat détecté.",
+      "Pour un plat non-trivial, vise au minimum 5 ingrédients réalistes ; pour un plat complet avec sauce et garniture, 10-15 ingrédients est normal.",
+      "Si l'extraction explicite donne moins de 3 ingrédients valides, reconstruis une liste complète à partir du plat détecté.",
+      "",
+      "# ÉTAPES",
+      "Chaque étape = une seule action concrète, courte, actionnable, culinaire. Pas de commentaires, pas d'oral, pas d'outros.",
+      "Minimum 8 étapes pour un plat standard, 10-13 pour un plat complet avec plusieurs sous-préparations (pâte, cuisson, panure, friture, sauce, assemblage).",
+      "Décompose les étapes longues en micro-étapes : 'Préparer la pâte' → 'Mélanger la farine et le sel', 'Ajouter l'eau tiède et la levure', 'Pétrir 10 minutes', 'Laisser reposer 1 heure'.",
+      "Couvre TOUJOURS toutes les phases implicites par les ingrédients : si la liste contient farine + levure, il DOIT y avoir une phase de préparation de pâte et de repos. Si elle contient viande crue + chapelure, il DOIT y avoir panure + friture. Si elle contient beurre + sauce piquante + miel, il DOIT y avoir une étape de préparation de sauce.",
+      "Après avoir finalisé la liste d'ingrédients, réécris toutes les étapes DEPUIS ZÉRO en te basant sur cette liste. Chaque ingrédient principal doit apparaître nommément dans au moins une étape.",
+      "Indique la température ou l'intensité du feu quand c'est pertinent ('à feu moyen', '180 °C').",
+      "Indique un temps indicatif quand une durée est impliquée ('5 minutes', 'environ 10 min').",
+      "Ne recopie JAMAIS d'horodatage, flèches VTT, hashtags, 'bon app', 'abonne-toi' ou phrases oralisées.",
+      "",
+      "# SECTIONS",
+      "Si la recette comporte des sous-préparations distinctes (Marinade, Sauce, Pâte, Garniture, Dressage), renseigne `section` pour la PREMIÈRE étape de chaque sous-préparation avec un label court. Laisse `section` vide pour les étapes suivantes du même bloc.",
+      "Ne force pas de sections pour une recette linéaire simple.",
+      "",
+      "# NUTRITION",
+      "Obligatoire pour tout contenu alimentaire : renseigne `caloriesText`, `proteinText`, `carbsText`, `fatText` avec une estimation réaliste par portion, cohérente avec les ingrédients et les quantités de la recette finale.",
+      "Vérifie que calories / protéines / glucides / lipides sont cohérents entre eux ; corrige plutôt que renvoyer une nutrition vide.",
+      "",
+      "# FLAGS",
+      "`flags.usedExplicitIngredients` = true si au moins un ingrédient vient du texte/digest explicite.",
+      "`flags.usedInferredIngredients` = true si tu as ajouté des ingrédients plausibles non listés.",
+      "`flags.generatedSteps` = true si tu as réécrit ou reconstruit les étapes.",
+      "`flags.generatedNutrition` = true pour toute recette alimentaire.",
+      "`confidenceScore` entre 0 et 1 selon la solidité du plat détecté et la part de déduction.",
+      "",
+      "# VALIDATION FINALE (OBLIGATOIRE avant d'émettre le JSON)",
+      "1. Le titre est un vrai nom de plat court.",
+      "2. Aucun ingrédient ne ressemble à un fragment de transcript ('à café', 'ce moment', 'papier journal', etc.).",
+      "3. Aucune étape ne contient de 'à ce moment-là', de double virgule, ni de liste à la Bonnet d'ingrédients mélangés ('ajoute pain, farine, sucre, œufs, mayo').",
+      "4. Chaque phase implicite par la liste d'ingrédients est présente dans les étapes.",
+      "5. Chaque ingrédient principal apparaît nommément dans au moins une étape.",
+      "6. La nutrition est renseignée et cohérente.",
+      "Si la recette est encore incomplète malgré le contexte, enrichis-la plutôt que d'activer `needsWebFallback` en échappatoire."
     ]
   });
 
@@ -238,6 +256,113 @@ export async function reviewRecipeCookability(
   });
 }
 
+/**
+ * Pre-pass that turns a raw, speech-to-text French audio transcript into a
+ * clean structured digest. The goal is to take cognitive load off the main
+ * reconstruction call: the distiller fixes obvious transcription artifacts
+ * (e.g. "à café" -> "cuillère à café"), drops filler/outro chunks, and hands
+ * the normalizer a pre-cleaned list of dish name, ingredients, and actions.
+ *
+ * Returns `null` when the transcript is too short to be worth distilling or
+ * when the LLM call fails: callers must fall back to the raw transcript.
+ */
+export async function distillTranscriptForRecipe(
+  transcript: string,
+  options?: {
+    timeoutMs?: number;
+    sourceUrl?: string;
+    socialTitle?: string;
+  }
+): Promise<string | null> {
+  const trimmed = transcript.trim();
+  if (trimmed.length < 200) {
+    return null;
+  }
+
+  requireProvider("openAI");
+
+  const userPrompt = [
+    "Voici la transcription audio brute d'une vidéo TikTok de cuisine en français.",
+    "Elle est parlée, bruyante, avec des répétitions, des phrases inachevées et des erreurs de reconnaissance vocale.",
+    options?.socialTitle ? `Titre social : ${truncate(options.socialTitle, 180)}` : "",
+    options?.sourceUrl ? `URL : ${options.sourceUrl}` : "",
+    "",
+    "Transcription :",
+    truncate(trimmed, 4000),
+    "",
+    "Extrais UNIQUEMENT, en français, et dans cet ordre :",
+    "1. DISH: le nom du plat tel que le cuisinier l'identifie (court, naturel, par ex. 'Sandwich naan au poulet frit').",
+    "2. INGREDIENTS: la liste des ingrédients réellement mentionnés par le cuisinier, un par ligne, format '- <nom propre> [quantité si donnée]'.",
+    "   - Corrige les artefacts de transcription évidents : 'à café' → 'cuillère à café', 'à soupe' → 'cuillère à soupe', 'oeufs oeufs' → 'œufs', 'Kiri' reste 'Kiri', etc.",
+    "   - Ne liste PAS d'éléments non comestibles (papier journal, film, assiette…).",
+    "   - Ne liste qu'une seule fois chaque ingrédient, même s'il apparaît dans plusieurs étapes.",
+    "3. ACTIONS: la séquence ordonnée des actions culinaires décrites (une ligne par action, format '- <verbe à l'impératif> …').",
+    "   - Ne recopie AUCUNE phrase du transcript telle quelle : reformule en style culinaire propre.",
+    "   - Inclus toutes les phases que le cuisinier exécute (préparation, repos, façonnage, cuisson, friture, sauce, assemblage, dressage).",
+    "   - Si une phase est implicite mais clairement nécessaire (ex: laisser reposer la pâte), ajoute-la.",
+    "",
+    "Format de sortie attendu (texte brut, sans JSON, sans markdown) :",
+    "DISH: <nom du plat>",
+    "",
+    "INGREDIENTS:",
+    "- <ingrédient 1>",
+    "- <ingrédient 2>",
+    "",
+    "ACTIONS:",
+    "- <action 1>",
+    "- <action 2>"
+  ].filter(Boolean).join("\n");
+
+  const systemPrompt = [
+    "Tu es un assistant spécialisé en reformulation de transcripts audio de recettes de cuisine en français.",
+    "Ton unique rôle est de nettoyer un transcript bruité et d'en extraire le nom du plat, les ingrédients et les actions.",
+    "Tu ne rédiges JAMAIS la recette finale, tu produis seulement un digest.",
+    "Réponds en texte brut, sans introduction, sans markdown, sans JSON, sans commentaires.",
+    "Tu dois corriger silencieusement les erreurs évidentes de reconnaissance vocale française (ex: 'à café' = 'cuillère à café')."
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: env.OPENAI_RECIPE_MODEL,
+        temperature: 0.1,
+        max_output_tokens: 1500,
+        input: [
+          {
+            role: "system",
+            content: [{ type: "input_text", text: systemPrompt }]
+          },
+          {
+            role: "user",
+            content: [{ type: "input_text", text: userPrompt }]
+          }
+        ]
+      }),
+      signal: AbortSignal.timeout(options?.timeoutMs ?? 12_000)
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const json = await response.json() as Record<string, unknown>;
+    const text = resolveOpenAIOutputText(json);
+    if (!text) {
+      return null;
+    }
+
+    const cleaned = text.trim();
+    return cleaned.length > 40 ? cleaned : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function transcribeMediaFromUrl(
   mediaUrl?: string,
   options?: {
@@ -275,6 +400,11 @@ export async function transcribeMediaFromUrl(
     const formData = new FormData();
     formData.append("model", env.OPENAI_TRANSCRIPTION_MODEL);
     formData.append("file", new File([audioBuffer], "cooksy-audio.m4a", { type: "audio/mp4" }));
+    formData.append("language", "fr");
+    formData.append(
+      "prompt",
+      "Transcription d'une vidéo de recette de cuisine en français. Vocabulaire attendu : farine, levure, eau, sel, sucre, œufs, beurre, huile d'olive, ail, oignon, poulet, bœuf, poisson, tomate, fromage, yaourt, crème, lait, basilic, persil, paprika, poivre, chapelure, mayonnaise, sauce, épices cajuns, Sriracha, miel, ketchup, moutarde. Unités : cuillère à soupe, cuillère à café, pincée, gramme, kilo, litre, millilitre, tasse, verre. Verbes : préparer, mélanger, ajouter, cuire, faire revenir, pétrir, laisser reposer, étaler, frire, dorer, assaisonner, couper, éplucher, émincer, saler, poivrer, servir."
+    );
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
@@ -311,7 +441,12 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
   const secondarySocialText = socialTextBlocks[1];
   const tertiarySocialText = socialTextBlocks[2];
   const isSparseSocialText = !primarySocialText || primarySocialText.length < 50;
-  const transcriptLabel = isSparseSocialText ? "Source principale (audio)" : "Transcription audio";
+  const hasDigest = Boolean(input.transcriptDigest && input.transcriptDigest.trim().length > 40);
+  const transcriptLabel = hasDigest
+    ? "Transcription audio brute (référence secondaire, déjà résumée dans le digest ci-dessus)"
+    : isSparseSocialText
+      ? "Source principale (audio)"
+      : "Transcription audio";
 
   return [
     `Mode d'import : ${input.mode}`,
@@ -324,6 +459,9 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     primarySocialText ? `Texte social principal : ${truncate(primarySocialText, 1800)}` : "",
     secondarySocialText ? `Contexte social secondaire : ${truncate(secondarySocialText, 900)}` : "",
     tertiarySocialText ? `Contexte social additionnel : ${truncate(tertiarySocialText, 700)}` : "",
+    hasDigest
+      ? `Digest audio nettoyé (SOURCE PRIORITAIRE pour plat, ingrédients et séquence d'étapes) :\n${truncate(input.transcriptDigest!.trim(), 2200)}`
+      : "",
     input.transcript ? `${transcriptLabel} : ${truncate(input.transcript, 2600)}` : "",
     input.pageTextContent ? `Texte web / sources : ${truncate(input.pageTextContent, 2200)}` : "",
     structuredDataText ? `Données structurées : ${structuredDataText}` : "",
@@ -414,13 +552,15 @@ async function requestStructuredRecipeFromOpenAI(input: {
     },
     body: JSON.stringify({
       model: env.OPENAI_RECIPE_MODEL,
+      temperature: 0.2,
+      max_output_tokens: 4000,
       input: [
         {
           role: "system",
           content: [
             {
               type: "input_text",
-              text: input.systemInstructions.join(" ")
+              text: input.systemInstructions.join("\n")
             }
           ]
         },
