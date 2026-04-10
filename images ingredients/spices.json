@@ -1,0 +1,447 @@
+[
+  {
+    "name": "poivre noir",
+    "image": "black_pepper.png",
+    "category": "spice"
+  },
+  {
+    "name": "poivre blanc",
+    "image": "white_pepper.png",
+    "category": "spice"
+  },
+  {
+    "name": "poivre de Sichuan",
+    "image": "sichuan_pepper.png",
+    "category": "spice"
+  },
+  {
+    "name": "poivre de Cayenne",
+    "image": "cayenne_pepper.png",
+    "category": "spice"
+  },
+  {
+    "name": "paprika",
+    "image": "paprika.png",
+    "category": "spice"
+  },
+  {
+    "name": "paprika fumé",
+    "image": "smoked_paprika.png",
+    "category": "spice"
+  },
+  {
+    "name": "piment d'Espelette",
+    "image": "espelette_pepper.png",
+    "category": "spice"
+  },
+  {
+    "name": "piment en poudre",
+    "image": "chili_powder.png",
+    "category": "spice"
+  },
+  {
+    "name": "piment de la Jamaïque",
+    "image": "allspice.png",
+    "category": "spice"
+  },
+  {
+    "name": "flocons de piment",
+    "image": "red_pepper_flakes.png",
+    "category": "spice"
+  },
+  {
+    "name": "cumin",
+    "image": "cumin.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de cumin",
+    "image": "cumin_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "coriandre moulue",
+    "image": "ground_coriander.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de coriandre",
+    "image": "coriander_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "curry en poudre",
+    "image": "curry_powder.png",
+    "category": "spice"
+  },
+  {
+    "name": "garam masala",
+    "image": "garam_masala.png",
+    "category": "spice"
+  },
+  {
+    "name": "ras el hanout",
+    "image": "ras_el_hanout.png",
+    "category": "spice"
+  },
+  {
+    "name": "tandoori",
+    "image": "tandoori.png",
+    "category": "spice"
+  },
+  {
+    "name": "cannelle",
+    "image": "cinnamon.png",
+    "category": "spice"
+  },
+  {
+    "name": "bâton de cannelle",
+    "image": "cinnamon_stick.png",
+    "category": "spice"
+  },
+  {
+    "name": "muscade",
+    "image": "nutmeg.png",
+    "category": "spice"
+  },
+  {
+    "name": "anis étoilé",
+    "image": "star_anise.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de fenouil",
+    "image": "fennel_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "cardamome",
+    "image": "cardamom.png",
+    "category": "spice"
+  },
+  {
+    "name": "clou de girofle",
+    "image": "cloves.png",
+    "category": "spice"
+  },
+  {
+    "name": "vanille",
+    "image": "vanilla.png",
+    "category": "spice"
+  },
+  {
+    "name": "gousse de vanille",
+    "image": "vanilla_bean.png",
+    "category": "spice"
+  },
+  {
+    "name": "curcuma",
+    "image": "turmeric.png",
+    "category": "spice"
+  },
+  {
+    "name": "safran",
+    "image": "saffron.png",
+    "category": "spice"
+  },
+  {
+    "name": "gingembre moulu",
+    "image": "ground_ginger.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de moutarde",
+    "image": "mustard_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de sésame",
+    "image": "sesame_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de pavot",
+    "image": "poppy_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "fenugrec",
+    "image": "fenugreek.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de carvi",
+    "image": "caraway_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de céleri",
+    "image": "celery_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "sumac",
+    "image": "sumac.png",
+    "category": "spice"
+  },
+  {
+    "name": "origan",
+    "image": "oregano.png",
+    "category": "spice"
+  },
+  {
+    "name": "thym",
+    "image": "thyme.png",
+    "category": "spice"
+  },
+  {
+    "name": "romarin",
+    "image": "rosemary.png",
+    "category": "spice"
+  },
+  {
+    "name": "laurier",
+    "image": "bay_leaf.png",
+    "category": "spice"
+  },
+  {
+    "name": "sauge",
+    "image": "sage.png",
+    "category": "spice"
+  },
+  {
+    "name": "marjolaine",
+    "image": "marjoram.png",
+    "category": "spice"
+  },
+  {
+    "name": "estragon",
+    "image": "tarragon.png",
+    "category": "spice"
+  },
+  {
+    "name": "aneth",
+    "image": "dill.png",
+    "category": "spice"
+  },
+  {
+    "name": "persil",
+    "image": "parsley.png",
+    "category": "spice"
+  },
+  {
+    "name": "coriandre fraîche",
+    "image": "fresh_coriander.png",
+    "category": "spice"
+  },
+  {
+    "name": "basilic",
+    "image": "basil.png",
+    "category": "spice"
+  },
+  {
+    "name": "menthe",
+    "image": "mint.png",
+    "category": "spice"
+  },
+  {
+    "name": "ciboulette",
+    "image": "chives.png",
+    "category": "spice"
+  },
+  {
+    "name": "cerfeuil",
+    "image": "chervil.png",
+    "category": "spice"
+  },
+  {
+    "name": "bouquet garni",
+    "image": "bouquet_garni.png",
+    "category": "spice"
+  },
+  {
+    "name": "sel",
+    "image": "salt.png",
+    "category": "spice"
+  },
+  {
+    "name": "sel de mer",
+    "image": "sea_salt.png",
+    "category": "spice"
+  },
+  {
+    "name": "ail en poudre",
+    "image": "garlic_powder.png",
+    "category": "spice"
+  },
+  {
+    "name": "oignon en poudre",
+    "image": "onion_powder.png",
+    "category": "spice"
+  },
+  {
+    "name": "sucre",
+    "image": "sugar.png",
+    "category": "spice"
+  },
+  {
+    "name": "sucre roux",
+    "image": "brown_sugar.png",
+    "category": "spice"
+  },
+  {
+    "name": "sucre glace",
+    "image": "powdered_sugar.png",
+    "category": "spice"
+  },
+  {
+    "name": "sucre vanillé",
+    "image": "vanilla_sugar.png",
+    "category": "spice"
+  },
+  {
+    "name": "levure chimique",
+    "image": "baking_powder.png",
+    "category": "spice"
+  },
+  {
+    "name": "bicarbonate",
+    "image": "baking_soda.png",
+    "category": "spice"
+  },
+  {
+    "name": "levure boulangère",
+    "image": "yeast.png",
+    "category": "spice"
+  },
+  {
+    "name": "noix de muscade",
+    "image": "whole_nutmeg.png",
+    "category": "spice"
+  },
+  {
+    "name": "poudre d'amande",
+    "image": "almond_flour.png",
+    "category": "spice"
+  },
+  {
+    "name": "noix de cajou",
+    "image": "cashews.png",
+    "category": "spice"
+  },
+  {
+    "name": "cacahuète",
+    "image": "peanuts.png",
+    "category": "spice"
+  },
+  {
+    "name": "pignon de pin",
+    "image": "pine_nuts.png",
+    "category": "spice"
+  },
+  {
+    "name": "noix",
+    "image": "walnuts.png",
+    "category": "spice"
+  },
+  {
+    "name": "noisette",
+    "image": "hazelnuts.png",
+    "category": "spice"
+  },
+  {
+    "name": "amande",
+    "image": "almonds.png",
+    "category": "spice"
+  },
+  {
+    "name": "pistache",
+    "image": "pistachios.png",
+    "category": "spice"
+  },
+  {
+    "name": "noix de pécan",
+    "image": "pecans.png",
+    "category": "spice"
+  },
+  {
+    "name": "noix de macadamia",
+    "image": "macadamia.png",
+    "category": "spice"
+  },
+  {
+    "name": "châtaigne",
+    "image": "chestnuts.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de lin",
+    "image": "flax_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de chia",
+    "image": "chia_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de courge",
+    "image": "pumpkin_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "graines de tournesol",
+    "image": "sunflower_seeds.png",
+    "category": "spice"
+  },
+  {
+    "name": "cacao en poudre",
+    "image": "cocoa_powder.png",
+    "category": "spice"
+  },
+  {
+    "name": "chocolat noir",
+    "image": "dark_chocolate.png",
+    "category": "spice"
+  },
+  {
+    "name": "chocolat au lait",
+    "image": "milk_chocolate.png",
+    "category": "spice"
+  },
+  {
+    "name": "chocolat blanc",
+    "image": "white_chocolate.png",
+    "category": "spice"
+  },
+  {
+    "name": "pépites de chocolat",
+    "image": "chocolate_chips.png",
+    "category": "spice"
+  },
+  {
+    "name": "farine",
+    "image": "flour.png",
+    "category": "spice"
+  },
+  {
+    "name": "farine complète",
+    "image": "whole_wheat_flour.png",
+    "category": "spice"
+  },
+  {
+    "name": "maïzena",
+    "image": "cornstarch.png",
+    "category": "spice"
+  },
+  {
+    "name": "fécule de pomme de terre",
+    "image": "potato_starch.png",
+    "category": "spice"
+  },
+  {
+    "name": "chapelure",
+    "image": "breadcrumbs.png",
+    "category": "spice"
+  }
+]

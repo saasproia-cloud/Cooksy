@@ -1,0 +1,332 @@
+[
+  {
+    "name": "bœuf",
+    "image": "beef.png",
+    "category": "meat"
+  },
+  {
+    "name": "steak",
+    "image": "steak.png",
+    "category": "meat"
+  },
+  {
+    "name": "entrecôte",
+    "image": "ribeye.png",
+    "category": "meat"
+  },
+  {
+    "name": "faux-filet",
+    "image": "sirloin.png",
+    "category": "meat"
+  },
+  {
+    "name": "filet de bœuf",
+    "image": "beef_fillet.png",
+    "category": "meat"
+  },
+  {
+    "name": "bavette",
+    "image": "flank_steak.png",
+    "category": "meat"
+  },
+  {
+    "name": "paleron",
+    "image": "chuck_roast.png",
+    "category": "meat"
+  },
+  {
+    "name": "bœuf haché",
+    "image": "ground_beef.png",
+    "category": "meat"
+  },
+  {
+    "name": "bœuf bourguignon",
+    "image": "stewing_beef.png",
+    "category": "meat"
+  },
+  {
+    "name": "jarret de bœuf",
+    "image": "beef_shank.png",
+    "category": "meat"
+  },
+  {
+    "name": "côte de bœuf",
+    "image": "beef_rib.png",
+    "category": "meat"
+  },
+  {
+    "name": "poitrine de bœuf",
+    "image": "beef_brisket.png",
+    "category": "meat"
+  },
+  {
+    "name": "carpaccio de bœuf",
+    "image": "beef_carpaccio.png",
+    "category": "meat"
+  },
+  {
+    "name": "veau",
+    "image": "veal.png",
+    "category": "meat"
+  },
+  {
+    "name": "escalope de veau",
+    "image": "veal_cutlet.png",
+    "category": "meat"
+  },
+  {
+    "name": "blanquette de veau",
+    "image": "veal_stew.png",
+    "category": "meat"
+  },
+  {
+    "name": "osso buco",
+    "image": "osso_buco.png",
+    "category": "meat"
+  },
+  {
+    "name": "porc",
+    "image": "pork.png",
+    "category": "meat"
+  },
+  {
+    "name": "côte de porc",
+    "image": "pork_chop.png",
+    "category": "meat"
+  },
+  {
+    "name": "filet mignon de porc",
+    "image": "pork_tenderloin.png",
+    "category": "meat"
+  },
+  {
+    "name": "échine de porc",
+    "image": "pork_shoulder.png",
+    "category": "meat"
+  },
+  {
+    "name": "rôti de porc",
+    "image": "pork_roast.png",
+    "category": "meat"
+  },
+  {
+    "name": "travers de porc",
+    "image": "pork_ribs.png",
+    "category": "meat"
+  },
+  {
+    "name": "porc haché",
+    "image": "ground_pork.png",
+    "category": "meat"
+  },
+  {
+    "name": "poitrine de porc",
+    "image": "pork_belly.png",
+    "category": "meat"
+  },
+  {
+    "name": "jambon",
+    "image": "ham.png",
+    "category": "meat"
+  },
+  {
+    "name": "jambon cru",
+    "image": "prosciutto.png",
+    "category": "meat"
+  },
+  {
+    "name": "bacon",
+    "image": "bacon.png",
+    "category": "meat"
+  },
+  {
+    "name": "lardons",
+    "image": "lardons.png",
+    "category": "meat"
+  },
+  {
+    "name": "pancetta",
+    "image": "pancetta.png",
+    "category": "meat"
+  },
+  {
+    "name": "chorizo",
+    "image": "chorizo.png",
+    "category": "meat"
+  },
+  {
+    "name": "saucisse",
+    "image": "sausage.png",
+    "category": "meat"
+  },
+  {
+    "name": "saucisse de Toulouse",
+    "image": "toulouse_sausage.png",
+    "category": "meat"
+  },
+  {
+    "name": "boudin noir",
+    "image": "blood_sausage.png",
+    "category": "meat"
+  },
+  {
+    "name": "salami",
+    "image": "salami.png",
+    "category": "meat"
+  },
+  {
+    "name": "mortadelle",
+    "image": "mortadella.png",
+    "category": "meat"
+  },
+  {
+    "name": "agneau",
+    "image": "lamb.png",
+    "category": "meat"
+  },
+  {
+    "name": "gigot d'agneau",
+    "image": "lamb_leg.png",
+    "category": "meat"
+  },
+  {
+    "name": "épaule d'agneau",
+    "image": "lamb_shoulder.png",
+    "category": "meat"
+  },
+  {
+    "name": "côtelette d'agneau",
+    "image": "lamb_chop.png",
+    "category": "meat"
+  },
+  {
+    "name": "souris d'agneau",
+    "image": "lamb_shank.png",
+    "category": "meat"
+  },
+  {
+    "name": "agneau haché",
+    "image": "ground_lamb.png",
+    "category": "meat"
+  },
+  {
+    "name": "carré d'agneau",
+    "image": "rack_of_lamb.png",
+    "category": "meat"
+  },
+  {
+    "name": "poulet",
+    "image": "chicken.png",
+    "category": "meat"
+  },
+  {
+    "name": "blanc de poulet",
+    "image": "chicken_breast.png",
+    "category": "meat"
+  },
+  {
+    "name": "cuisse de poulet",
+    "image": "chicken_thigh.png",
+    "category": "meat"
+  },
+  {
+    "name": "pilon de poulet",
+    "image": "chicken_drumstick.png",
+    "category": "meat"
+  },
+  {
+    "name": "aile de poulet",
+    "image": "chicken_wing.png",
+    "category": "meat"
+  },
+  {
+    "name": "poulet entier",
+    "image": "whole_chicken.png",
+    "category": "meat"
+  },
+  {
+    "name": "poulet haché",
+    "image": "ground_chicken.png",
+    "category": "meat"
+  },
+  {
+    "name": "dinde",
+    "image": "turkey.png",
+    "category": "meat"
+  },
+  {
+    "name": "escalope de dinde",
+    "image": "turkey_breast.png",
+    "category": "meat"
+  },
+  {
+    "name": "dinde hachée",
+    "image": "ground_turkey.png",
+    "category": "meat"
+  },
+  {
+    "name": "canard",
+    "image": "duck.png",
+    "category": "meat"
+  },
+  {
+    "name": "magret de canard",
+    "image": "duck_breast.png",
+    "category": "meat"
+  },
+  {
+    "name": "cuisse de canard",
+    "image": "duck_leg.png",
+    "category": "meat"
+  },
+  {
+    "name": "confit de canard",
+    "image": "duck_confit.png",
+    "category": "meat"
+  },
+  {
+    "name": "graisse de canard",
+    "image": "duck_fat.png",
+    "category": "meat"
+  },
+  {
+    "name": "lapin",
+    "image": "rabbit.png",
+    "category": "meat"
+  },
+  {
+    "name": "caille",
+    "image": "quail.png",
+    "category": "meat"
+  },
+  {
+    "name": "foie de volaille",
+    "image": "chicken_liver.png",
+    "category": "meat"
+  },
+  {
+    "name": "foie de veau",
+    "image": "veal_liver.png",
+    "category": "meat"
+  },
+  {
+    "name": "rognon",
+    "image": "kidney.png",
+    "category": "meat"
+  },
+  {
+    "name": "kebab",
+    "image": "doner_meat.png",
+    "category": "meat"
+  },
+  {
+    "name": "lard",
+    "image": "lard.png",
+    "category": "meat"
+  },
+  {
+    "name": "saindoux",
+    "image": "suet.png",
+    "category": "meat"
+  }
+]

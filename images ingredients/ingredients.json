@@ -1,0 +1,1032 @@
+[
+  {
+    "name": "tomate",
+    "image": "tomato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "tomate cerise",
+    "image": "cherry_tomato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "tomate grappe",
+    "image": "vine_tomato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "tomate roma",
+    "image": "roma_tomato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "tomate cœur de bœuf",
+    "image": "beefsteak_tomato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "oignon jaune",
+    "image": "yellow_onion.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "oignon rouge",
+    "image": "red_onion.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "oignon blanc",
+    "image": "white_onion.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "oignon nouveau",
+    "image": "spring_onion.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "échalote",
+    "image": "shallot.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "ail",
+    "image": "garlic.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "poireau",
+    "image": "leek.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "ciboule",
+    "image": "scallion.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "carotte",
+    "image": "carrot.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pomme de terre",
+    "image": "potato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pomme de terre grenaille",
+    "image": "baby_potato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "patate douce",
+    "image": "sweet_potato.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "navet",
+    "image": "turnip.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "betterave",
+    "image": "beetroot.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "radis",
+    "image": "radish.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "radis noir",
+    "image": "black_radish.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "panais",
+    "image": "parsnip.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "rutabaga",
+    "image": "rutabaga.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "topinambour",
+    "image": "jerusalem_artichoke.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "salsifis",
+    "image": "salsify.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "céleri rave",
+    "image": "celeriac.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "raifort",
+    "image": "horseradish.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "manioc",
+    "image": "cassava.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "igname",
+    "image": "yam.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "laitue",
+    "image": "lettuce.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "laitue iceberg",
+    "image": "iceberg_lettuce.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "laitue romaine",
+    "image": "romaine_lettuce.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "batavia",
+    "image": "batavia_lettuce.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "mâche",
+    "image": "lamb_lettuce.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "roquette",
+    "image": "arugula.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "cresson",
+    "image": "watercress.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "endive",
+    "image": "endive.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "scarole",
+    "image": "escarole.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "frisée",
+    "image": "frisee.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "épinard",
+    "image": "spinach.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pousse d'épinard",
+    "image": "baby_spinach.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "blette",
+    "image": "swiss_chard.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "pak choï",
+    "image": "bok_choy.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou chinois",
+    "image": "napa_cabbage.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou blanc",
+    "image": "white_cabbage.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou rouge",
+    "image": "red_cabbage.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou vert",
+    "image": "green_cabbage.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou frisé",
+    "image": "kale.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou pointu",
+    "image": "pointed_cabbage.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou de Bruxelles",
+    "image": "brussels_sprout.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "chou-fleur",
+    "image": "cauliflower.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "brocoli",
+    "image": "broccoli.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "romanesco",
+    "image": "romanesco.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "céleri branche",
+    "image": "celery.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "fenouil",
+    "image": "fennel.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "asperge verte",
+    "image": "green_asparagus.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "asperge blanche",
+    "image": "white_asparagus.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "artichaut",
+    "image": "artichoke.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "cardon",
+    "image": "cardoon.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "rhubarbe",
+    "image": "rhubarb.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pousse de bambou",
+    "image": "bamboo_shoot.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "concombre",
+    "image": "cucumber.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "cornichon",
+    "image": "gherkin.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "courgette",
+    "image": "zucchini.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "courgette jaune",
+    "image": "yellow_zucchini.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "aubergine",
+    "image": "eggplant.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "poivron rouge",
+    "image": "red_bell_pepper.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "poivron vert",
+    "image": "green_bell_pepper.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "poivron jaune",
+    "image": "yellow_bell_pepper.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "poivron orange",
+    "image": "orange_bell_pepper.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "piment",
+    "image": "chili_pepper.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "piment jalapeño",
+    "image": "jalapeno.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "avocat",
+    "image": "avocado.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "olive verte",
+    "image": "green_olive.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "olive noire",
+    "image": "black_olive.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "maïs",
+    "image": "corn.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "mini maïs",
+    "image": "baby_corn.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "okra",
+    "image": "okra.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "courge butternut",
+    "image": "butternut_squash.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "potimarron",
+    "image": "red_kuri_squash.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "citrouille",
+    "image": "pumpkin.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "courge spaghetti",
+    "image": "spaghetti_squash.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "pâtisson",
+    "image": "pattypan_squash.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "courge musquée",
+    "image": "musquee_squash.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "haricot vert",
+    "image": "green_bean.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "haricot beurre",
+    "image": "yellow_bean.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "haricot plat",
+    "image": "flat_bean.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "petit pois",
+    "image": "pea.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pois mange-tout",
+    "image": "snow_pea.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pois gourmand",
+    "image": "sugar_snap_pea.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "fève",
+    "image": "fava_bean.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "edamame",
+    "image": "edamame.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "germe de soja",
+    "image": "bean_sprout.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "champignon de Paris",
+    "image": "button_mushroom.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "champignon brun",
+    "image": "cremini_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "portobello",
+    "image": "portobello_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "cèpe",
+    "image": "porcini_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "girolle",
+    "image": "chanterelle_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "pleurote",
+    "image": "oyster_mushroom.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "shiitake",
+    "image": "shiitake_mushroom.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "enoki",
+    "image": "enoki_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "morille",
+    "image": "morel_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "trompette de la mort",
+    "image": "black_trumpet_mushroom.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "gingembre",
+    "image": "ginger.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "curcuma frais",
+    "image": "fresh_turmeric.jpg",
+    "category": "vegetable"
+  },
+  {
+    "name": "citronnelle",
+    "image": "lemongrass.png",
+    "category": "vegetable"
+  },
+  {
+    "name": "pomme",
+    "image": "apple.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pomme verte",
+    "image": "green_apple.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pomme rouge",
+    "image": "red_apple.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pomme golden",
+    "image": "golden_apple.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pomme gala",
+    "image": "gala_apple.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "pomme granny smith",
+    "image": "granny_smith_apple.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "poire",
+    "image": "pear.png",
+    "category": "fruit"
+  },
+  {
+    "name": "poire williams",
+    "image": "williams_pear.png",
+    "category": "fruit"
+  },
+  {
+    "name": "poire nashi",
+    "image": "nashi_pear.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "coing",
+    "image": "quince.png",
+    "category": "fruit"
+  },
+  {
+    "name": "nèfle",
+    "image": "loquat.png",
+    "category": "fruit"
+  },
+  {
+    "name": "banane",
+    "image": "banana.png",
+    "category": "fruit"
+  },
+  {
+    "name": "banane plantain",
+    "image": "plantain.png",
+    "category": "fruit"
+  },
+  {
+    "name": "banane rouge",
+    "image": "red_banana.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "orange",
+    "image": "orange.png",
+    "category": "fruit"
+  },
+  {
+    "name": "orange sanguine",
+    "image": "blood_orange.png",
+    "category": "fruit"
+  },
+  {
+    "name": "mandarine",
+    "image": "mandarin.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "clémentine",
+    "image": "clementine.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "tangerine",
+    "image": "tangerine.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "citron",
+    "image": "lemon.png",
+    "category": "fruit"
+  },
+  {
+    "name": "citron vert",
+    "image": "lime.png",
+    "category": "fruit"
+  },
+  {
+    "name": "citron meyer",
+    "image": "meyer_lemon.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "citron caviar",
+    "image": "finger_lime.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "pamplemousse",
+    "image": "grapefruit.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pomélo",
+    "image": "pomelo.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "kumquat",
+    "image": "kumquat.png",
+    "category": "fruit"
+  },
+  {
+    "name": "yuzu",
+    "image": "yuzu.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "bergamote",
+    "image": "bergamot.png",
+    "category": "fruit"
+  },
+  {
+    "name": "cédrat",
+    "image": "citron_fruit.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "combava",
+    "image": "kaffir_lime.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "kiwi",
+    "image": "kiwi.png",
+    "category": "fruit"
+  },
+  {
+    "name": "kiwi jaune",
+    "image": "golden_kiwi.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "fraise",
+    "image": "strawberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "framboise",
+    "image": "raspberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "myrtille",
+    "image": "blueberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "mûre",
+    "image": "blackberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "mûre blanche",
+    "image": "white_mulberry.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "cassis",
+    "image": "blackcurrant.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "groseille",
+    "image": "redcurrant.png",
+    "category": "fruit"
+  },
+  {
+    "name": "groseille à maquereau",
+    "image": "gooseberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "canneberge",
+    "image": "cranberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "airelle",
+    "image": "lingonberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "sureau",
+    "image": "elderberry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "baie de goji",
+    "image": "goji_berry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "açaí",
+    "image": "acai_berry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "cerise",
+    "image": "cherry.png",
+    "category": "fruit"
+  },
+  {
+    "name": "cerise griotte",
+    "image": "sour_cherry.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "pêche",
+    "image": "peach.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pêche plate",
+    "image": "flat_peach.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "nectarine",
+    "image": "nectarine.png",
+    "category": "fruit"
+  },
+  {
+    "name": "abricot",
+    "image": "apricot.png",
+    "category": "fruit"
+  },
+  {
+    "name": "prune",
+    "image": "plum.png",
+    "category": "fruit"
+  },
+  {
+    "name": "prune reine-claude",
+    "image": "greengage.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "mirabelle",
+    "image": "mirabelle_plum.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "quetsche",
+    "image": "damson_plum.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "datte",
+    "image": "date.png",
+    "category": "fruit"
+  },
+  {
+    "name": "figue",
+    "image": "fig.png",
+    "category": "fruit"
+  },
+  {
+    "name": "figue de Barbarie",
+    "image": "prickly_pear.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "raisin blanc",
+    "image": "white_grape.png",
+    "category": "fruit"
+  },
+  {
+    "name": "raisin rouge",
+    "image": "red_grape.png",
+    "category": "fruit"
+  },
+  {
+    "name": "raisin noir",
+    "image": "black_grape.png",
+    "category": "fruit"
+  },
+  {
+    "name": "raisin muscat",
+    "image": "muscat_grape.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "ananas",
+    "image": "pineapple.png",
+    "category": "fruit"
+  },
+  {
+    "name": "mangue",
+    "image": "mango.png",
+    "category": "fruit"
+  },
+  {
+    "name": "mangue verte",
+    "image": "green_mango.png",
+    "category": "fruit"
+  },
+  {
+    "name": "papaye",
+    "image": "papaya.png",
+    "category": "fruit"
+  },
+  {
+    "name": "fruit de la passion",
+    "image": "passion_fruit.png",
+    "category": "fruit"
+  },
+  {
+    "name": "grenade",
+    "image": "pomegranate.png",
+    "category": "fruit"
+  },
+  {
+    "name": "goyave",
+    "image": "guava.png",
+    "category": "fruit"
+  },
+  {
+    "name": "litchi",
+    "image": "lychee.png",
+    "category": "fruit"
+  },
+  {
+    "name": "longane",
+    "image": "longan.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "ramboutan",
+    "image": "rambutan.png",
+    "category": "fruit"
+  },
+  {
+    "name": "mangoustan",
+    "image": "mangosteen.png",
+    "category": "fruit"
+  },
+  {
+    "name": "durian",
+    "image": "durian.png",
+    "category": "fruit"
+  },
+  {
+    "name": "jacquier",
+    "image": "jackfruit.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pitaya rouge",
+    "image": "red_dragon_fruit.png",
+    "category": "fruit"
+  },
+  {
+    "name": "pitaya jaune",
+    "image": "yellow_dragon_fruit.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "kaki",
+    "image": "persimmon.png",
+    "category": "fruit"
+  },
+  {
+    "name": "physalis",
+    "image": "physalis.png",
+    "category": "fruit"
+  },
+  {
+    "name": "carambole",
+    "image": "star_fruit.png",
+    "category": "fruit"
+  },
+  {
+    "name": "tamarillo",
+    "image": "tamarillo.png",
+    "category": "fruit"
+  },
+  {
+    "name": "chérimole",
+    "image": "cherimoya.png",
+    "category": "fruit"
+  },
+  {
+    "name": "corossol",
+    "image": "soursop.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "sapote",
+    "image": "sapote.png",
+    "category": "fruit"
+  },
+  {
+    "name": "salak",
+    "image": "salak.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "kiwano",
+    "image": "horned_melon.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "feijoa",
+    "image": "feijoa.png",
+    "category": "fruit"
+  },
+  {
+    "name": "tamarin",
+    "image": "tamarind.png",
+    "category": "fruit"
+  },
+  {
+    "name": "jujube",
+    "image": "jujube.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "main de bouddha",
+    "image": "buddhas_hand.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "camu camu",
+    "image": "camu_camu.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "pastèque",
+    "image": "watermelon.png",
+    "category": "fruit"
+  },
+  {
+    "name": "melon",
+    "image": "melon.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "melon charentais",
+    "image": "charentais_melon.png",
+    "category": "fruit"
+  },
+  {
+    "name": "melon jaune",
+    "image": "yellow_melon.jpg",
+    "category": "fruit"
+  },
+  {
+    "name": "melon vert",
+    "image": "green_melon.png",
+    "category": "fruit"
+  },
+  {
+    "name": "melon cantaloup",
+    "image": "cantaloupe.png",
+    "category": "fruit"
+  },
+  {
+    "name": "melon d'hiver",
+    "image": "honeydew_melon.png",
+    "category": "fruit"
+  },
+  {
+    "name": "noix de coco",
+    "image": "coconut.png",
+    "category": "fruit"
+  },
+  {
+    "name": "noix de coco jeune",
+    "image": "young_coconut.jpg",
+    "category": "fruit"
+  }
+]

@@ -201,6 +201,7 @@ export async function importFromUrl(input: {
   );
   let transcript: string | null = null;
   let transcriptDigest: string | null = null;
+  let parsedDigest: ParsedTranscriptDigest | null = null;
   let importStrategy: ImportStrategy = sourcePlatform === "web" ? "web" : "social";
   let importStrategySourceURL: string | undefined;
   let fallbackPages: ImportedPageSummary[] = [];
@@ -305,9 +306,16 @@ export async function importFromUrl(input: {
             console.info(
               `[importService] Transcript digest produced (${transcriptDigest.length} chars) for ${canonicalSourceURL}`
             );
+            parsedDigest = parseTranscriptDigest(transcriptDigest);
+            if (parsedDigest) {
+              console.info(
+                `[importService] Digest parsed: specificity=${parsedDigest.specificity} dish="${parsedDigest.dish ?? ""}" explicitIngredients=${parsedDigest.explicitIngredients.length} actions=${parsedDigest.actionsSequence.length} gestures=${parsedDigest.signatureGestures.length} noise=${parsedDigest.noiseDetected.length}`
+              );
+            }
           }
         } catch {
           transcriptDigest = null;
+          parsedDigest = null;
         }
       }
 
@@ -381,8 +389,24 @@ export async function importFromUrl(input: {
 
   // Skip web search when the audio-derived recipe is already valid — the audio
   // content is more faithful to the actual video than a generic web recipe.
+  // BUT: never skip when the title is generic (e.g. "Sandwich") or when the
+  // recipe drifted away from the digest — those are exactly the cases where
+  // the web fallback can rescue a precise title/ingredients.
+  const preAudioDrift = recipeDriftedFromDigest(recipe, parsedDigest);
+  if (parsedDigest && preAudioDrift.drifted) {
+    console.info(
+      `[importService] Recipe drifted from digest (pre-web): reasons=[${preAudioDrift.reason.join(", ")}] missingIngredients=${preAudioDrift.missingIngredients.length} missingGestures=${preAudioDrift.missingGestures.length} noiseLeaks=${preAudioDrift.noiseLeaks.length} for ${canonicalSourceURL}`
+    );
+  }
+  if (isGenericDishTitle(recipe.title)) {
+    console.info(
+      `[importService] Generic title detected (pre-web): "${recipe.title}" — forcing web fallback for ${canonicalSourceURL}`
+    );
+  }
   const skipWebForAudio = importStrategy === "audio" &&
-    isLikelyValidRecipe(recipe, { transcript: transcript ?? undefined });
+    isLikelyValidRecipe(recipe, { transcript: transcript ?? undefined }) &&
+    !isGenericDishTitle(recipe.title) &&
+    !preAudioDrift.drifted;
 
   if (
     !skipWebForAudio &&
@@ -391,7 +415,8 @@ export async function importFromUrl(input: {
       sourcePlatform,
       captionWasSparse,
       hasTranscript: Boolean(transcript),
-      transcript: transcript ?? undefined
+      transcript: transcript ?? undefined,
+      parsedDigest
     }) &&
     hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
   ) {
@@ -400,7 +425,8 @@ export async function importFromUrl(input: {
       pageSummary,
       socialContent: resolvedSocialContent,
       sharedText: input.sharedText,
-      transcript
+      transcript,
+      parsedDigest
     }).slice(0, 4);
 
     if (queries.length) {
@@ -487,6 +513,20 @@ export async function importFromUrl(input: {
   }
 
   recipe = attemptDishRescue(recipe, buildContext());
+
+  if (parsedDigest) {
+    const postRescueDrift = recipeDriftedFromDigest(recipe, parsedDigest);
+    if (postRescueDrift.drifted) {
+      const enrichment = enrichRecipeFromDigest(recipe, parsedDigest, postRescueDrift);
+      recipe = enrichment.recipe;
+      const titleSuffix = enrichment.titleChanged
+        ? `, title="${enrichment.titleChanged.from}"→"${enrichment.titleChanged.to}"`
+        : "";
+      console.info(
+        `[importService] Recipe enriched from digest: +${enrichment.addedIngredients} ingredients, +${enrichment.addedSteps} steps${titleSuffix} for ${canonicalSourceURL}`
+      );
+    }
+  }
 
   const recipeWithImportContext = applyImportContextNotes(
     {
@@ -1054,6 +1094,10 @@ function shouldTrustFastSocialRecipe(
     return false;
   }
 
+  if (isGenericDishTitle(recipe.title)) {
+    return false;
+  }
+
   return recipe.ingredientDrafts.length >= 3 &&
     recipe.stepDrafts.length >= 2 &&
     recipe.title.trim().length > 2 &&
@@ -1113,6 +1157,10 @@ function shouldAttemptDishRescue(recipe: RecipeImportResult): boolean {
     return false;
   }
 
+  if (isGenericDishTitle(recipe.title)) {
+    return true;
+  }
+
   return recipe.ingredientDrafts.length < 5 ||
     recipe.stepDrafts.length < 4 ||
     recipe.confidence === "low" ||
@@ -1126,7 +1174,16 @@ function shouldAttemptSearchEnrichment(input: {
   captionWasSparse: boolean;
   hasTranscript?: boolean;
   transcript?: string;
+  parsedDigest?: ParsedTranscriptDigest | null;
 }): boolean {
+  // Generic title or drifted recipe ⇒ always try the web to recover precision.
+  if (isGenericDishTitle(input.recipe.title)) {
+    return true;
+  }
+  if (input.parsedDigest && recipeDriftedFromDigest(input.recipe, input.parsedDigest).drifted) {
+    return true;
+  }
+
   if (!hasMeaningfulFoodSignal(input.recipe, { transcript: input.transcript })) {
     // When we have a transcript the video likely contains food content that
     // the heuristic recipe extraction couldn't capture.  Allow search
@@ -1694,7 +1751,35 @@ function searchQueryCandidates(input: {
   socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
   sharedText?: string;
   transcript?: string | null;
+  parsedDigest?: ParsedTranscriptDigest | null;
 }): string[] {
+  // Digest-backed priority queries: use DISH + signature gestures + explicit
+  // ingredients when available. This produces "philly cheesesteak provolone
+  // hoagie" instead of just "burger".
+  const digestQueries: (string | undefined)[] = [];
+  if (input.parsedDigest) {
+    const digest = input.parsedDigest;
+    if (digest.dish && digest.dish.toUpperCase() !== "INCONNU" && !isGenericDishTitle(digest.dish)) {
+      digestQueries.push(decorateRecipeSearchQuery(digest.dish));
+    }
+    // head + 2 distinctive ingredients
+    if (isGenericDishTitle(input.recipe.title) || digest.specificity !== "high") {
+      const head = (digest.dish && digest.dish.toUpperCase() !== "INCONNU")
+        ? digest.dish
+        : input.recipe.title || "";
+      const distinctiveIngredients = digest.explicitIngredients
+        .map((value) => value.replace(/\d+[\d,.\s/]*/, "").replace(/\(.*?\)/g, "").trim())
+        .filter((value) => value.length >= 3)
+        .slice(0, 3);
+      if (head || distinctiveIngredients.length > 0) {
+        const combined = [head, ...distinctiveIngredients].filter(Boolean).join(" ").trim();
+        if (combined) {
+          digestQueries.push(decorateRecipeSearchQuery(combined));
+        }
+      }
+    }
+  }
+
   // When the recipe title is generic (single word like "Pizza") and a transcript
   // is available, try to extract a more specific dish phrase from the transcript
   // to produce better search queries (e.g., "pizza tartiflette recette").
@@ -1703,6 +1788,7 @@ function searchQueryCandidates(input: {
     : undefined;
 
   const candidates = [
+    ...digestQueries,
     decorateRecipeSearchQuery(input.recipe.searchQuery),
     decorateRecipeSearchQuery(keywordRichRecipeQuery(input)),
     transcriptDishQuery,
@@ -1938,6 +2024,7 @@ function keywordRichRecipeQuery(input: {
   socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null;
   sharedText?: string;
   transcript?: string | null;
+  parsedDigest?: ParsedTranscriptDigest | null;
 }): string | undefined {
   const texts = searchTextCandidates(input);
   const dishPhrase = texts
@@ -1948,6 +2035,17 @@ function keywordRichRecipeQuery(input: {
     foodTerms.find((term) => dishHeadSearchTerms.has(term));
 
   if (!head) {
+    // Last resort: if we have a parsed digest with explicit ingredients, use
+    // them directly to compose a query.
+    if (input.parsedDigest && input.parsedDigest.explicitIngredients.length > 0) {
+      const distinctive = input.parsedDigest.explicitIngredients
+        .map((value) => value.replace(/\d+[\d,.\s/]*/, "").replace(/\(.*?\)/g, "").trim())
+        .filter((value) => value.length >= 3)
+        .slice(0, 3);
+      if (distinctive.length > 0) {
+        return trimSearchPhrase(distinctive.join(" "));
+      }
+    }
     return undefined;
   }
 
@@ -1957,7 +2055,21 @@ function keywordRichRecipeQuery(input: {
     .filter((term) => term !== head)
     .slice(0, 2);
 
-  return trimSearchPhrase([head, ...supportTerms].join(" "));
+  // If the head is a generic category word and we have a parsed digest, add
+  // the 2 most distinctive ingredients to make the query precise.
+  const headIsGeneric = genericDishHeadWords.has(normalizedHead) || dishHeadSearchTerms.has(normalizedHead);
+  let digestSupport: string[] = [];
+  if (headIsGeneric && input.parsedDigest && input.parsedDigest.explicitIngredients.length > 0) {
+    digestSupport = input.parsedDigest.explicitIngredients
+      .map((value) => value.replace(/\d+[\d,.\s/]*/, "").replace(/\(.*?\)/g, "").trim())
+      .filter((value) => {
+        const norm = normalizeSearchText(value);
+        return value.length >= 3 && !normalizedHead.includes(norm) && !supportTerms.some((term) => normalizeSearchText(term) === norm);
+      })
+      .slice(0, 2);
+  }
+
+  return trimSearchPhrase([head, ...supportTerms, ...digestSupport].join(" "));
 }
 
 function extractDishPhraseFromText(value?: string): string | undefined {
@@ -2124,6 +2236,574 @@ const dishPhrasePatterns = [
   /\b(?:smash|double|crispy|spicy|veggie|vegan|chicken|fish|filet o fish|hot tenders?|pulled|bbq|bacon|cheese|cheesy|poulet|boeuf|bœuf|beef|poisson|cabillaud|saumon|salmon|halloumi|falafel|shawarma|kebab|sweet|sucre|banana|banane|vanilla|vanille|chocolate|chocolat)\s+(?:burger|sandwich|wrap|crepes?|pancakes?|bruschetta|focaccia|tartare|carpaccio|crostini|gnocchi|hummus|couscous|poke|bibimbap|gyoza)\b/i,
   /\b(?:burger|tacos?|pizza|pasta|pates?|pâtes?|crepes?|pancakes?|sandwich|wrap|salade|salad|omelette|quiche|gratin|risotto|ramen|curry|bowl|falafel|shawarma|kebab|brownie|cookies?|gateau|gâteau|cake|bruschetta|focaccia|tartare|carpaccio|crostini|poke|bibimbap|gnocchi|hummus|couscous|gyoza)\b/i
 ];
+
+// === Fidélité vidéo : digest structuré + détection de dérive ===
+
+type DigestSpecificity = "high" | "medium" | "low";
+
+type ParsedTranscriptDigest = {
+  dish?: string;
+  specificity: DigestSpecificity;
+  explicitIngredients: string[];
+  impliedIngredients: string[];
+  actionsSequence: string[];
+  signatureGestures: string[];
+  noiseDetected: string[];
+};
+
+// Mots de catégorie qui, seuls, désignent un titre trop générique.
+const genericDishHeadWords = new Set([
+  "sandwich",
+  "burger",
+  "pizza",
+  "pasta",
+  "pates",
+  "pates",
+  "salade",
+  "salad",
+  "tacos",
+  "taco",
+  "wrap",
+  "bowl",
+  "curry",
+  "ramen",
+  "gratin",
+  "quiche",
+  "omelette",
+  "soupe",
+  "soup",
+  "cake",
+  "gateau",
+  "brownie",
+  "cookies",
+  "cookie",
+  "tarte",
+  "crepes",
+  "crepe",
+  "pancakes",
+  "pancake",
+  "smoothie",
+  "bagel"
+]);
+
+// Mots mono-token qui sont DÉJÀ des noms de plats spécifiques (autorisés seuls).
+const specificStandaloneDishes = new Set([
+  "carbonara",
+  "bolognese",
+  "bolognaise",
+  "risotto",
+  "ratatouille",
+  "cassoulet",
+  "tartiflette",
+  "raclette",
+  "bibimbap",
+  "gyoza",
+  "ramen",
+  "pho",
+  "shakshuka",
+  "tiramisu",
+  "lasagne",
+  "lasagnes",
+  "moussaka",
+  "paella",
+  "couscous",
+  "tajine",
+  "tagine",
+  "falafel",
+  "shawarma",
+  "kebab",
+  "bruschetta",
+  "focaccia",
+  "tartare",
+  "carpaccio",
+  "gnocchi",
+  "hummus",
+  "halloumi",
+  "burrata",
+  "calzone",
+  "panzerotti",
+  "panini",
+  "croissant",
+  "macaron",
+  "millefeuille",
+  "clafoutis",
+  "fondant",
+  "crumble"
+]);
+
+const titleStopWords = new Set([
+  "recette",
+  "recipe",
+  "facile",
+  "rapide",
+  "simple",
+  "express",
+  "maison",
+  "delicieux",
+  "delicieuse",
+  "best",
+  "meilleur",
+  "meilleure",
+  "le",
+  "la",
+  "les",
+  "un",
+  "une",
+  "des",
+  "de",
+  "du",
+  "au",
+  "aux",
+  "pour",
+  "avec",
+  "sans",
+  "et",
+  "the",
+  "a",
+  "an"
+]);
+
+/**
+ * Extrait les sections du digest structuré renvoyé par distillTranscriptForRecipe.
+ * Tolère les variantes de casse et l'absence de certaines sections.
+ */
+export function parseTranscriptDigest(digest?: string | null): ParsedTranscriptDigest | null {
+  if (!digest || !digest.trim()) {
+    return null;
+  }
+
+  const lines = digest.split(/\r?\n/);
+  const sections: Record<string, string[]> = {};
+  let current: string | null = null;
+  let dish: string | undefined;
+  let specificity: DigestSpecificity = "low";
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+
+    const headerMatch = line.match(/^([A-Z_]+)\s*:\s*(.*)$/);
+    if (headerMatch) {
+      const header = headerMatch[1];
+      const inline = headerMatch[2]?.trim() ?? "";
+
+      if (header === "DISH") {
+        dish = inline || undefined;
+        current = null;
+        continue;
+      }
+      if (header === "SPECIFICITY") {
+        const value = inline.toLowerCase();
+        if (value === "high" || value === "medium" || value === "low") {
+          specificity = value;
+        }
+        current = null;
+        continue;
+      }
+      if (
+        header === "INGREDIENTS_EXPLICIT" ||
+        header === "INGREDIENTS_IMPLIED" ||
+        header === "ACTIONS_SEQUENCE" ||
+        header === "SIGNATURE_GESTURES" ||
+        header === "NOISE_DETECTED"
+      ) {
+        current = header;
+        sections[current] = sections[current] ?? [];
+        if (inline) {
+          sections[current].push(inline);
+        }
+        continue;
+      }
+
+      // Header inconnu : on arrête d'accumuler.
+      current = null;
+      continue;
+    }
+
+    if (current) {
+      // Strip bullets et numérotations.
+      const cleaned = line
+        .replace(/^[-*•]\s*/, "")
+        .replace(/^\d+[.)]\s*/, "")
+        .trim();
+      if (cleaned && !/^aucun\b/i.test(cleaned)) {
+        sections[current].push(cleaned);
+      }
+    }
+  }
+
+  return {
+    dish: dish || undefined,
+    specificity,
+    explicitIngredients: sections["INGREDIENTS_EXPLICIT"] ?? [],
+    impliedIngredients: sections["INGREDIENTS_IMPLIED"] ?? [],
+    actionsSequence: sections["ACTIONS_SEQUENCE"] ?? [],
+    signatureGestures: sections["SIGNATURE_GESTURES"] ?? [],
+    noiseDetected: sections["NOISE_DETECTED"] ?? []
+  };
+}
+
+/**
+ * Indique si le titre courant est trop générique (un mot de catégorie seul).
+ */
+export function isGenericDishTitle(title?: string): boolean {
+  if (!title || typeof title !== "string") {
+    return true;
+  }
+  const trimmed = title.trim();
+  if (trimmed.length < 3) {
+    return true;
+  }
+  const lowered = trimmed.toLowerCase();
+  if (lowered === "recette importée" || lowered === "recette") {
+    return true;
+  }
+
+  const tokens = normalizeSearchText(trimmed)
+    .split(/\s+/)
+    .filter((token) => token && !titleStopWords.has(token));
+
+  if (tokens.length === 0) {
+    return true;
+  }
+  if (tokens.length === 1) {
+    const token = tokens[0];
+    if (specificStandaloneDishes.has(token)) {
+      return false;
+    }
+    if (genericDishHeadWords.has(token) || dishHeadSearchTerms.has(token)) {
+      return true;
+    }
+    return false;
+  }
+
+  // Plusieurs tokens significatifs ⇒ probablement un titre composé valide.
+  return false;
+}
+
+function normalizeIngredientLabel(label: string): string {
+  return normalizeSearchText(label)
+    .replace(/^\d+[\d,\.\s\/]*/, "")
+    .replace(/\b(g|gr|kg|ml|cl|l|tasse|cuillere|cuilleres|cuillère|cuillères|cs|cc|c\s*a\s*s|c\s*a\s*c|pincee|pincée|pincees|pincées|sachet|tranche|tranches|portion|portions|piece|pieces|pièce|pièces)\b/g, " ")
+    .replace(/\(.*?\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function ingredientNoiseTokens(name: string): string[] {
+  return normalizeIngredientLabel(name)
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !titleStopWords.has(token));
+}
+
+function recipeContainsIngredient(recipe: RecipeImportResult, digestIngredient: string): boolean {
+  const tokens = ingredientNoiseTokens(digestIngredient);
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  const haystack = recipe.ingredientDrafts
+    .map((ingredient) => normalizeIngredientLabel(ingredient.name))
+    .join(" | ");
+  if (!haystack) {
+    return false;
+  }
+
+  // Considère "présent" si au moins un token distinctif (≥4 chars) ou
+  // 60% des tokens sont retrouvés dans la liste d'ingrédients.
+  const distinctive = tokens.filter((token) => token.length >= 4);
+  if (distinctive.length > 0) {
+    if (distinctive.some((token) => haystack.includes(token))) {
+      return true;
+    }
+  }
+
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  return matches / tokens.length >= 0.6;
+}
+
+function recipeContainsGesture(recipe: RecipeImportResult, gesture: string): boolean {
+  const tokens = ingredientNoiseTokens(gesture);
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  const haystack = recipe.stepDrafts
+    .map((step) => normalizeSearchText(step.detail))
+    .join(" | ");
+  if (!haystack) {
+    return false;
+  }
+
+  const distinctive = tokens.filter((token) => token.length >= 5);
+  if (distinctive.length > 0 && distinctive.some((token) => haystack.includes(token))) {
+    return true;
+  }
+
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  return matches / tokens.length >= 0.5;
+}
+
+export type RecipeDriftReport = {
+  drifted: boolean;
+  missingIngredients: string[];
+  missingGestures: string[];
+  noiseLeaks: string[];
+  reason: string[];
+};
+
+/**
+ * Détecte si la recette générée s'est éloignée du digest (titre générique,
+ * ingrédients explicites manquants, gestes signature manquants, bruit qui a fui).
+ */
+export function recipeDriftedFromDigest(
+  recipe: RecipeImportResult,
+  digest: ParsedTranscriptDigest | null
+): RecipeDriftReport {
+  const report: RecipeDriftReport = {
+    drifted: false,
+    missingIngredients: [],
+    missingGestures: [],
+    noiseLeaks: [],
+    reason: []
+  };
+
+  if (!digest) {
+    return report;
+  }
+
+  for (const ingredient of digest.explicitIngredients) {
+    if (!recipeContainsIngredient(recipe, ingredient)) {
+      report.missingIngredients.push(ingredient);
+    }
+  }
+
+  for (const gesture of digest.signatureGestures) {
+    if (!recipeContainsGesture(recipe, gesture)) {
+      report.missingGestures.push(gesture);
+    }
+  }
+
+  const recipeText = [
+    recipe.title,
+    ...recipe.ingredientDrafts.map((i) => i.name),
+    ...recipe.stepDrafts.map((s) => s.detail),
+    recipe.notesText ?? ""
+  ]
+    .map(normalizeSearchText)
+    .join(" | ");
+
+  for (const noise of digest.noiseDetected) {
+    const normalized = normalizeSearchText(noise);
+    if (!normalized) {
+      continue;
+    }
+    const distinctiveTokens = normalized
+      .split(/\s+/)
+      .filter((token) => token.length >= 5 && !titleStopWords.has(token));
+    if (distinctiveTokens.length === 0) {
+      continue;
+    }
+    if (distinctiveTokens.every((token) => recipeText.includes(token))) {
+      report.noiseLeaks.push(noise);
+    }
+  }
+
+  const totalExplicit = digest.explicitIngredients.length;
+  const missingRatio = totalExplicit > 0 ? report.missingIngredients.length / totalExplicit : 0;
+
+  if (totalExplicit > 0 && missingRatio >= 0.3) {
+    report.drifted = true;
+    report.reason.push(`missing-ingredients-ratio=${missingRatio.toFixed(2)}`);
+  }
+  if (report.missingGestures.length > 0) {
+    report.drifted = true;
+    report.reason.push(`missing-gestures=${report.missingGestures.length}`);
+  }
+  if (report.noiseLeaks.length > 0) {
+    report.drifted = true;
+    report.reason.push(`noise-leaks=${report.noiseLeaks.length}`);
+  }
+  if (digest.specificity === "high" && isGenericDishTitle(recipe.title)) {
+    report.drifted = true;
+    report.reason.push("generic-title-vs-high-specificity");
+  }
+
+  return report;
+}
+
+const noisePhrases = [
+  "abonne toi",
+  "abonnez vous",
+  "abonne-toi",
+  "follow",
+  "like la video",
+  "like la vidéo",
+  "lien en bio",
+  "code promo",
+  "swipe up",
+  "n oublie pas",
+  "fais le toi meme",
+  "fais-le toi-même",
+  "salut tout le monde",
+  "bienvenue",
+  "merci d avoir regarde",
+  "merci d'avoir regardé"
+];
+
+function stripNoiseFromText(value: string): string {
+  if (!value) {
+    return value;
+  }
+  let cleaned = value;
+  const lowered = normalizeSearchText(value);
+  for (const phrase of noisePhrases) {
+    if (lowered.includes(phrase)) {
+      // Suppression best-effort en gardant la ponctuation.
+      const regex = new RegExp(phrase.replace(/\s+/g, "\\s+").replace(/[-]/g, "[-\\s]?"), "gi");
+      cleaned = cleaned.replace(regex, " ").replace(/\s{2,}/g, " ").trim();
+    }
+  }
+  return cleaned;
+}
+
+function pickEnglishNutritionQuery(name: string): string {
+  // Best-effort : on tente une traduction très simple via une mini-table,
+  // sinon on renvoie le nom français qui sera traité par USDA en "best match".
+  const table: Record<string, string> = {
+    "provolone": "provolone cheese",
+    "mozzarella": "mozzarella cheese",
+    "burrata": "burrata cheese",
+    "ricotta": "ricotta cheese",
+    "cheddar": "cheddar cheese",
+    "panko": "panko breadcrumbs",
+    "gochujang": "gochujang paste",
+    "ribeye": "ribeye steak",
+    "entrecote": "ribeye steak",
+    "baguette": "french baguette",
+    "hoagie": "hoagie roll",
+    "kiri": "cream cheese",
+    "boursin": "boursin cheese"
+  };
+  const key = normalizeSearchText(name).split(/\s+/)[0];
+  return table[key] ?? name;
+}
+
+/**
+ * Garde-fou final : si la recette dérive du digest, ajoute les ingrédients
+ * et étapes manquants depuis le digest, purge le bruit, recompose le titre
+ * si générique. Préserve les ingrédients/étapes existants.
+ */
+export function enrichRecipeFromDigest(
+  recipe: RecipeImportResult,
+  digest: ParsedTranscriptDigest | null,
+  drift?: RecipeDriftReport
+): { recipe: RecipeImportResult; addedIngredients: number; addedSteps: number; titleChanged?: { from: string; to: string } } {
+  if (!digest) {
+    return { recipe, addedIngredients: 0, addedSteps: 0 };
+  }
+
+  const report = drift ?? recipeDriftedFromDigest(recipe, digest);
+  let next: RecipeImportResult = { ...recipe };
+  let addedIngredients = 0;
+  let addedSteps = 0;
+  let titleChanged: { from: string; to: string } | undefined;
+
+  // 1) Titre : si générique, recompose à partir de DISH ou des ingrédients distinctifs.
+  if (isGenericDishTitle(next.title)) {
+    let newTitle: string | undefined;
+    if (digest.dish && !isGenericDishTitle(digest.dish) && digest.dish.toUpperCase() !== "INCONNU") {
+      newTitle = digest.dish.trim();
+    } else if (digest.explicitIngredients.length > 0) {
+      const head = next.title?.trim() || "Recette";
+      const distinctive = digest.explicitIngredients
+        .map((ingredient) => ingredient.replace(/\d+[\d,\.\s\/]*/, "").trim())
+        .filter((ingredient) => ingredient.length > 0)
+        .slice(0, 2);
+      if (distinctive.length > 0) {
+        newTitle = `${head} ${distinctive.join(" ")}`.replace(/\s+/g, " ").trim();
+      }
+    }
+
+    if (newTitle && newTitle !== next.title) {
+      titleChanged = { from: next.title, to: newTitle };
+      next = { ...next, title: newTitle };
+    }
+  }
+
+  // 2) Ingrédients manquants : ajoute les explicites absents.
+  if (report.missingIngredients.length > 0) {
+    const newIngredients = [...next.ingredientDrafts];
+    for (const missing of report.missingIngredients) {
+      const cleanName = missing
+        .replace(/\(.*?\)/g, "")
+        .replace(/^\d+[\d,\.\s\/]*/, "")
+        .trim();
+      if (!cleanName) {
+        continue;
+      }
+      // Filtre anti-bruit : doit ressembler à un mot alimentaire.
+      const tokens = ingredientNoiseTokens(cleanName);
+      if (tokens.length === 0) {
+        continue;
+      }
+      newIngredients.push({
+        amount: "",
+        unit: "",
+        name: cleanName,
+        nutritionQuery: pickEnglishNutritionQuery(cleanName)
+      });
+      addedIngredients += 1;
+    }
+    if (addedIngredients > 0) {
+      next = { ...next, ingredientDrafts: newIngredients };
+    }
+  }
+
+  // 3) Étapes manquantes : insère les signature gestures avant le dernier dressage.
+  if (report.missingGestures.length > 0) {
+    const newSteps = [...next.stepDrafts];
+    const insertPosition = Math.max(newSteps.length - 1, 0);
+    for (const gesture of report.missingGestures) {
+      newSteps.splice(insertPosition, 0, {
+        section: "",
+        detail: gesture.charAt(0).toUpperCase() + gesture.slice(1)
+      });
+      addedSteps += 1;
+    }
+    next = { ...next, stepDrafts: newSteps };
+  }
+
+  // 4) Purge bruit dans titre, ingrédients, étapes, notes.
+  if (digest.noiseDetected.length > 0 || noisePhrases.length > 0) {
+    next = {
+      ...next,
+      title: stripNoiseFromText(next.title),
+      notesText: stripNoiseFromText(next.notesText ?? ""),
+      ingredientDrafts: next.ingredientDrafts.map((ingredient) => ({
+        ...ingredient,
+        name: stripNoiseFromText(ingredient.name)
+      })),
+      stepDrafts: next.stepDrafts.map((step) => ({
+        ...step,
+        detail: stripNoiseFromText(step.detail)
+      }))
+    };
+  }
+
+  // 5) Si encore générique malgré tout, demande un fallback web.
+  if (isGenericDishTitle(next.title)) {
+    next = {
+      ...next,
+      needsWebFallback: true,
+      confidence: "low"
+    };
+  }
+
+  return { recipe: next, addedIngredients, addedSteps, titleChanged };
+}
 
 function shouldAttemptFinalNormalization(input: {
   recipe: RecipeImportResult;
