@@ -24,6 +24,7 @@ import {
   importMissingParts,
   isLikelyMajorIngredient,
   isLikelyValidRecipe,
+  minimumStepCountForRecipeTitle,
   normalizeRecipeImportFlags,
   normalizeLookup,
   recipeCookabilitySignals,
@@ -33,6 +34,10 @@ import {
   type ImportDebug,
   type RecipeImportResult
 } from "../types/recipe.js";
+import {
+  validateStrictRecipe,
+  type StrictIssue,
+} from "./strictRecipeValidator.js";
 import { platformFromUrl } from "../utils/text.js";
 
 type ImportExecutionOptions = {
@@ -930,54 +935,101 @@ async function enforceRecipeValidation(
 ): Promise<RecipeImportResult> {
   const issues = detectRecipeIssues(recipe);
 
-  if (!issues.hasIssues) {
+  let currentRecipe = recipe;
+  let correctedSuccessfully = !issues.hasIssues;
+
+  if (issues.hasIssues) {
+    console.info(
+      `[importService] Validation failed (${issues.summary}), auto-correcting via cookability review`
+    );
+
+    // --- Attempt 1: Auto-correct via LLM cookability review ---
+    const reviewTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
+    if (reviewTimeoutMs) {
+      const corrected = await safeReviewCookability(
+        { draft: recipe, context },
+        { timeoutMs: reviewTimeoutMs }
+      );
+      const correctedIssues = detectRecipeIssues(corrected);
+      if (!correctedIssues.hasIssues) {
+        currentRecipe = corrected;
+        correctedSuccessfully = true;
+      } else if (correctedIssues.issueCount < issues.issueCount) {
+        currentRecipe = corrected;
+      }
+    }
+
+    // --- Attempt 2: Full regeneration via normalizeRecipeFromContext ---
+    if (!correctedSuccessfully) {
+      console.info(
+        `[importService] Cookability review insufficient, regenerating recipe via normalization`
+      );
+      const normalizeTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
+      if (normalizeTimeoutMs) {
+        const regenerated = await safeNormalize(context, {
+          timeoutMs: normalizeTimeoutMs
+        });
+        const regeneratedFixed = ensureCookableRecipeStructure(regenerated);
+        const regeneratedIssues = detectRecipeIssues(regeneratedFixed);
+
+        if (!regeneratedIssues.hasIssues) {
+          currentRecipe = regeneratedFixed;
+          correctedSuccessfully = true;
+        } else if (regeneratedIssues.issueCount < issues.issueCount) {
+          currentRecipe = regeneratedFixed;
+        }
+      }
+    }
+
+    // --- Attempt 3: Last-resort structural fix ---
+    if (!correctedSuccessfully) {
+      console.info(
+        `[importService] Regeneration insufficient, applying structural fix as last resort`
+      );
+      currentRecipe = ensureCookableRecipeStructure(currentRecipe);
+    }
+  }
+
+  // --- Final strict-validator pass: annotate needsReview when hard
+  // issues remain after all repair attempts. Never throws; never blocks
+  // the import — the iOS client surfaces this as a non-blocking warning
+  // badge. This is the rare fallback path, not the common outcome.
+  return annotateStrictValidationFlags(currentRecipe);
+}
+
+function annotateStrictValidationFlags(
+  recipe: RecipeImportResult
+): RecipeImportResult {
+  const report = validateStrictRecipe(recipe, {
+    minimumSteps: minimumStepCountForRecipeTitle(recipe.title),
+  });
+
+  if (report.ok) {
+    // Clear any stale needsReview from upstream; everything checks out.
+    if (recipe.flags?.needsReview) {
+      return {
+        ...recipe,
+        flags: {
+          ...normalizeRecipeImportFlags(recipe.flags),
+          needsReview: false,
+        },
+      };
+    }
     return recipe;
   }
 
+  const hardCodes = report.hardIssues.map((issue: StrictIssue) => issue.code).join(", ");
   console.info(
-    `[importService] Validation failed (${issues.summary}), auto-correcting via cookability review`
+    `[importService] Strict validator flagged needsReview after repair: hardIssues=[${hardCodes}]`
   );
 
-  // --- Attempt 1: Auto-correct via LLM cookability review ---
-  const reviewTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
-  if (reviewTimeoutMs) {
-    const corrected = await safeReviewCookability(
-      { draft: recipe, context },
-      { timeoutMs: reviewTimeoutMs }
-    );
-    const correctedIssues = detectRecipeIssues(corrected);
-    if (!correctedIssues.hasIssues) {
-      return corrected;
-    }
-
-    // Check if correction at least improved things
-    if (correctedIssues.issueCount < issues.issueCount) {
-      return corrected;
-    }
-  }
-
-  // --- Attempt 2: Full regeneration via normalizeRecipeFromContext ---
-  console.info(
-    `[importService] Cookability review insufficient, regenerating recipe via normalization`
-  );
-  const normalizeTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
-  if (normalizeTimeoutMs) {
-    const regenerated = await safeNormalize(context, {
-      timeoutMs: normalizeTimeoutMs
-    });
-    const regeneratedFixed = ensureCookableRecipeStructure(regenerated);
-    const regeneratedIssues = detectRecipeIssues(regeneratedFixed);
-
-    if (!regeneratedIssues.hasIssues || regeneratedIssues.issueCount < issues.issueCount) {
-      return regeneratedFixed;
-    }
-  }
-
-  // --- Attempt 3: Last-resort structural fix ---
-  console.info(
-    `[importService] Regeneration insufficient, applying structural fix as last resort`
-  );
-  return ensureCookableRecipeStructure(recipe);
+  return {
+    ...recipe,
+    flags: {
+      ...normalizeRecipeImportFlags(recipe.flags),
+      needsReview: true,
+    },
+  };
 }
 
 function shouldFetchFullSocialSnapshot(input: {
@@ -2967,7 +3019,8 @@ function buildImportDebug(
     durationMs: context.durationMs,
     isLikelyValid,
     missing,
-    failureReason
+    failureReason,
+    needsReview: recipe.flags?.needsReview === true
   };
 }
 

@@ -129,6 +129,7 @@ test("resolveAcceptedRecipeCandidate keeps a complete AI recipe for dishes not c
       ],
       stepDrafts: [
         { detail: "Mélangez le poulet avec les oignons nouveaux, la sauce soja, le gingembre et l'huile de sésame." },
+        { detail: "Laissez reposer la farce 10 minutes au frais pour que les saveurs se développent." },
         { detail: "Déposez une petite cuillère de farce au centre de chaque pâte puis repliez les gyozas en scellant bien les bords." },
         { detail: "Faites dorer les gyozas dans une poêle chaude avec un filet d'huile, puis ajoutez un peu d'eau et couvrez pour terminer la cuisson à la vapeur." },
         { detail: "Laissez l'eau s'évaporer, redonnez un peu de croustillant au dessous et servez aussitôt." }

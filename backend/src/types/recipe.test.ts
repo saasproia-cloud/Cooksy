@@ -36,7 +36,7 @@ test("sanitizeRecipeImport strips obvious transcript fragments from ingredients 
 
   assert.deepEqual(
     sanitized.ingredientDrafts.map((ingredient) => ingredient.name),
-    ["farine"]
+    ["Farine"]
   );
   assert.deepEqual(
     sanitized.stepDrafts.map((step) => step.detail),

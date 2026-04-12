@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { normalizeWhitespace } from "../utils/text.js";
+import {
+  normalizeFrenchIngredientName,
+  normalizeFrenchUnit,
+} from "../services/ingredientNormalization.js";
 
 export const recipeIngredientSchema = z.object({
   amount: z.string().default(""),
@@ -18,7 +22,8 @@ export const recipeImportFlagsSchema = z.object({
   usedExplicitIngredients: z.boolean().default(false),
   usedInferredIngredients: z.boolean().default(false),
   generatedSteps: z.boolean().default(false),
-  generatedNutrition: z.boolean().default(false)
+  generatedNutrition: z.boolean().default(false),
+  needsReview: z.boolean().default(false)
 });
 
 export const recipeImportSchema = z.object({
@@ -80,6 +85,7 @@ export type ImportDebug = {
   isLikelyValid: boolean;
   missing: ImportDebugMissing[];
   failureReason?: ImportFailureReason;
+  needsReview?: boolean;
 };
 
 export type NormalizerInput = {
@@ -157,7 +163,8 @@ export function normalizeRecipeImportFlags(flags?: Partial<RecipeImportFlags> | 
     usedExplicitIngredients: flags?.usedExplicitIngredients === true,
     usedInferredIngredients: flags?.usedInferredIngredients === true,
     generatedSteps: flags?.generatedSteps === true,
-    generatedNutrition: flags?.generatedNutrition === true
+    generatedNutrition: flags?.generatedNutrition === true,
+    needsReview: flags?.needsReview === true
   };
 }
 
@@ -560,7 +567,7 @@ function sanitizeTitle(value: string): string {
 
 function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngredientDraft[] {
   const amount = clean(ingredient.amount);
-  const unit = clean(ingredient.unit);
+  const unit = normalizeFrenchUnit(clean(ingredient.unit));
   const originalName = clean(ingredient.name);
   const isServeOnlyIngredient = /\b(?:to serve|for serving|pour servir|optional|facultatif)\b/i.test(originalName);
   const nameSegments = splitCompoundIngredientText(ingredient.name);
@@ -568,7 +575,14 @@ function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngre
   const sanitized: RecipeIngredientDraft[] = [];
 
   for (const [index, rawName] of nameSegments.entries()) {
-    const name = sanitizeIngredientName(rawName);
+    const cleanedName = sanitizeIngredientName(rawName);
+    // Apply the normalization table AFTER the legacy cleanup so noisy
+    // spoken forms ("oeufs", "blanc de poulet", "tomates cerises") get
+    // a canonical display. The normalizer is non-generifying by design
+    // and falls back to cleaned raw input when no match is found.
+    const name = cleanedName
+      ? (normalizeFrenchIngredientName(cleanedName).displayName || cleanedName)
+      : cleanedName;
     const nutritionQuery = sanitizeNutritionQuery(
       nutritionQuerySegments[index] ?? nutritionQuerySegments[0] ?? name,
       name
@@ -1348,7 +1362,7 @@ function minimumIngredientCountForRecipeTitle(title: string): number {
   return 5;
 }
 
-function minimumStepCountForRecipeTitle(title: string): number {
+export function minimumStepCountForRecipeTitle(title: string): number {
   const normalized = normalizeLookup(title);
 
   if (isCompactSimpleRecipeTitle(normalized)) {
@@ -1356,10 +1370,10 @@ function minimumStepCountForRecipeTitle(title: string): number {
   }
 
   if (/\b(?:salade|salad|bowl)\b/.test(normalized)) {
-    return 3;
+    return 4;
   }
 
-  return 4;
+  return 5;
 }
 
 export function isLikelyMajorIngredient(name: string): boolean {

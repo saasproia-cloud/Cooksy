@@ -689,13 +689,13 @@ struct RecipeIngredientRow: View {
 
                 // Icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(isChecked ? CooksyTheme.accentWarm.opacity(0.08) : Color(hex: 0xFAF8F5))
 
-                    IngredientEmojiIcon(ingredientName: ingredient.name, size: 28)
+                    IngredientEmojiIcon(ingredientName: ingredient.name, size: 56)
                         .opacity(isChecked ? 0.5 : 1)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 56, height: 56)
 
                 // Text
                 VStack(alignment: .leading, spacing: 2) {

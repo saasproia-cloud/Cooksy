@@ -97,13 +97,15 @@ const recipeJsonSchema = {
         "usedExplicitIngredients",
         "usedInferredIngredients",
         "generatedSteps",
-        "generatedNutrition"
+        "generatedNutrition",
+        "needsReview"
       ],
       properties: {
         usedExplicitIngredients: { type: "boolean" },
         usedInferredIngredients: { type: "boolean" },
         generatedSteps: { type: "boolean" },
-        generatedNutrition: { type: "boolean" }
+        generatedNutrition: { type: "boolean" },
+        needsReview: { type: "boolean" }
       }
     }
   }
@@ -270,7 +272,7 @@ export async function reviewRecipeCookability(
       "Ne garde que des ingrédients réellement utiles pour cuisiner le plat.",
       "Chaque objet ingredientDraft doit représenter un seul ingrédient. Si tu vois 'emmental/cornichon', 'sauce + salade' ou toute liste dans un seul name, sépare-les en plusieurs objets.",
       "Si la recette a moins de 3 ingrédients valides ou moins de 2 étapes valides, abandonne cette extraction faible et reconstruis une recette complète autour du plat détecté.",
-      "Les étapes doivent couvrir la préparation, la cuisson et l'assemblage de façon suffisante pour que la recette soit faisable. Vise au minimum 8 étapes détaillées avec une seule action par étape.",
+      "Les étapes doivent couvrir la préparation, la cuisson et l'assemblage de façon suffisante pour que la recette soit faisable. Vise au minimum 6 étapes détaillées (idéalement 6 à 12 selon la complexité du plat) avec une seule action par étape.",
       "Revois les étapes à partir des ingrédients retenus: chaque ingrédient principal doit être utilisé ou explicitement signalé comme garniture.",
       "Ignore le style oral et les formulations de la vidéo: réécris les étapes proprement depuis la liste finale d'ingrédients au lieu de recopier ce qui est dit.",
       "Garde les ingrédients explicitement mentionnés quand ils sont plausibles, puis complète seulement les manques essentiels à partir du plat détecté.",

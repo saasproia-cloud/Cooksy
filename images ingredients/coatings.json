@@ -1,0 +1,142 @@
+[
+  {
+    "name": "chapelure",
+    "image": "breadcrumbs.png",
+    "category": "coating"
+  },
+  {
+    "name": "chapelure panko",
+    "image": "panko.png",
+    "category": "coating"
+  },
+  {
+    "name": "farine",
+    "image": "flour.png",
+    "category": "coating"
+  },
+  {
+    "name": "farine de pois chiche",
+    "image": "chickpea_flour.png",
+    "category": "coating"
+  },
+  {
+    "name": "farine de sarrasin",
+    "image": "buckwheat_flour.png",
+    "category": "coating"
+  },
+  {
+    "name": "farine de maïs",
+    "image": "cornmeal.png",
+    "category": "coating"
+  },
+  {
+    "name": "fécule de maïs",
+    "image": "cornstarch.png",
+    "category": "coating"
+  },
+  {
+    "name": "fécule de tapioca",
+    "image": "tapioca_starch.png",
+    "category": "coating"
+  },
+  {
+    "name": "amidon",
+    "image": "starch.png",
+    "category": "coating"
+  },
+  {
+    "name": "noix de coco râpée",
+    "image": "shredded_coconut.png",
+    "category": "coating"
+  },
+  {
+    "name": "amandes effilées",
+    "image": "sliced_almonds.png",
+    "category": "coating"
+  },
+  {
+    "name": "noisettes concassées",
+    "image": "chopped_hazelnuts.png",
+    "category": "coating"
+  },
+  {
+    "name": "marinade cajun",
+    "image": "cajun_seasoning.png",
+    "category": "coating"
+  },
+  {
+    "name": "marinade fajita",
+    "image": "fajita_seasoning.png",
+    "category": "coating"
+  },
+  {
+    "name": "assaisonnement italien",
+    "image": "italian_seasoning.png",
+    "category": "coating"
+  },
+  {
+    "name": "mélange d'épices biryani",
+    "image": "biryani_masala.png",
+    "category": "coating"
+  },
+  {
+    "name": "madras",
+    "image": "madras_paste.png",
+    "category": "coating"
+  },
+  {
+    "name": "feuille de riz",
+    "image": "rice_paper.png",
+    "category": "coating"
+  },
+  {
+    "name": "feuille de vigne",
+    "image": "vine_leaves.png",
+    "category": "coating"
+  },
+  {
+    "name": "feuille de nori",
+    "image": "nori.png",
+    "category": "coating"
+  },
+  {
+    "name": "sucre muscovado",
+    "image": "muscovado_sugar.png",
+    "category": "coating"
+  },
+  {
+    "name": "sucre de coco",
+    "image": "coconut_sugar.png",
+    "category": "coating"
+  },
+  {
+    "name": "marzipan",
+    "image": "marzipan.png",
+    "category": "coating"
+  },
+  {
+    "name": "pâte d'amande",
+    "image": "almond_paste.png",
+    "category": "coating"
+  },
+  {
+    "name": "glaçage",
+    "image": "icing.png",
+    "category": "coating"
+  },
+  {
+    "name": "arrow-root",
+    "image": "arrowroot.png",
+    "category": "coating"
+  },
+  {
+    "name": "colorant rouge",
+    "image": "red_food_coloring.png",
+    "category": "coating"
+  },
+  {
+    "name": "colorant jaune",
+    "image": "yellow_food_coloring.png",
+    "category": "coating"
+  }
+]

@@ -8,6 +8,7 @@ struct RecipeImportDebugInfo: Codable, Hashable {
     let isLikelyValid: Bool
     let missing: [String]
     let failureReason: String?
+    let needsReview: Bool?
 
     var userFacingFailureMessage: String? {
         switch failureReason {

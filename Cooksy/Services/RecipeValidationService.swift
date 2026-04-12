@@ -54,6 +54,7 @@ struct RecipeValidationResult {
         case ingredientLineTooLong
         case sourcePageNotRecipe
         case lowQualityScore
+        case needsBackendReview
 
         var logLabel: String {
             switch self {
@@ -73,6 +74,17 @@ struct RecipeValidationResult {
                 return "source page is not a recipe page"
             case .lowQualityScore:
                 return "low quality score"
+            case .needsBackendReview:
+                return "backend strict validator flagged needs-review"
+            }
+        }
+
+        var userFacingBadge: String? {
+            switch self {
+            case .needsBackendReview:
+                return "Recette à vérifier"
+            default:
+                return nil
             }
         }
     }
@@ -424,6 +436,10 @@ enum RecipeValidationService {
         let canSave = completeRecipeIsUsable
         if hardReasons.isEmpty && !canSave {
             warningReasons.insert(.lowQualityScore)
+        }
+
+        if seed.importDebug?.needsReview == true {
+            warningReasons.insert(.needsBackendReview)
         }
 
         let status: RecipeValidationResult.Status

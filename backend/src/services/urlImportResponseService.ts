@@ -46,7 +46,8 @@ const apiDebugSchema = z.object({
   usedTranscription: z.boolean(),
   usedWebFallback: z.boolean(),
   missing: z.array(z.string()),
-  failureReason: z.string().optional()
+  failureReason: z.string().optional(),
+  needsReview: z.boolean().optional()
 });
 
 const apiSuccessSchema = z.object({

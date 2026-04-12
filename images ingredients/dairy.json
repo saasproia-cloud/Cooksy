@@ -1,0 +1,217 @@
+[
+  {
+    "name": "lait",
+    "image": "milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "lait entier",
+    "image": "whole_milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "lait demi-écrémé",
+    "image": "semi_skimmed_milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "lait concentré",
+    "image": "condensed_milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "lait de soja",
+    "image": "soy_milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "lait d'amande",
+    "image": "almond_milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "lait d'avoine",
+    "image": "oat_milk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "babeurre",
+    "image": "buttermilk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "crème épaisse",
+    "image": "sour_cream.png",
+    "category": "dairy"
+  },
+  {
+    "name": "crème fouettée",
+    "image": "whipped_cream.png",
+    "category": "dairy"
+  },
+  {
+    "name": "crème de mascarpone",
+    "image": "mascarpone.png",
+    "category": "dairy"
+  },
+  {
+    "name": "fromage frais",
+    "image": "fromage_frais.png",
+    "category": "dairy"
+  },
+  {
+    "name": "cream cheese",
+    "image": "cream_cheese.png",
+    "category": "dairy"
+  },
+  {
+    "name": "yaourt nature",
+    "image": "yogurt.png",
+    "category": "dairy"
+  },
+  {
+    "name": "yaourt grec",
+    "image": "greek_yogurt.png",
+    "category": "dairy"
+  },
+  {
+    "name": "beurre doux",
+    "image": "unsalted_butter.png",
+    "category": "dairy"
+  },
+  {
+    "name": "beurre clarifié",
+    "image": "clarified_butter.png",
+    "category": "dairy"
+  },
+  {
+    "name": "mozzarella",
+    "image": "mozzarella.png",
+    "category": "dairy"
+  },
+  {
+    "name": "burrata",
+    "image": "burrata.png",
+    "category": "dairy"
+  },
+  {
+    "name": "ricotta",
+    "image": "ricotta.png",
+    "category": "dairy"
+  },
+  {
+    "name": "feta",
+    "image": "feta.png",
+    "category": "dairy"
+  },
+  {
+    "name": "chèvre frais",
+    "image": "goat_cheese.png",
+    "category": "dairy"
+  },
+  {
+    "name": "paneer",
+    "image": "paneer.png",
+    "category": "dairy"
+  },
+  {
+    "name": "cottage cheese",
+    "image": "cottage_cheese.png",
+    "category": "dairy"
+  },
+  {
+    "name": "parmesan",
+    "image": "parmesan.png",
+    "category": "dairy"
+  },
+  {
+    "name": "gruyère",
+    "image": "gruyere.png",
+    "category": "dairy"
+  },
+  {
+    "name": "comté",
+    "image": "comte.png",
+    "category": "dairy"
+  },
+  {
+    "name": "cheddar",
+    "image": "cheddar.png",
+    "category": "dairy"
+  },
+  {
+    "name": "gouda",
+    "image": "gouda.png",
+    "category": "dairy"
+  },
+  {
+    "name": "pecorino",
+    "image": "pecorino.png",
+    "category": "dairy"
+  },
+  {
+    "name": "manchego",
+    "image": "manchego.png",
+    "category": "dairy"
+  },
+  {
+    "name": "brie",
+    "image": "brie.png",
+    "category": "dairy"
+  },
+  {
+    "name": "camembert",
+    "image": "camembert.png",
+    "category": "dairy"
+  },
+  {
+    "name": "roquefort",
+    "image": "roquefort.png",
+    "category": "dairy"
+  },
+  {
+    "name": "gorgonzola",
+    "image": "gorgonzola.png",
+    "category": "dairy"
+  },
+  {
+    "name": "bleu d'Auvergne",
+    "image": "blue_cheese.png",
+    "category": "dairy"
+  },
+  {
+    "name": "fromage râpé",
+    "image": "shredded_cheese.png",
+    "category": "dairy"
+  },
+  {
+    "name": "monterey jack",
+    "image": "monterey_jack.png",
+    "category": "dairy"
+  },
+  {
+    "name": "œuf",
+    "image": "egg.png",
+    "category": "dairy"
+  },
+  {
+    "name": "jaune d'œuf",
+    "image": "egg_yolk.png",
+    "category": "dairy"
+  },
+  {
+    "name": "blanc d'œuf",
+    "image": "egg_white.png",
+    "category": "dairy"
+  },
+  {
+    "name": "tofu",
+    "image": "tofu.png",
+    "category": "dairy"
+  },
+  {
+    "name": "tofu soyeux",
+    "image": "silken_tofu.png",
+    "category": "dairy"
+  }
+]

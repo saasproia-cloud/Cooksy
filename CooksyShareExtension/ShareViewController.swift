@@ -1925,6 +1925,7 @@ private struct ShareBackendImportDebug: Decodable {
     let isLikelyValid: Bool
     let missing: [String]
     let failureReason: String?
+    let needsReview: Bool?
 
     func asImportDebug() -> RecipeImportDebugInfo {
         RecipeImportDebugInfo(
@@ -1934,7 +1935,8 @@ private struct ShareBackendImportDebug: Decodable {
             durationMs: durationMs,
             isLikelyValid: isLikelyValid,
             missing: missing,
-            failureReason: failureReason
+            failureReason: failureReason,
+            needsReview: needsReview
         )
     }
 }

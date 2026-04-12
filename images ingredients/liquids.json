@@ -1,0 +1,172 @@
+[
+  {
+    "name": "jus de citron",
+    "image": "lemon_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus de citron vert",
+    "image": "lime_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus d'orange",
+    "image": "orange_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus de pomme",
+    "image": "apple_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus de tomate",
+    "image": "tomato_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus de grenade",
+    "image": "pomegranate_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus de cranberry",
+    "image": "cranberry_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "jus d'ananas",
+    "image": "pineapple_juice.png",
+    "category": "liquid"
+  },
+  {
+    "name": "rhum",
+    "image": "rum.png",
+    "category": "liquid"
+  },
+  {
+    "name": "grand marnier",
+    "image": "grand_marnier.png",
+    "category": "liquid"
+  },
+  {
+    "name": "calvados",
+    "image": "calvados.png",
+    "category": "liquid"
+  },
+  {
+    "name": "amaretto",
+    "image": "amaretto.png",
+    "category": "liquid"
+  },
+  {
+    "name": "porto",
+    "image": "port.png",
+    "category": "liquid"
+  },
+  {
+    "name": "xérès",
+    "image": "sherry.png",
+    "category": "liquid"
+  },
+  {
+    "name": "pastis",
+    "image": "pastis.png",
+    "category": "liquid"
+  },
+  {
+    "name": "vodka",
+    "image": "vodka.png",
+    "category": "liquid"
+  },
+  {
+    "name": "whisky",
+    "image": "whisky.png",
+    "category": "liquid"
+  },
+  {
+    "name": "vin de riz",
+    "image": "rice_wine.png",
+    "category": "liquid"
+  },
+  {
+    "name": "café",
+    "image": "coffee.png",
+    "category": "liquid"
+  },
+  {
+    "name": "thé",
+    "image": "tea.png",
+    "category": "liquid"
+  },
+  {
+    "name": "matcha",
+    "image": "matcha.png",
+    "category": "liquid"
+  },
+  {
+    "name": "sirop de sucre",
+    "image": "simple_syrup.png",
+    "category": "liquid"
+  },
+  {
+    "name": "sirop de grenadine",
+    "image": "grenadine.png",
+    "category": "liquid"
+  },
+  {
+    "name": "extrait de vanille",
+    "image": "vanilla_extract.png",
+    "category": "liquid"
+  },
+  {
+    "name": "eau de rose",
+    "image": "rose_water.png",
+    "category": "liquid"
+  },
+  {
+    "name": "eau de fleur d'oranger",
+    "image": "orange_blossom_water.png",
+    "category": "liquid"
+  },
+  {
+    "name": "zeste de citron",
+    "image": "lemon_zest.png",
+    "category": "liquid"
+  },
+  {
+    "name": "zeste d'orange",
+    "image": "orange_zest.png",
+    "category": "liquid"
+  },
+  {
+    "name": "crème de coco",
+    "image": "coconut_cream.png",
+    "category": "liquid"
+  },
+  {
+    "name": "crème pâtissière",
+    "image": "custard.png",
+    "category": "liquid"
+  },
+  {
+    "name": "gélatine",
+    "image": "gelatin.png",
+    "category": "liquid"
+  },
+  {
+    "name": "pâte de sésame",
+    "image": "sesame_paste.png",
+    "category": "liquid"
+  },
+  {
+    "name": "purée d'amande",
+    "image": "almond_butter.png",
+    "category": "liquid"
+  },
+  {
+    "name": "pâte de curry massaman",
+    "image": "massaman_paste.png",
+    "category": "liquid"
+  }
+]

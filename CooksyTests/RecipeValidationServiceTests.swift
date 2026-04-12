@@ -233,7 +233,8 @@ final class RecipeValidationServiceTests: XCTestCase {
                 durationMs: 1200,
                 isLikelyValid: true,
                 missing: [],
-                failureReason: nil
+                failureReason: nil,
+                needsReview: nil
             )
         )
 

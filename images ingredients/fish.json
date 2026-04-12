@@ -1,0 +1,187 @@
+[
+  {
+    "name": "cabillaud",
+    "image": "cod.png",
+    "category": "fish"
+  },
+  {
+    "name": "merlu",
+    "image": "hake.png",
+    "category": "fish"
+  },
+  {
+    "name": "colin",
+    "image": "haddock.png",
+    "category": "fish"
+  },
+  {
+    "name": "sole",
+    "image": "sole.png",
+    "category": "fish"
+  },
+  {
+    "name": "bar",
+    "image": "sea_bass.png",
+    "category": "fish"
+  },
+  {
+    "name": "dorade",
+    "image": "sea_bream.png",
+    "category": "fish"
+  },
+  {
+    "name": "turbot",
+    "image": "turbot.png",
+    "category": "fish"
+  },
+  {
+    "name": "lotte",
+    "image": "monkfish.png",
+    "category": "fish"
+  },
+  {
+    "name": "flétan",
+    "image": "halibut.png",
+    "category": "fish"
+  },
+  {
+    "name": "rouget",
+    "image": "red_mullet.png",
+    "category": "fish"
+  },
+  {
+    "name": "saumon",
+    "image": "salmon.png",
+    "category": "fish"
+  },
+  {
+    "name": "saumon fumé",
+    "image": "smoked_salmon.png",
+    "category": "fish"
+  },
+  {
+    "name": "truite",
+    "image": "trout.png",
+    "category": "fish"
+  },
+  {
+    "name": "thon",
+    "image": "tuna.png",
+    "category": "fish"
+  },
+  {
+    "name": "thon en boîte",
+    "image": "canned_tuna.png",
+    "category": "fish"
+  },
+  {
+    "name": "maquereau",
+    "image": "mackerel.png",
+    "category": "fish"
+  },
+  {
+    "name": "sardine",
+    "image": "sardine.png",
+    "category": "fish"
+  },
+  {
+    "name": "hareng",
+    "image": "herring.png",
+    "category": "fish"
+  },
+  {
+    "name": "anchois",
+    "image": "anchovy.png",
+    "category": "fish"
+  },
+  {
+    "name": "espadon",
+    "image": "swordfish.png",
+    "category": "fish"
+  },
+  {
+    "name": "crevette",
+    "image": "shrimp.png",
+    "category": "fish"
+  },
+  {
+    "name": "crevette rose",
+    "image": "pink_shrimp.png",
+    "category": "fish"
+  },
+  {
+    "name": "gambas",
+    "image": "gambas.png",
+    "category": "fish"
+  },
+  {
+    "name": "langoustine",
+    "image": "langoustine.png",
+    "category": "fish"
+  },
+  {
+    "name": "homard",
+    "image": "lobster.png",
+    "category": "fish"
+  },
+  {
+    "name": "écrevisse",
+    "image": "crayfish.png",
+    "category": "fish"
+  },
+  {
+    "name": "moule",
+    "image": "mussels.png",
+    "category": "fish"
+  },
+  {
+    "name": "huître",
+    "image": "oyster.png",
+    "category": "fish"
+  },
+  {
+    "name": "palourde",
+    "image": "clam.png",
+    "category": "fish"
+  },
+  {
+    "name": "coquille Saint-Jacques",
+    "image": "scallop.png",
+    "category": "fish"
+  },
+  {
+    "name": "coque",
+    "image": "cockle.png",
+    "category": "fish"
+  },
+  {
+    "name": "calamar",
+    "image": "squid.png",
+    "category": "fish"
+  },
+  {
+    "name": "poulpe",
+    "image": "octopus.png",
+    "category": "fish"
+  },
+  {
+    "name": "œufs de lump",
+    "image": "lumpfish_roe.png",
+    "category": "fish"
+  },
+  {
+    "name": "silure",
+    "image": "catfish.png",
+    "category": "fish"
+  },
+  {
+    "name": "poisson blanc",
+    "image": "white_fish.png",
+    "category": "fish"
+  },
+  {
+    "name": "filet de poisson",
+    "image": "fish_fillet.png",
+    "category": "fish"
+  }
+]

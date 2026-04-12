@@ -586,7 +586,8 @@ enum RecipeImportPipeline {
                 durationMs: 0,
                 isLikelyValid: false,
                 missing: ["ingredients", "steps"],
-                failureReason: "not_food"
+                failureReason: "not_food",
+                needsReview: nil
             )
         )
     }
