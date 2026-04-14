@@ -28,7 +28,8 @@ const rawEnvSchema = z.object({
   OPENAI_TRANSCRIPTION_MODEL: z.string().default("gpt-4o-transcribe"),
   APIFY_TIKTOK_ACTOR_ID: z.string().default("clockworks/tiktok-scraper"),
   APIFY_INSTAGRAM_ACTOR_ID: z.string().default("apify/instagram-api-scraper"),
-  APIFY_PINTEREST_ACTOR_ID: z.string().default("devcake/pinterest-pin-scraping")
+  APIFY_PINTEREST_ACTOR_ID: z.string().default("devcake/pinterest-pin-scraping"),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional()
 });
 
 const envSchema = z.object({
@@ -45,7 +46,8 @@ const envSchema = z.object({
   OPENAI_TRANSCRIPTION_MODEL: z.string(),
   APIFY_TIKTOK_ACTOR_ID: z.string(),
   APIFY_INSTAGRAM_ACTOR_ID: z.string(),
-  APIFY_PINTEREST_ACTOR_ID: z.string()
+  APIFY_PINTEREST_ACTOR_ID: z.string(),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional()
 });
 
 function isConfigured(value: string): boolean {
@@ -63,7 +65,8 @@ export const providerStatus = {
   openAI: isConfigured(env.OPENAI_API_KEY),
   apify: isConfigured(env.APIFY_TOKEN),
   serpApi: isConfigured(env.SERPAPI_KEY),
-  usda: isConfigured(env.USDA_API_KEY)
+  usda: isConfigured(env.USDA_API_KEY),
+  googleSpeech: Boolean(env.GOOGLE_APPLICATION_CREDENTIALS?.trim())
 };
 
 export class BackendConfigurationError extends Error {
@@ -82,7 +85,8 @@ export function requireProvider(provider: keyof typeof providerStatus): void {
     openAI: "OPENAI_API_KEY",
     apify: "APIFY_TOKEN",
     serpApi: "SERPAPI_KEY",
-    usda: "USDA_API_KEY"
+    usda: "USDA_API_KEY",
+    googleSpeech: "GOOGLE_APPLICATION_CREDENTIALS"
   }[provider];
 
   throw new BackendConfigurationError(

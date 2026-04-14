@@ -49,12 +49,13 @@ const recipeJsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["amount", "unit", "name", "nutritionQuery"],
+        required: ["amount", "unit", "name", "nutritionQuery", "group"],
         properties: {
           amount: { type: "string" },
           unit: { type: "string" },
           name: { type: "string" },
-          nutritionQuery: { type: "string" }
+          nutritionQuery: { type: "string" },
+          group: { type: "string" }
         }
       }
     },
@@ -208,8 +209,32 @@ export async function normalizeRecipeFromContext(
       "",
       "Minimum 6 étapes pour un plat standard. Indique température et durée quand elles sont mentionnées dans le digest ou raisonnablement déductibles. Chaque étape = une seule action concrète.",
       "",
-      "# SECTIONS",
-      "Si la recette comporte des sous-préparations distinctes (Marinade, Sauce, Pâte, Garniture, Dressage), renseigne `section` pour la PREMIÈRE étape de chaque sous-préparation. Laisse vide pour une recette linéaire.",
+      "# GROUPEMENT DES INGRÉDIENTS ET ÉTAPES (OBLIGATOIRE QUAND APPLICABLE)",
+      "Analyse le digest (INGREDIENTS_EXPLICIT + ACTIONS_SEQUENCE) et/ou la légende pour détecter les sous-préparations distinctes. Sous-préparations typiques : Marinade, Pâte, Sauce, Garniture, Salade, Dressage, Montage, Cuisson, Accompagnement.",
+      "",
+      "**RÈGLE DE GROUPEMENT** —",
+      "- Si la vidéo contient ≥2 sous-préparations distinctes (ex: marinade du poulet + sauce crémeuse + salade + montage), tu DOIS remplir le champ `group` de CHAQUE `ingredientDraft` avec le label de sa sous-préparation (ex: 'Marinade poulet', 'Sauce crémeuse', 'Salade', 'Montage').",
+      "- Utilise exactement le MÊME label pour tous les ingrédients d'une même sous-préparation.",
+      "- Tu DOIS aussi remplir le champ `section` de la PREMIÈRE étape de chaque sous-préparation avec le MÊME label que le `group` correspondant. Les étapes suivantes de cette sous-préparation ont `section` vide.",
+      "- Un même ingrédient peut apparaître dans PLUSIEURS groupes avec des quantités différentes (ex: 'crème fraîche' 4 c.s. pour la Sauce + 2 c.s. pour la Salade). Ce sont deux `ingredientDraft` distincts avec le même `name` mais des `group` différents.",
+      "- Si la recette est réellement linéaire (un seul bloc cohérent, pas de sous-préparations), laisse `group` et `section` à chaîne vide.",
+      "",
+      "EXEMPLE — chicken burger avec marinade + sauce + salade + montage :",
+      "  ingredientDrafts: [",
+      "    { amount:'2', unit:'c.s.', name:'Sauce barbecue', nutritionQuery:'bbq sauce', group:'Marinade poulet' },",
+      "    { amount:'1', unit:'c.s.', name:'Sauce soja sucrée', nutritionQuery:'sweet soy sauce', group:'Marinade poulet' },",
+      "    { amount:'400', unit:'g', name:'Blanc de poulet', nutritionQuery:'chicken breast', group:'Marinade poulet' },",
+      "    { amount:'3', unit:'c.s.', name:'Crème fraîche', nutritionQuery:'sour cream', group:'Sauce crémeuse' },",
+      "    { amount:'4', unit:'c.s.', name:'Mayonnaise', nutritionQuery:'mayonnaise', group:'Sauce crémeuse' },",
+      "    { amount:'2', unit:'c.s.', name:'Crème fraîche', nutritionQuery:'sour cream', group:'Salade' },",
+      "    { amount:'2', unit:'', name:'Pain burger', nutritionQuery:'hamburger bun', group:'Montage' }",
+      "  ]",
+      "  stepDrafts: [",
+      "    { detail:'Mélange la sauce barbecue, la sauce soja sucrée et les épices dans un bol.', section:'Marinade poulet' },",
+      "    { detail:'Ajoute les escalopes de poulet, masse et laisse mariner 30 min au frigo.', section:'' },",
+      "    { detail:'Fouette la crème fraîche et la mayonnaise jusqu\\'à obtenir une sauce lisse.', section:'Sauce crémeuse' },",
+      "    ...",
+      "  ]",
       "",
       "# NUTRITION",
       "Obligatoire pour tout contenu alimentaire : `caloriesText`, `proteinText`, `carbsText`, `fatText` avec une estimation réaliste par portion, cohérente avec les ingrédients finaux.",
@@ -232,6 +257,7 @@ export async function normalizeRecipeFromContext(
       "[FID-5] Aucun nom d'ingrédient n'a été génériquisé (provolone→fromage, ribeye→bœuf, panko→chapelure, gochujang→sauce piquante, etc.).",
       "[FID-6] Le titre n'est pas un mot de catégorie seul (sandwich, burger, pizza, pasta, salade, tacos, wrap, bowl, curry, ramen, gratin, quiche, omelette).",
       "[FID-7] Si tu as ajouté des ingrédients/étapes au-delà du digest, `flags.usedInferredIngredients` et `flags.generatedSteps` sont à true et tu listes brièvement dans `notesText` ce qui est inféré.",
+      "[FID-8] Si la vidéo contient ≥2 sous-préparations distinctes, CHAQUE ingredientDraft a un `group` non vide. Les labels `group` et `section` sont cohérents (chaque `section` correspond à un `group` utilisé au moins une fois). Si la recette est linéaire, `group` et `section` restent vides partout.",
       "",
       "Ne renvoie JAMAIS une recette qui s'éloigne du digest sans raison technique justifiable. Si la recette est encore incomplète malgré le contexte, enrichis-la plutôt que d'activer `needsWebFallback` en échappatoire — sauf si le titre reste générique malgré tes efforts."
     ]
@@ -247,6 +273,7 @@ export async function reviewRecipeCookability(
   input: {
     draft: RecipeImportResult;
     context: NormalizerInput;
+    reviewHint?: string;
   },
   options?: {
     timeoutMs?: number;
@@ -258,7 +285,7 @@ export async function reviewRecipeCookability(
   const imageDataUrl = await resolveNormalizationImageDataUrl(input.context, options?.timeoutMs);
 
   const reviewedRecipe = await requestStructuredRecipeFromOpenAI({
-    userPrompt: buildCookabilityReviewPrompt(sanitizedDraft, input.context),
+    userPrompt: buildCookabilityReviewPrompt(sanitizedDraft, input.context, input.reviewHint),
     imageDataUrl,
     timeoutMs: options?.timeoutMs,
     systemInstructions: [
@@ -284,8 +311,13 @@ export async function reviewRecipeCookability(
       "Renseigne confidenceScore entre 0 et 1 et mets à jour les flags pour refléter les ingrédients explicites, les ingrédients inférés, les étapes générées et la nutrition générée.",
       "Ne laisse jamais une recette alimentaire sans nutrition: estime toujours calories, protéines, glucides et lipides à partir de la version finale.",
       "Vérifie aussi que calories, protéines, glucides et lipides restent cohérents entre eux; si les macros ne collent pas raisonnablement avec les calories, corrige-les au lieu de vider la nutrition.",
-      "Si la recette comporte des sous-préparations distinctes (marinade, sauce, pâte, garniture, dressage), renseigne le champ section de la première étape de chaque sous-préparation avec un label court comme 'Marinade', 'Sauce', 'Pâte', 'Garniture', 'Dressage'. Les étapes suivantes de la même sous-préparation ont section vide.",
-      "Ne force pas de section si la recette suit un déroulé linéaire simple.",
+      "GROUPEMENT (CRITIQUE) — Si la recette comporte ≥2 sous-préparations distinctes (marinade, sauce, pâte, garniture, salade, dressage, montage), tu DOIS remplir :",
+      "  1. Le champ `group` de CHAQUE ingredientDraft avec le label de sa sous-préparation (ex: 'Marinade poulet', 'Sauce crémeuse', 'Salade', 'Montage').",
+      "  2. Le champ `section` de la PREMIÈRE étape de chaque sous-préparation avec le MÊME label. Les étapes suivantes de la même sous-préparation ont `section` vide.",
+      "Déduis les sous-préparations depuis les verbes d'action : 'mariner' → Marinade, 'mélanger la sauce' → Sauce, 'monter le burger' → Montage, etc.",
+      "Utilise exactement le MÊME label pour le `group` d'un ingrédient et le `section` de l'étape qui l'utilise.",
+      "Un même ingrédient peut apparaître dans plusieurs groupes (crème fraîche dans Sauce + Salade) avec des quantités différentes — crée alors deux ingredientDraft distincts.",
+      "Ne force pas de groupement si la recette suit un déroulé linéaire simple (un seul bloc d'ingrédients) : laisse `group` et `section` à chaîne vide partout.",
       "Chaque étape de cuisson doit inclure la température ou l'intensité du feu quand c'est pertinent (par ex. 'à feu moyen', '180 °C').",
       "Chaque étape impliquant une durée doit mentionner un temps indicatif (par ex. '5 minutes', 'environ 10 min').",
       "Chaque ingrédient principal doit apparaître nommément dans au moins une étape. Vérifie cette règle avant de finaliser le JSON."
@@ -317,11 +349,7 @@ export async function distillTranscriptForRecipe(
   }
 ): Promise<string | null> {
   const trimmed = transcript.trim();
-  // Lowered from 200 to 80 so short audio-only voiceovers still get a
-  // structured digest pass — without it the LLM falls through to its
-  // own template completion and hallucinates ingredients. Anything
-  // below 80 chars is genuinely too sparse to distill reliably.
-  if (trimmed.length < 80) {
+  if (trimmed.length < 40) {
     return null;
   }
 
@@ -374,7 +402,13 @@ export async function distillTranscriptForRecipe(
     "   - Format : '- <geste avec son détail spécifique>'",
     "   - Si rien de distinctif, laisse la section vide ('- aucun').",
     "",
-    "7. NOISE_DETECTED: tous les éléments du transcript que tu as délibérément ignorés (pubs, calls-to-action, hors-sujet, bavardage).",
+    "7. SUB_PREPARATIONS: liste les sous-préparations distinctes de la recette si elles existent (marinade, sauce, pâte, garniture, salade, dressage, montage, cuisson…).",
+    "   - Format : '- <Label court> : <ingrédients qui y entrent, séparés par des virgules>'",
+    "   - Exemple pour un chicken burger : '- Marinade poulet : blanc de poulet, sauce barbecue, sauce soja sucrée, moutarde, paprika, curcuma, épices mexicaines, persillade, sel, poivre'",
+    "   - Si la recette est linéaire (pas de sous-préparations distinctes), écris '- aucun'.",
+    "   - Un même ingrédient peut apparaître dans plusieurs sous-préparations (ex: crème fraîche dans Sauce ET Salade).",
+    "",
+    "8. NOISE_DETECTED: tous les éléments du transcript que tu as délibérément ignorés (pubs, calls-to-action, hors-sujet, bavardage).",
     "   - Liste explicitement : 'abonne-toi', 'like la vidéo', 'lien en bio', 'code promo', 'follow', 'swipe up', 'n'oublie pas de', 'fais-le toi-même', salutations, anecdotes hors-cuisine.",
     "   - Format : '- <fragment ignoré>'",
     "   - Cette section permettra de vérifier qu'aucun de ces fragments ne se retrouvera dans la recette finale.",
@@ -402,6 +436,10 @@ export async function distillTranscriptForRecipe(
     "",
     "SIGNATURE_GESTURES:",
     "- <geste distinctif 1>",
+    "",
+    "SUB_PREPARATIONS:",
+    "- <Label 1> : <ingrédient a>, <ingrédient b>",
+    "- <Label 2> : <ingrédient c>, <ingrédient d>",
     "",
     "NOISE_DETECTED:",
     "- <fragment ignoré 1>"
@@ -468,6 +506,7 @@ export async function transcribeMediaFromUrl(
     transcriptionTimeoutMs?: number;
     maxDurationSeconds?: number;
     maxFileBytes?: number;
+    languageHint?: string;
   }
 ): Promise<string | null> {
   if (!mediaUrl) {
@@ -498,7 +537,9 @@ export async function transcribeMediaFromUrl(
     const formData = new FormData();
     formData.append("model", env.OPENAI_TRANSCRIPTION_MODEL);
     formData.append("file", new File([audioBuffer], "cooksy-audio.m4a", { type: "audio/mp4" }));
-    formData.append("language", "fr");
+    if (options?.languageHint) {
+      formData.append("language", options.languageHint);
+    }
     formData.append(
       "prompt",
       "Transcription d'une vidéo de recette de cuisine en français (parfois mots anglais). Préserve TOUJOURS les quantités exactes prononcées (ex: '300 grammes', 'deux cuillères à soupe', '500 ml', 'une pincée') et les unités complètes — n'abrège jamais 'cuillère à soupe' en 'à soupe', n'abrège jamais 'cuillère à café' en 'à café'. Ne dédouble jamais un mot ('œufs œufs' → 'œufs'). Vocabulaire attendu : farine, levure, eau, sel, sucre, œufs, beurre, huile d'olive, ail, oignon, échalote, poulet, bœuf, porc, agneau, poisson, saumon, thon, cabillaud, crevettes, tomate, courgette, aubergine, fromage, yaourt, crème, lait, basilic, persil, coriandre, paprika, cumin, curcuma, gingembre, poivre, chapelure, panko, mayonnaise, sauce, épices cajuns, Sriracha, gochujang, miso, dashi, mirin, soja, sésame, miel, sirop d'érable, ketchup, moutarde. Plats internationaux : Philly cheesesteak, smash burger, cheeseburger, hoagie, birria, tacos al pastor, quesadilla, enchilada, fajitas, burrito, gyros, shawarma, kebab, falafel, hummus, pita, naan, butter chicken, tikka masala, curry rouge, pad thaï, ramen, pho, bibimbap, kimchi, gyoza, sushi, poke bowl, carbonara, bolognese, lasagne, gnocchi, risotto, focaccia, bruschetta, tiramisu, crêpes, pancakes, gaufres, clafoutis, far breton, financiers, madeleines, chimichurri, tzatziki, tahini, pesto, ratatouille, cassoulet, tartiflette, raclette, croque-monsieur, quiche lorraine. Fromages spécifiques : provolone, mozzarella, burrata, ricotta, mascarpone, parmesan, pecorino, gorgonzola, gruyère, comté, emmental, reblochon, raclette, brie, camembert, chèvre, feta, halloumi, manchego, cheddar, monterey jack. Marques fréquentes : Kiri, Boursin, Philadelphia, Knorr, Maggi, Tabasco, Heinz, Hellmann's, Lay's, Doritos. Coupes de viande : entrecôte, faux-filet, ribeye, picanha, bavette, onglet, paleron, joue de bœuf, jarret, magret, suprême. Charcuteries : prosciutto, pancetta, chorizo, salami, jambon de Parme, lardons, bacon, guanciale. Unités complètes : cuillère à soupe, cuillère à café, pincée, gramme, kilo, litre, millilitre, tasse, verre. Verbes : préparer, mélanger, ajouter, cuire, faire revenir, pétrir, laisser reposer, étaler, frire, dorer, assaisonner, couper, éplucher, émincer, saler, poivrer, servir, smasher, caraméliser, déglacer, flamber, mariner, paner, glacer, napper, poêler, rôtir, mijoter, blanchir."
@@ -578,8 +619,10 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     structuredDataText ? `Données structurées : ${structuredDataText}` : "",
     [
       "Consignes opérationnelles (le system prompt définit la stratégie de fidélité, ces consignes sont de l'opérationnel) :",
-      "- Si le digest audio structuré est présent dans le contexte, c'est ta SOURCE DE VÉRITÉ : applique la VALIDATION FINALE FID-1 à FID-7.",
+      "- Si le digest audio structuré est présent dans le contexte, c'est ta SOURCE DE VÉRITÉ : applique la VALIDATION FINALE FID-1 à FID-8.",
       "- Si le digest est absent, exploite directement la transcription audio brute, puis la légende, puis les sources web. Même hiérarchie de fidélité.",
+      "- GROUPEMENT : si le digest contient SUB_PREPARATIONS avec ≥2 entrées, tu DOIS reproduire ce groupement via le champ `group` de chaque ingredientDraft ET via le champ `section` de la première étape de chaque groupe. Les labels de `group` et `section` doivent matcher exactement.",
+      "- Si le digest n'a pas de SUB_PREPARATIONS mais que la légende ou les étapes révèlent clairement des sous-préparations (ex: mots-clés 'marinade:', 'sauce:', 'pour la salade', 'pour le montage'), tu DOIS quand même grouper.",
       "- Préserve toujours les ingrédients spécifiques nommés (provolone, panko, gochujang, ribeye, burrata, Kiri…) — ne les remplace JAMAIS par des génériques.",
       "- nutritionQuery = nom court en anglais USDA.",
       "- searchQuery = requête courte exploitable basée sur le nom de plat précis + ingrédients distinctifs (ex: 'philly cheesesteak provolone hoagie'), pas juste 'sandwich'.",
@@ -595,9 +638,14 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
 
 function buildCookabilityReviewPrompt(
   draft: RecipeImportResult,
-  context: NormalizerInput
+  context: NormalizerInput,
+  reviewHint?: string
 ): string {
+  const hintBlock = reviewHint?.trim()
+    ? [`INSTRUCTION PRIORITAIRE :`, reviewHint.trim(), ""]
+    : [];
   return [
+    ...hintBlock,
     "Recette structurée actuelle :",
     JSON.stringify(draft, null, 2),
     "",
@@ -737,7 +785,7 @@ async function extractAudio(
     "-ar",
     "16000",
     "-t",
-    String(options?.maxDurationSeconds ?? 180),
+    String(options?.maxDurationSeconds ?? 300),
     "-c:a",
     "aac",
     "-b:a",

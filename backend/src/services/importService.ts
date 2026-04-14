@@ -5,6 +5,8 @@ import {
   reviewRecipeCookability,
   transcribeMediaFromUrl
 } from "./openAIService.js";
+import { transcribeWithGoogleFromUrl } from "./googleSpeechService.js";
+import { providerStatus } from "../config/env.js";
 import { fetchFallbackPages } from "./searchFallbackService.js";
 import { resolveSocialContent } from "./socialContentService.js";
 import { enrichRecipePresentationMetadata } from "./recipeMetadataService.js";
@@ -79,7 +81,7 @@ const SHARED_TRANSCRIPT_DISTILL_TIMEOUT_MS = 8_000;
 const SHARED_APIFY_TIMEOUT_MS = 45_000;
 const SHARED_AUDIO_FETCH_TIMEOUT_MS = 12_000;
 const SHARED_AUDIO_TRANSCRIPTION_TIMEOUT_MS = 20_000;
-const SHARED_AUDIO_MAX_DURATION_SECONDS = 180;
+const SHARED_AUDIO_MAX_DURATION_SECONDS = 300;
 const SHARED_WEB_TIMEOUT_MS = 5_000;
 const SHARED_RESERVE_MS = 1_200;
 const FULL_TOTAL_LIMIT_MS = 120_000;
@@ -287,7 +289,7 @@ export async function importFromUrl(input: {
     console.info(`[importService] Attempting audio transcription for ${canonicalSourceURL}`);
     const audioOptions = transcriptionOptions(profile, executionDeadline);
     if (audioOptions != null) {
-      transcript = await transcribeMediaFromUrl(mediaURL, audioOptions).catch(() => null);
+      transcript = await transcribeAudioWithFallback(mediaURL, audioOptions).catch(() => null);
     }
 
     if (isUsableTranscript(transcript, { captionIsSparse: captionWasSparse })) {
@@ -348,11 +350,15 @@ export async function importFromUrl(input: {
     } else {
       const rawTranscript = transcript as string | null;
       if (rawTranscript) {
+        // Low-quality transcripts are no longer jetés silencieusement: we keep
+        // the raw text as a weak secondary signal for the final normalization
+        // and web-fallback passes (LLM decides if it is exploitable) but skip
+        // the audio-as-primary reconstruction path.
+        transcript = truncateTranscript(rawTranscript);
         console.info(
-          `[importService] Transcript discarded (low quality, ${rawTranscript.length} chars) for ${canonicalSourceURL}`
+          `[importService] Transcript kept as weak signal (${rawTranscript.length} chars, below usability threshold) for ${canonicalSourceURL}: "${rawTranscript.slice(0, 120)}"`
         );
       }
-      transcript = null;
     }
   }
 
@@ -626,7 +632,7 @@ function isUsableTranscript(
   // caption is empty/sparse the audio is our only source — accept much
   // shorter voiceovers (TikToks frequently have ≤ 20 chars of actual
   // spoken content).
-  const minLength = captionIsSparse ? 12 : 15;
+  const minLength = captionIsSparse ? 8 : 12;
   if (trimmed.length < minLength) {
     return false;
   }
@@ -638,7 +644,7 @@ function isUsableTranscript(
     .trim();
 
   // After stripping brackets, nothing useful remains
-  const minCleanedLength = captionIsSparse ? 8 : 10;
+  const minCleanedLength = captionIsSparse ? 6 : 8;
   if (!cleanedOfBrackets || cleanedOfBrackets.length < minCleanedLength) {
     return false;
   }
@@ -649,15 +655,16 @@ function isUsableTranscript(
     .filter((w) => w.length >= 2)
     .length;
 
-  // Accept short transcripts (3+ words) that contain food-related terms
-  if (wordCount >= 3 && containsLikelyFoodTitleTerm(normalizeLookup(cleanedOfBrackets))) {
+  // Accept very short transcripts (2+ words) when they contain a food term —
+  // a single dish name + one ingredient is enough to seed the digest.
+  if (wordCount >= 2 && containsLikelyFoodTitleTerm(normalizeLookup(cleanedOfBrackets))) {
     return true;
   }
 
   // General threshold: need enough spoken content to be useful. When
-  // the caption is empty/sparse, accept 3 word tokens — the LLM gets
+  // the caption is empty/sparse, accept 2 word tokens — the LLM gets
   // an explicit directive to extract conservatively.
-  const minWordCount = captionIsSparse ? 3 : 4;
+  const minWordCount = captionIsSparse ? 2 : 3;
   if (wordCount < minWordCount) {
     return false;
   }
@@ -694,6 +701,8 @@ type RecipeIssueReport = {
   unusedIngredients: string[];
   logicalOrderIssue: boolean;
   missingPhases: string[];
+  groupingGap: boolean;
+  expectedGroupLabels: string[];
   summary: string;
   issueCount: number;
 };
@@ -827,11 +836,13 @@ function detectRecipeIssues(recipe: RecipeImportResult): RecipeIssueReport {
   const cookability = recipeCookabilitySignals(recipe);
   const hasUncoveredIngredients = cookability.uncoveredMajorIngredientCount >= 2;
   const missingPhases = detectMissingPhases(recipe);
+  const { groupingGap, expectedGroupLabels } = detectGroupingGap(recipe);
 
   const hasIssues = unusedIngredients.length > 0 ||
     hasUncoveredIngredients ||
     hasCookBeforePrep ||
-    missingPhases.length > 0;
+    missingPhases.length > 0 ||
+    groupingGap;
 
   const parts: string[] = [];
   if (unusedIngredients.length) {
@@ -846,17 +857,90 @@ function detectRecipeIssues(recipe: RecipeImportResult): RecipeIssueReport {
   if (missingPhases.length) {
     parts.push(`missing phases: ${missingPhases.join("+")}`);
   }
+  if (groupingGap) {
+    parts.push(`grouping gap (expected: ${expectedGroupLabels.join("/")})`);
+  }
 
   return {
     hasIssues,
     unusedIngredients,
     logicalOrderIssue: hasCookBeforePrep,
     missingPhases,
+    groupingGap,
+    expectedGroupLabels,
     summary: parts.join(", ") || "none",
     issueCount: unusedIngredients.length +
       (hasUncoveredIngredients ? cookability.uncoveredMajorIngredientCount : 0) +
       (hasCookBeforePrep ? 1 : 0) +
-      missingPhases.length * 2
+      missingPhases.length * 2 +
+      (groupingGap ? 2 : 0)
+  };
+}
+
+/**
+ * Detects the common failure mode where the recipe actually has multiple
+ * sub-preparations (marinade + sauce + salad + assembly) but the LLM shipped
+ * a flat ingredient list with no `group` labels. Uses three signals:
+ *   1. Step `section` labels — if the model bothered to tag step sections,
+ *      ingredients should share those labels via `group`.
+ *   2. Keyword regex on step text — verbs and nouns that give away a
+ *      distinct sub-preparation phase ("marinade", "sauce", "dressage"…).
+ *   3. Ingredient count — only triggers once the recipe is complex enough
+ *      to benefit from grouping (≥6 ingredients, ≥4 steps).
+ *
+ * When triggered, returns the expected group labels so the review pass can
+ * be steered explicitly.
+ */
+function detectGroupingGap(recipe: RecipeImportResult): {
+  groupingGap: boolean;
+  expectedGroupLabels: string[];
+} {
+  if (recipe.ingredientDrafts.length < 6 || recipe.stepDrafts.length < 4) {
+    return { groupingGap: false, expectedGroupLabels: [] };
+  }
+
+  const ingredientsWithGroup = recipe.ingredientDrafts.filter(
+    (ingredient) => (ingredient.group ?? "").trim().length > 0
+  ).length;
+  if (ingredientsWithGroup >= recipe.ingredientDrafts.length * 0.5) {
+    return { groupingGap: false, expectedGroupLabels: [] };
+  }
+
+  const stepSections = new Set<string>();
+  for (const step of recipe.stepDrafts) {
+    const label = (step.section ?? "").trim();
+    if (label) {
+      stepSections.add(label);
+    }
+  }
+
+  const SUB_PREP_LABELS: Array<{ label: string; pattern: RegExp }> = [
+    { label: "Marinade", pattern: /\bmarinad(?:e|er)\b|\bfaire\s+mariner\b/i },
+    { label: "Sauce", pattern: /\bpour\s+la\s+sauce\b|\bsauce\s*(?::|\n)|\bpréparer\s+la\s+sauce\b|\bmélanger.*sauce\b/i },
+    { label: "Pâte", pattern: /\bp[âa]te\s*(?::|\n)|\bp[eé]trir\b|\bpour\s+la\s+p[âa]te\b/i },
+    { label: "Garniture", pattern: /\bgarniture\s*(?::|\n)|\bpour\s+la\s+garniture\b/i },
+    { label: "Salade", pattern: /\bsalade\s*(?::|\n)|\bpour\s+la\s+salade\b/i },
+    { label: "Montage", pattern: /\bmontage\s*(?::|\n)|\bmonter\s+le\b|\bassembler\b|\bdressage\b/i },
+    { label: "Cuisson", pattern: /\bcuisson\s*(?::|\n)|\bfaire\s+cuire\b/i }
+  ];
+
+  const stepsJoined = recipe.stepDrafts.map((s) => s.detail).join(" \n ");
+  const keywordLabels = new Set<string>();
+  for (const { label, pattern } of SUB_PREP_LABELS) {
+    if (pattern.test(stepsJoined)) {
+      keywordLabels.add(label);
+    }
+  }
+
+  const expected = new Set<string>([...stepSections, ...keywordLabels]);
+
+  if (expected.size < 2) {
+    return { groupingGap: false, expectedGroupLabels: [] };
+  }
+
+  return {
+    groupingGap: true,
+    expectedGroupLabels: Array.from(expected)
   };
 }
 
@@ -959,8 +1043,11 @@ async function enforceRecipeValidation(
     // --- Attempt 1: Auto-correct via LLM cookability review ---
     const reviewTimeoutMs = boundedExecutionTimeout(deadline, 12_000, 1_000);
     if (reviewTimeoutMs) {
+      const reviewHint = issues.groupingGap && issues.expectedGroupLabels.length > 0
+        ? `GROUPEMENT OBLIGATOIRE — Les étapes révèlent ces sous-préparations : ${issues.expectedGroupLabels.join(", ")}. Tu DOIS répartir CHAQUE ingredientDraft dans le champ \`group\` avec exactement un de ces labels, et marquer la première étape de chaque sous-préparation via \`section\` en réutilisant le même label.`
+        : undefined;
       const corrected = await safeReviewCookability(
-        { draft: recipe, context },
+        { draft: recipe, context, reviewHint },
         { timeoutMs: reviewTimeoutMs }
       );
       const correctedIssues = detectRecipeIssues(corrected);
@@ -3510,10 +3597,57 @@ function requireStrictRecipe(
   return acceptedRecipe;
 }
 
+type TranscriptionOptions = {
+  mediaFetchTimeoutMs: number;
+  transcriptionTimeoutMs: number;
+  maxDurationSeconds: number;
+  maxFileBytes: number;
+};
+
+// Route transcription through Google Cloud Speech when credentials are
+// available, falling back to OpenAI Whisper when Google fails or is not
+// configured. Google's speechContexts biasing gives us much better
+// recognition of cooking-specific vocabulary (provolone, panko, gochujang,
+// cuillère à soupe) which directly translates into more precise ingredient
+// names and quantities in the final recipe.
+async function transcribeAudioWithFallback(
+  mediaUrl: string | undefined,
+  options: TranscriptionOptions
+): Promise<string | null> {
+  if (!mediaUrl) {
+    return null;
+  }
+
+  if (providerStatus.googleSpeech) {
+    try {
+      const googleTranscript = await transcribeWithGoogleFromUrl(mediaUrl, {
+        mediaFetchTimeoutMs: options.mediaFetchTimeoutMs,
+        maxDurationSeconds: options.maxDurationSeconds,
+        maxFileBytes: options.maxFileBytes
+      });
+      if (googleTranscript && googleTranscript.trim().length > 0) {
+        console.info(`[transcription] provider=google length=${googleTranscript.length}`);
+        return googleTranscript;
+      }
+      console.info("[transcription] provider=google result=empty, falling back to openAI");
+    } catch (error) {
+      console.warn(
+        `[transcription] provider=google error=${(error as Error).message ?? String(error)}, falling back to openAI`
+      );
+    }
+  }
+
+  const whisperTranscript = await transcribeMediaFromUrl(mediaUrl, options).catch(() => null);
+  if (whisperTranscript) {
+    console.info(`[transcription] provider=openAI length=${whisperTranscript.length}`);
+  }
+  return whisperTranscript;
+}
+
 function transcriptionOptions(
   profile: ImportRuntimeProfile,
   deadline?: number
-) {
+): TranscriptionOptions | null | undefined {
   if (profile === "full") {
     return undefined;
   }
@@ -3544,8 +3678,8 @@ function transcriptionOptions(
 
   return {
     mediaFetchTimeoutMs: 12_000,
-    transcriptionTimeoutMs: 20_000,
-    maxDurationSeconds: 180,
+    transcriptionTimeoutMs: 30_000,
+    maxDurationSeconds: 300,
     maxFileBytes: 14 * 1024 * 1024
   };
 }

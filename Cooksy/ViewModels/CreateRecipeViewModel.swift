@@ -110,6 +110,37 @@ final class CreateRecipeViewModel: ObservableObject {
         ingredientDrafts.append(IngredientDraft())
     }
 
+    struct IngredientGroupView: Identifiable {
+        let id: String
+        let label: String
+        let ingredientIDs: [IngredientDraft.ID]
+    }
+
+    /// Groups ingredients by their `group` label while preserving the order they
+    /// appear in `ingredientDrafts`. Returns a single group with an empty label
+    /// when no ingredient carries a group (so the UI can fall back to the
+    /// flat rendering).
+    var ingredientGroups: [IngredientGroupView] {
+        var order: [String] = []
+        var buckets: [String: [IngredientDraft.ID]] = [:]
+        var seen = Set<String>()
+        for draft in ingredientDrafts {
+            let label = (draft.group?.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ""
+            if !seen.contains(label) {
+                seen.insert(label)
+                order.append(label)
+            }
+            buckets[label, default: []].append(draft.id)
+        }
+        let hasAnyGroup = order.contains(where: { !$0.isEmpty })
+        if !hasAnyGroup {
+            return [IngredientGroupView(id: "__flat__", label: "", ingredientIDs: ingredientDrafts.map(\.id))]
+        }
+        return order.map { label in
+            IngredientGroupView(id: label.isEmpty ? "__default__" : label, label: label, ingredientIDs: buckets[label] ?? [])
+        }
+    }
+
     func removeIngredient(id: IngredientDraft.ID) {
         ingredientDrafts.removeAll { $0.id == id }
     }

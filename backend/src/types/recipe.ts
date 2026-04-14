@@ -11,7 +11,8 @@ export const recipeIngredientSchema = z.object({
   amount: z.string().default(""),
   unit: z.string().default(""),
   name: z.string().default(""),
-  nutritionQuery: z.string().default("")
+  nutritionQuery: z.string().default(""),
+  group: z.string().optional()
 });
 
 export const recipeStepSchema = z.object({
@@ -626,7 +627,8 @@ function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngre
       amount: index === 0 ? amount : "",
       unit: index === 0 ? unit : "",
       name,
-      nutritionQuery
+      nutritionQuery,
+      group: clean(ingredient.group ?? "")
     });
   }
 
@@ -1056,11 +1058,16 @@ function mergeIngredientDrafts(
     ? existing.nutritionQuery
     : incoming.nutritionQuery;
 
+  // Prefer the non-empty group label so dedupe across a linear + grouped
+  // variant keeps the section assignment.
+  const mergedGroup = (existing.group?.trim() ? existing.group : incoming.group) ?? "";
+
   return {
     amount: mergedAmount,
     unit: mergedUnit,
     name: mergedName,
-    nutritionQuery: mergedQuery
+    nutritionQuery: mergedQuery,
+    group: mergedGroup
   };
 }
 
@@ -1069,10 +1076,14 @@ function dedupeIngredients(ingredients: RecipeIngredientDraft[]): RecipeIngredie
   const byKey = new Map<string, RecipeIngredientDraft>();
 
   for (const ingredient of ingredients) {
-    const key = canonicalIngredientKey(ingredient.name);
-    if (!key) {
+    const nameKey = canonicalIngredientKey(ingredient.name);
+    if (!nameKey) {
       continue;
     }
+    // Key dedupe on (group|name) so the same ingredient can legitimately appear
+    // in multiple sub-preparations (e.g. crème fraîche in "Sauce" and "Salade").
+    const groupKey = normalizeLookup(ingredient.group ?? "");
+    const key = groupKey ? `${groupKey}::${nameKey}` : nameKey;
 
     const existing = byKey.get(key);
     if (existing) {

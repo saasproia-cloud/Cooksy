@@ -12,12 +12,42 @@ import { fetchRemoteBuffer } from "./generalPageService.js";
 const execFileAsync = promisify(execFile);
 const ffmpegPath = ffmpegStatic as unknown as string | null;
 
+// Cuisine vocabulary phrases that benefit from speech-recognition biasing.
+// Google's `speechContexts.phrases` dramatically improves recognition of
+// named ingredients, brands, techniques and units that Whisper-style generic
+// models often mis-transcribe (provolone → "provo lone", panko → "banco",
+// gochujang → "go go gang", etc.).
+const KITCHEN_SPEECH_PHRASES: string[] = [
+  "cuillère à soupe", "cuillère à café", "pincée", "gramme", "millilitre", "litre",
+  "provolone", "panko", "gochujang", "burrata", "mascarpone", "ricotta", "parmesan",
+  "mozzarella", "cheddar", "feta", "halloumi", "comté", "gruyère", "emmental", "kiri",
+  "sauce barbecue", "sauce soja", "sauce sriracha", "sauce yaourt", "sauce crémeuse",
+  "mayonnaise", "moutarde", "ketchup", "miel", "vinaigre balsamique", "jus de citron",
+  "blanc de poulet", "escalope de poulet", "cuisse de poulet", "ribeye", "entrecôte",
+  "faux-filet", "bavette", "onglet", "picanha", "magret", "bœuf haché", "porc",
+  "saumon", "crevettes", "cabillaud", "thon", "encornet",
+  "ail", "oignon", "échalote", "gingembre", "citronnelle", "coriandre", "persil",
+  "basilic", "thym", "romarin", "laurier", "paprika", "curcuma", "cumin", "origan",
+  "farine", "levure", "fécule", "sucre", "cassonade", "œufs", "beurre", "crème fraîche",
+  "huile d'olive", "huile de sésame", "huile de tournesol",
+  "tomate cerise", "courgette", "aubergine", "poivron", "champignon", "brocoli", "épinard",
+  "marinade", "sauce", "garniture", "dressage", "montage", "pâte", "pâte à pizza",
+  "pâte brisée", "pâte feuilletée", "chapelure", "cornflakes", "pain burger", "baguette",
+  "émincer", "ciseler", "hacher", "tailler", "râper", "presser", "mélanger", "fouetter",
+  "monter", "incorporer", "saler", "poivrer", "assaisonner", "mariner", "paner", "enrober",
+  "saisir", "dorer", "revenir", "mijoter", "caraméliser", "déglacer", "réduire", "flamber",
+  "rôtir", "dresser", "napper", "parsemer", "décorer", "cuire à feu doux", "cuire à feu vif",
+  "philly cheesesteak", "smash burger", "chicken burger", "butter chicken", "tikka masala",
+  "carbonara", "bolognese", "lasagne", "risotto", "ramen", "pad thaï", "poke bowl"
+];
+
 export async function transcribeWithGoogleFromUrl(
   mediaUrl: string,
   options?: {
     maxDurationSeconds?: number;
     maxFileBytes?: number;
     mediaFetchTimeoutMs?: number;
+    languageHint?: string;
   }
 ): Promise<string | null> {
   if (!mediaUrl) {
@@ -28,7 +58,7 @@ export async function transcribeWithGoogleFromUrl(
   const sourcePath = path.join(tempDirectory, "source.bin");
   const audioPath = path.join(tempDirectory, "audio.wav");
   const maxFileBytes = options?.maxFileBytes ?? 40 * 1024 * 1024;
-  const maxDurationSeconds = options?.maxDurationSeconds ?? 180;
+  const maxDurationSeconds = options?.maxDurationSeconds ?? 300;
 
   try {
     const videoBuffer = await fetchRemoteBuffer(mediaUrl, maxFileBytes, {
@@ -43,14 +73,26 @@ export async function transcribeWithGoogleFromUrl(
       return null;
     }
 
+    const primaryLanguage = options?.languageHint === "en" ? "en-US" : "fr-FR";
+    const alternativeLanguage = primaryLanguage === "fr-FR" ? ["en-US"] : ["fr-FR"];
+
     const client = new speech.SpeechClient();
     const [operation] = await client.longRunningRecognize({
       config: {
         encoding: "LINEAR16",
         sampleRateHertz: 16000,
-        languageCode: "fr-FR",
+        languageCode: primaryLanguage,
+        alternativeLanguageCodes: alternativeLanguage,
         enableAutomaticPunctuation: true,
-        audioChannelCount: 1
+        audioChannelCount: 1,
+        model: "latest_long",
+        useEnhanced: true,
+        speechContexts: [
+          {
+            phrases: KITCHEN_SPEECH_PHRASES,
+            boost: 15
+          }
+        ]
       },
       audio: {
         content: audioBuffer.toString("base64")
@@ -63,7 +105,7 @@ export async function transcribeWithGoogleFromUrl(
       .join(" ")
       .trim();
 
-    console.log("[googleSpeech] transcript:", transcript || "(empty)");
+    console.log(`[googleSpeech] transcript length=${transcript.length} lang=${primaryLanguage}`);
 
     return transcript.length > 0 ? transcript : null;
   } finally {

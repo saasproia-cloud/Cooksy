@@ -224,13 +224,31 @@ struct CreateRecipeView: View {
 
     private var ingredientRows: some View {
         VStack(spacing: 0) {
-            ForEach($viewModel.ingredientDrafts) { $draft in
-                IngredientDraftRow(
-                    draft: $draft,
-                    onDelete: { viewModel.removeIngredient(id: draft.id) }
-                )
-                if draft.id != viewModel.ingredientDrafts.last?.id {
-                    rowDivider
+            let groups = viewModel.ingredientGroups
+            ForEach(Array(groups.enumerated()), id: \.element.id) { groupIndex, group in
+                if !group.label.isEmpty {
+                    HStack {
+                        Text(group.label)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.ctaOrange)
+                            .textCase(.uppercase)
+                            .tracking(0.4)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, groupIndex == 0 ? 12 : 18)
+                    .padding(.bottom, 6)
+                }
+                ForEach(group.ingredientIDs, id: \.self) { ingredientID in
+                    if let index = viewModel.ingredientDrafts.firstIndex(where: { $0.id == ingredientID }) {
+                        IngredientDraftRow(
+                            draft: $viewModel.ingredientDrafts[index],
+                            onDelete: { viewModel.removeIngredient(id: ingredientID) }
+                        )
+                        if ingredientID != group.ingredientIDs.last {
+                            rowDivider
+                        }
+                    }
                 }
             }
         }
