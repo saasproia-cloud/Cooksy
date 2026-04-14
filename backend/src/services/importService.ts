@@ -222,7 +222,8 @@ export async function importFromUrl(input: {
     socialContent: resolvedSocialContent,
     transcript,
     transcriptDigest,
-    fallbackPages
+    fallbackPages,
+    audioIsPrimarySource: captionWasSparse && Boolean(transcript)
   });
 
   let recipe = recipeFromContext(buildContext());
@@ -289,7 +290,7 @@ export async function importFromUrl(input: {
       transcript = await transcribeMediaFromUrl(mediaURL, audioOptions).catch(() => null);
     }
 
-    if (isUsableTranscript(transcript)) {
+    if (isUsableTranscript(transcript, { captionIsSparse: captionWasSparse })) {
       transcript = truncateTranscript(transcript);
       console.info(
         `[importService] Usable transcript obtained (${transcript.length} chars) for ${canonicalSourceURL}`
@@ -610,15 +611,23 @@ const TRANSCRIPT_MAX_LENGTH = 4000;
  * to be useful context for recipe generation. Discards transcripts that
  * are empty, too short, music-only, or contain no real word content.
  */
-function isUsableTranscript(transcript: string | null): transcript is string {
+function isUsableTranscript(
+  transcript: string | null,
+  options?: { captionIsSparse?: boolean }
+): transcript is string {
   if (!transcript) {
     return false;
   }
 
   const trimmed = transcript.trim();
+  const captionIsSparse = options?.captionIsSparse === true;
 
-  // Too short to contain any useful information at all
-  if (trimmed.length < 15) {
+  // Too short to contain any useful information at all. When the
+  // caption is empty/sparse the audio is our only source — accept much
+  // shorter voiceovers (TikToks frequently have ≤ 20 chars of actual
+  // spoken content).
+  const minLength = captionIsSparse ? 12 : 15;
+  if (trimmed.length < minLength) {
     return false;
   }
 
@@ -629,7 +638,8 @@ function isUsableTranscript(transcript: string | null): transcript is string {
     .trim();
 
   // After stripping brackets, nothing useful remains
-  if (!cleanedOfBrackets || cleanedOfBrackets.length < 10) {
+  const minCleanedLength = captionIsSparse ? 8 : 10;
+  if (!cleanedOfBrackets || cleanedOfBrackets.length < minCleanedLength) {
     return false;
   }
 
@@ -644,8 +654,11 @@ function isUsableTranscript(transcript: string | null): transcript is string {
     return true;
   }
 
-  // General threshold: need enough spoken content to be useful
-  if (wordCount < 4) {
+  // General threshold: need enough spoken content to be useful. When
+  // the caption is empty/sparse, accept 3 word tokens — the LLM gets
+  // an explicit directive to extract conservatively.
+  const minWordCount = captionIsSparse ? 3 : 4;
+  if (wordCount < minWordCount) {
     return false;
   }
 
@@ -1116,7 +1129,16 @@ function shouldAttemptTranscriptNormalization(
   context: ReturnType<typeof buildUrlNormalizationContext>
 ): boolean {
   const transcript = context.transcript?.trim() ?? "";
-  if (transcript.length < 60) {
+  if (!transcript) {
+    return false;
+  }
+
+  // When the caption is empty/sparse and audio is the only source, do
+  // not gate on transcript length — we want every audio-only video to
+  // get a real LLM normalization pass instead of falling through to
+  // the heuristic recipe builder. Otherwise keep the original 60-char
+  // safety margin that filters out music-only or one-word transcripts.
+  if (!context.audioIsPrimarySource && transcript.length < 60) {
     return false;
   }
 
@@ -1577,6 +1599,7 @@ function buildUrlNormalizationContext(input: {
   transcript?: string | null;
   transcriptDigest?: string | null;
   fallbackPages?: ImportedPageSummary[];
+  audioIsPrimarySource?: boolean;
 }) {
   const fallbackPages = input.fallbackPages ?? [];
   const combinedPages = [
@@ -1602,7 +1625,8 @@ function buildUrlNormalizationContext(input: {
     socialAuthor: input.socialContent?.authorName,
     socialSubtitles: input.socialContent?.subtitlesText,
     transcript: input.transcript ?? undefined,
-    transcriptDigest: input.transcriptDigest ?? undefined
+    transcriptDigest: input.transcriptDigest ?? undefined,
+    audioIsPrimarySource: input.audioIsPrimarySource === true
   };
 }
 
@@ -3419,7 +3443,15 @@ export function ensureCookableRecipeStructure(recipe: RecipeImportResult): Recip
     });
   }
 
-  const generatedSteps = generateCookableStepDrafts(title, sanitizedRecipe.ingredientDrafts);
+  const rawGeneratedSteps = generateCookableStepDrafts(title, sanitizedRecipe.ingredientDrafts);
+  // When the recipe already has a real ingredient list (>= 4 items), the
+  // generated step templates must not reference any ingredient-shaped noun
+  // that is not actually in that list — otherwise we hallucinate cross-
+  // template content (e.g. poulet in a crêpe batter).
+  const generatedSteps =
+    sanitizedRecipe.ingredientDrafts.length >= 4
+      ? filterGeneratedStepsAgainstIngredients(rawGeneratedSteps, sanitizedRecipe.ingredientDrafts)
+      : rawGeneratedSteps;
   const mergedSteps = dedupeGeneratedStepDrafts([
     ...generatedSteps,
     ...explicitSteps
@@ -3824,6 +3856,67 @@ function dedupeGeneratedStepDrafts(stepDrafts: Array<{ detail: string }>): Array
   }
 
   return result;
+}
+
+const GENERATED_STEP_INGREDIENT_TOKENS: ReadonlyArray<{ token: string; keys: ReadonlyArray<string> }> = [
+  { token: "poulet", keys: ["poulet", "chicken"] },
+  { token: "boeuf", keys: ["boeuf", "bœuf", "beef", "steak hach", "ground beef"] },
+  { token: "porc", keys: ["porc", "pork", "lard", "bacon"] },
+  { token: "poisson", keys: ["poisson", "saumon", "cabillaud", "thon", "fish"] },
+  { token: "crevettes", keys: ["crevette", "shrimp"] },
+  { token: "pates", keys: ["pate", "pâtes", "pasta", "spaghetti", "penne", "tagliatelle", "linguine", "fusilli", "rigatoni", "ravioli", "gnocchi", "macaroni"] },
+  { token: "riz", keys: ["riz", "rice"] },
+  { token: "farine", keys: ["farine", "flour"] },
+  { token: "sucre", keys: ["sucre", "sugar"] },
+  { token: "oeufs", keys: ["oeuf", "œuf", "egg"] },
+  { token: "lait", keys: ["lait", "milk"] },
+  { token: "beurre", keys: ["beurre", "butter"] },
+  { token: "creme", keys: ["creme", "crème", "cream"] },
+  { token: "fromage", keys: ["fromage", "cheese", "cheddar", "mozzarella", "parmesan", "provolone", "feta", "gruyere"] },
+  { token: "yaourt", keys: ["yaourt", "yogurt", "fromage blanc"] },
+  { token: "ail", keys: ["ail", "garlic"] },
+  { token: "oignon", keys: ["oignon", "onion", "echalote", "échalote"] },
+  { token: "tomate", keys: ["tomate", "tomato"] },
+  { token: "pain", keys: ["pain", "bread", "bun", "naan", "tortilla", "flatbread", "wrap"] },
+  { token: "levure", keys: ["levure", "yeast"] },
+  { token: "vanille", keys: ["vanille", "vanilla"] },
+  { token: "chocolat", keys: ["chocolat", "chocolate", "cacao", "cocoa"] },
+  { token: "mascarpone", keys: ["mascarpone"] },
+  { token: "cafe", keys: ["cafe", "café", "coffee", "espresso"] },
+  { token: "boudoirs", keys: ["boudoir", "ladyfinger"] }
+];
+
+function foldStepText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae");
+}
+
+function filterGeneratedStepsAgainstIngredients(
+  steps: Array<{ detail: string }>,
+  ingredients: RecipeImportResult["ingredientDrafts"]
+): Array<{ detail: string }> {
+  const ingredientBlob = foldStepText(
+    ingredients.map((ingredient) => ingredient.name ?? "").join(" | ")
+  );
+  return steps.filter((step) => {
+    const stepBody = foldStepText(step.detail ?? "");
+    for (const entry of GENERATED_STEP_INGREDIENT_TOKENS) {
+      const token = entry.token;
+      const tokenRegex = new RegExp(`\\b${token}s?\\b`);
+      if (!tokenRegex.test(stepBody)) {
+        continue;
+      }
+      const hasMatch = entry.keys.some((key) => ingredientBlob.includes(foldStepText(key)));
+      if (!hasMatch) {
+        return false;
+      }
+    }
+    return true;
+  });
 }
 
 function generateCookableStepDrafts(

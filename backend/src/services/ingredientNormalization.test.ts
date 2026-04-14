@@ -5,6 +5,7 @@ import {
   INGREDIENT_SYNONYM_TABLE,
   assertNoGenerification,
   canonicalizeIngredientKey,
+  cleanIngredientNameField,
   normalizeFrenchIngredientName,
   normalizeFrenchUnit,
   stripSocialNoise,
@@ -88,6 +89,57 @@ test("normalizeFrenchUnit normalizes spoken French units", () => {
 
 test("INGREDIENT_SYNONYM_TABLE has entries", () => {
   assert.ok(INGREDIENT_SYNONYM_TABLE.size >= 30);
+});
+
+test("cleanIngredientNameField extracts leaked 'à soupe' unit prefix", () => {
+  const result = cleanIngredientNameField("à soupe huile", "", "");
+  assert.equal(result.name, "Huile");
+  assert.equal(result.extractedUnit, "c. à soupe");
+});
+
+test("cleanIngredientNameField extracts leaked 'à café' unit prefix", () => {
+  const result = cleanIngredientNameField("à café sel", "", "");
+  assert.equal(result.name, "Sel");
+  assert.equal(result.extractedUnit, "c. à café");
+});
+
+test("cleanIngredientNameField extracts compound 'cuillère à soupe de X'", () => {
+  const result = cleanIngredientNameField("cuillère à soupe de sucre", "", "");
+  assert.equal(result.name, "Sucre");
+  assert.equal(result.extractedUnit, "c. à soupe");
+});
+
+test("cleanIngredientNameField collapses duplicated head word", () => {
+  const result = cleanIngredientNameField("Oeufs Oeufs", "", "");
+  assert.equal(result.name, "Œufs");
+});
+
+test("cleanIngredientNameField collapses duplicated farine", () => {
+  const result = cleanIngredientNameField("farine farine", "g", "");
+  assert.equal(result.name, "Farine");
+});
+
+test("cleanIngredientNameField pulls '300 g farine' into amount+unit+name", () => {
+  const result = cleanIngredientNameField("300 g farine", "", "");
+  assert.equal(result.name, "Farine");
+  assert.equal(result.extractedUnit, "g");
+  assert.equal(result.extractedAmount, "300");
+});
+
+test("cleanIngredientNameField drops bare unit-only names", () => {
+  const result = cleanIngredientNameField("pincée", "", "");
+  assert.equal(result.dropped, true);
+});
+
+test("cleanIngredientNameField normalizes 'oeufs' head to 'œufs'", () => {
+  const result = cleanIngredientNameField("oeufs", "", "");
+  assert.equal(result.name, "Œufs");
+});
+
+test("cleanIngredientNameField leaves clean input untouched", () => {
+  const result = cleanIngredientNameField("Blanc de poulet", "", "");
+  assert.equal(result.name, "Blanc de poulet");
+  assert.equal(result.extractedUnit, undefined);
 });
 
 test("stripSocialNoise removes hashtags at end of line", () => {

@@ -506,6 +506,216 @@ export function normalizeFrenchUnit(raw: string): string {
 }
 
 // ---------------------------------------------------------------------
+// cleanIngredientNameField — universal ASR-artifact sanitizer for
+// ingredient NAME fields. Handles the common pattern where a noisy
+// Whisper transcript leaks unit or quantity tokens INTO the name field
+// while leaving the unit/amount fields empty:
+//
+//   {name: "à soupe huile",   unit: ""}  ->  {name: "Huile", unit: "c. à soupe"}
+//   {name: "300 g farine",    unit: ""}  ->  {name: "Farine", unit: "g", amount: "300"}
+//   {name: "Oeufs Oeufs"}               ->  {name: "Œufs"}
+//
+// Also collapses same-word head duplications ("farine farine", "huile
+// huile") and drops names that reduce to a bare unit word.
+// ---------------------------------------------------------------------
+
+export interface CleanedIngredientNameField {
+  name: string;
+  extractedUnit?: string;
+  extractedAmount?: string;
+  dropped?: boolean;
+}
+
+// Leading amount shapes: "300", "300,5", "1/2", vulgar fractions.
+const LEADING_AMOUNT_RE = /^\s*(\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅕⅖⅗⅘⅙⅚⅐⅑⅒])\s+/;
+
+// Leading unit shapes that commonly leak into ASR name fields. Each
+// entry maps a regex tested against the *start* of the lowercased,
+// diacritic-folded working copy to a normalized unit label.
+const NAME_LEADING_UNIT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^cuilleres?\s+a\s+soupe\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
+  [/^cuilleres?\s+a\s+cafe\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
+  [/^c\.?\s*a\.?\s*s\.?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
+  [/^c\.?\s*a\.?\s*c\.?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
+  [/^cas\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
+  [/^cac\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
+  [/^a\s+soupe\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
+  [/^a\s+cafe\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
+  [/^tablespoons?\b\s*(?:of\s+)?/, "c. à soupe"],
+  [/^teaspoons?\b\s*(?:of\s+)?/, "c. à café"],
+  [/^tbsp\b\s*(?:of\s+)?/, "c. à soupe"],
+  [/^tsp\b\s*(?:of\s+)?/, "c. à café"],
+  [/^grammes?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "g"],
+  [/^gr\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "g"],
+  [/^kilogrammes?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "kg"],
+  [/^kilos?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "kg"],
+  [/^kg\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "kg"],
+  [/^millilitres?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "ml"],
+  [/^centilitres?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "cl"],
+  [/^litres?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "l"],
+  [/^ml\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "ml"],
+  [/^cl\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "cl"],
+  [/^dl\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "dl"],
+  [/^pincees?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "pincée"],
+  [/^gousses?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "gousse"],
+  [/^cloves?\b\s*(?:of\s+)?/, "gousse"],
+  [/^tranches?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "tranche"],
+  [/^sachets?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "sachet"],
+  [/^tasses?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "tasse"],
+  [/^cups?\b\s*(?:of\s+)?/, "tasse"],
+  [/^pieces?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, ""],
+  [/^unites?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, ""],
+  // Bare metric token after stripping a number: "g farine" -> "farine".
+  [/^g\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "g"],
+];
+
+// After cleanup, if the name reduces to one of these pure unit words it
+// is meaningless on its own — caller should drop the ingredient.
+const BARE_UNIT_NAME_BLOCKLIST = new Set([
+  "soupe",
+  "cafe",
+  "cuillere",
+  "cuilleres",
+  "gramme",
+  "grammes",
+  "pincee",
+  "pincees",
+  "sachet",
+  "sachets",
+  "piece",
+  "pieces",
+  "tranche",
+  "tranches",
+  "tasse",
+  "tasses",
+  "unite",
+  "unites",
+]);
+
+function foldForMatch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/œ/gi, "oe")
+    .replace(/æ/gi, "ae")
+    .replace(/['’`]/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
+function toFrenchDisplayCase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.charAt(0).toLocaleUpperCase("fr-FR") + trimmed.slice(1);
+}
+
+export function cleanIngredientNameField(
+  raw: string,
+  currentUnit?: string,
+  currentAmount?: string
+): CleanedIngredientNameField {
+  if (!raw) {
+    return { name: "", dropped: true };
+  }
+
+  const original = raw.replace(/\s+/g, " ").trim();
+  if (!original) {
+    return { name: "", dropped: true };
+  }
+
+  let working = original;
+  let mutated = false;
+  let extractedAmount: string | undefined;
+  let extractedUnit: string | undefined;
+
+  // 1. Pull a leading amount if present (only when the caller has none).
+  const folded = () => foldForMatch(working);
+  const amountMatch = folded().match(LEADING_AMOUNT_RE);
+  if (amountMatch && !currentAmount) {
+    extractedAmount = amountMatch[1].replace(/\s+/g, "");
+    working = working.replace(/^\s*\S+\s+/, "").trim();
+    mutated = true;
+  } else if (amountMatch) {
+    // Caller already has an amount; still strip the numeric prefix from the name.
+    working = working.replace(/^\s*\S+\s+/, "").trim();
+    mutated = true;
+  }
+
+  // 2. Pull a leading unit token — run repeatedly so "c a s de huile"
+  //    style can compound (rare but cheap to handle).
+  for (let pass = 0; pass < 2; pass += 1) {
+    const lowered = folded();
+    let matched = false;
+    for (const [pattern, replacement] of NAME_LEADING_UNIT_PATTERNS) {
+      const m = lowered.match(pattern);
+      if (m) {
+        working = working.slice(m[0].length).trim();
+        if (!extractedUnit && replacement) {
+          extractedUnit = replacement;
+        }
+        matched = true;
+        mutated = true;
+        break;
+      }
+    }
+    if (!matched) break;
+  }
+
+  // 3. Strip a lingering leading "de la / du / d' / de" article that the
+  //    unit match may have left behind (only if we actually extracted a unit).
+  if (mutated) {
+    const afterArticle = working
+      .replace(/^\s*(?:de\s+la\s+|de\s+l['’\s]\s*|du\s+|des\s+|de\s+|d['’\s]\s*|l['’\s]\s*)/i, "")
+      .trim();
+    if (afterArticle !== working) {
+      working = afterArticle;
+    }
+  }
+
+  if (!working) {
+    return { name: "", extractedUnit, extractedAmount, dropped: true };
+  }
+
+  // 4. Collapse immediate head-word duplications ("Oeufs Oeufs",
+  //    "Farine farine", "huile huile"). Fold for comparison so "Œufs
+  //    oeufs" also collapses.
+  const tokens = working.split(/\s+/);
+  if (tokens.length >= 2 && foldForMatch(tokens[0]) === foldForMatch(tokens[1])) {
+    tokens.splice(1, 1);
+    working = tokens.join(" ");
+    mutated = true;
+  }
+
+  // 5. Bare-unit guard — if the remainder is just a unit word, drop it.
+  const barefold = foldForMatch(working);
+  if (BARE_UNIT_NAME_BLOCKLIST.has(barefold)) {
+    return { name: "", extractedUnit, extractedAmount, dropped: true };
+  }
+
+  // 6. Normalize 'oeufs'/'oeuf' head-word to œufs/œuf for display.
+  const headFolded = foldForMatch(tokens[0] ?? working);
+  if (headFolded === "oeufs") {
+    working = working.replace(/^oeufs/i, "œufs");
+    mutated = true;
+  } else if (headFolded === "oeuf") {
+    working = working.replace(/^oeuf/i, "œuf");
+    mutated = true;
+  }
+
+  // Only apply display-case transform when we actually changed something;
+  // otherwise preserve the caller's casing so downstream normalizers can
+  // still match against lowercase keys.
+  const finalName = mutated ? toFrenchDisplayCase(working) : working;
+
+  return {
+    name: finalName,
+    extractedUnit,
+    extractedAmount,
+  };
+}
+
+// ---------------------------------------------------------------------
 // stripSocialNoise — conservative caption/text pre-filter.
 //
 // Only strips fragments that cannot plausibly be cooking content:

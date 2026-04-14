@@ -638,7 +638,7 @@ struct RecipeIngredientsTabView: View {
                         if index < ingredients.count - 1 {
                             Divider()
                                 .overlay(CooksyTheme.dividerSubtle)
-                                .padding(.leading, 62)
+                                .padding(.leading, 108)
                         }
                     }
                 }
@@ -669,7 +669,7 @@ struct RecipeIngredientRow: View {
 
     var body: some View {
         Button(action: onToggle) {
-            HStack(spacing: 14) {
+            HStack(spacing: 10) {
                 // Checkbox circle
                 ZStack {
                     Circle()
@@ -687,15 +687,10 @@ struct RecipeIngredientRow: View {
                     }
                 }
 
-                // Icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(isChecked ? CooksyTheme.accentWarm.opacity(0.08) : Color(hex: 0xFAF8F5))
-
-                    IngredientEmojiIcon(ingredientName: ingredient.name, size: 56)
-                        .opacity(isChecked ? 0.5 : 1)
-                }
-                .frame(width: 56, height: 56)
+                // Icon (no background frame — image sits clean on the card)
+                IngredientEmojiIcon(ingredientName: ingredient.name, size: 48)
+                    .frame(width: 48, height: 48)
+                    .opacity(isChecked ? 0.5 : 1)
 
                 // Text
                 VStack(alignment: .leading, spacing: 2) {
@@ -715,7 +710,7 @@ struct RecipeIngredientRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

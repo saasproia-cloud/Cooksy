@@ -119,24 +119,112 @@ function ingredientIsUsedInSteps(
   return tokens.some((token) => allStepText.includes(token));
 }
 
+const CANDIDATE_NOUNS: ReadonlyArray<{ pattern: RegExp; label: string; synonyms: ReadonlyArray<string> }> = [
+  // Cheeses and dairy
+  { pattern: /\bprovolone\b/, label: "provolone", synonyms: ["provolone"] },
+  { pattern: /\bmozzarella\b/, label: "mozzarella", synonyms: ["mozzarella"] },
+  { pattern: /\bparmesan\b/, label: "parmesan", synonyms: ["parmesan", "parmigiano"] },
+  { pattern: /\bpecorino\b/, label: "pecorino", synonyms: ["pecorino"] },
+  { pattern: /\bricotta\b/, label: "ricotta", synonyms: ["ricotta"] },
+  { pattern: /\bfeta\b/, label: "feta", synonyms: ["feta"] },
+  { pattern: /\bburrata\b/, label: "burrata", synonyms: ["burrata"] },
+  { pattern: /\bcheddar\b/, label: "cheddar", synonyms: ["cheddar"] },
+  { pattern: /\bgruyere\b/, label: "gruyere", synonyms: ["gruyere", "gruyère"] },
+  { pattern: /\bemmental\b/, label: "emmental", synonyms: ["emmental"] },
+  { pattern: /\bhalloumi\b/, label: "halloumi", synonyms: ["halloumi"] },
+  { pattern: /\bmascarpone\b/, label: "mascarpone", synonyms: ["mascarpone"] },
+  { pattern: /\bfromages?\b/, label: "fromage", synonyms: ["fromage", "cheese", "cheddar", "mozzarella", "parmesan", "feta", "gruyere", "provolone", "mascarpone"] },
+  { pattern: /\byaourts?\b/, label: "yaourt", synonyms: ["yaourt", "yogurt", "fromage blanc"] },
+  { pattern: /\bcremes?\b/, label: "crème", synonyms: ["creme", "crème", "cream"] },
+  { pattern: /\blaits?\b/, label: "lait", synonyms: ["lait", "milk"] },
+  { pattern: /\bbeurres?\b/, label: "beurre", synonyms: ["beurre", "butter"] },
+  { pattern: /\boeufs?\b/, label: "œufs", synonyms: ["oeuf", "œuf", "egg"] },
+
+  // Meats and fish
+  { pattern: /\bribeye\b/, label: "ribeye", synonyms: ["ribeye"] },
+  { pattern: /\bentrecote\b/, label: "entrecôte", synonyms: ["entrecote", "entrecôte"] },
+  { pattern: /\bbavette\b/, label: "bavette", synonyms: ["bavette"] },
+  { pattern: /\bguanciale\b/, label: "guanciale", synonyms: ["guanciale"] },
+  { pattern: /\bpancetta\b/, label: "pancetta", synonyms: ["pancetta"] },
+  { pattern: /\bchorizo\b/, label: "chorizo", synonyms: ["chorizo"] },
+  { pattern: /\bpoulets?\b/, label: "poulet", synonyms: ["poulet", "chicken"] },
+  { pattern: /\bboeufs?\b/, label: "bœuf", synonyms: ["boeuf", "bœuf", "beef", "steak hache", "ground beef"] },
+  { pattern: /\bsteaks?\b/, label: "steak", synonyms: ["steak", "bavette", "entrecote", "ribeye"] },
+  { pattern: /\bporcs?\b/, label: "porc", synonyms: ["porc", "pork"] },
+  { pattern: /\blards?\b/, label: "lard", synonyms: ["lard", "bacon", "pancetta", "guanciale"] },
+  { pattern: /\bagneaux?\b/, label: "agneau", synonyms: ["agneau", "lamb"] },
+  { pattern: /\bdindes?\b/, label: "dinde", synonyms: ["dinde", "turkey"] },
+  { pattern: /\bcanards?\b/, label: "canard", synonyms: ["canard", "duck"] },
+  { pattern: /\bsaumons?\b/, label: "saumon", synonyms: ["saumon", "salmon"] },
+  { pattern: /\bthons?\b/, label: "thon", synonyms: ["thon", "tuna"] },
+  { pattern: /\bcabillauds?\b/, label: "cabillaud", synonyms: ["cabillaud", "cod"] },
+  { pattern: /\bcrevettes?\b/, label: "crevettes", synonyms: ["crevette", "shrimp", "prawn"] },
+  { pattern: /\bmoules\b/, label: "moules", synonyms: ["moule", "mussel"] },
+
+  // Starches and grains
+  { pattern: /\bp[aâ]tes?\b/, label: "pâtes", synonyms: ["pate", "pâte", "pasta", "spaghetti", "penne", "tagliatelle", "linguine", "fusilli", "rigatoni", "macaroni", "ravioli", "gnocchi", "lasagne"] },
+  { pattern: /\bspaghettis?\b/, label: "spaghetti", synonyms: ["spaghetti"] },
+  { pattern: /\bpennes?\b/, label: "penne", synonyms: ["penne"] },
+  { pattern: /\btagliatelles?\b/, label: "tagliatelle", synonyms: ["tagliatelle"] },
+  { pattern: /\briz\b/, label: "riz", synonyms: ["riz", "rice", "arborio", "basmati"] },
+  { pattern: /\bquinoa\b/, label: "quinoa", synonyms: ["quinoa"] },
+  { pattern: /\bboulgour\b/, label: "boulgour", synonyms: ["boulgour", "bulgur"] },
+  { pattern: /\bsemoule\b/, label: "semoule", synonyms: ["semoule", "couscous"] },
+  { pattern: /\bcouscous\b/, label: "couscous", synonyms: ["couscous", "semoule"] },
+  { pattern: /\bfarines?\b/, label: "farine", synonyms: ["farine", "flour"] },
+  { pattern: /\bsucres?\b/, label: "sucre", synonyms: ["sucre", "sugar"] },
+
+  // Alliums and vegetables
+  { pattern: /\bails?\b/, label: "ail", synonyms: ["ail", "garlic"] },
+  { pattern: /\boignons?\b/, label: "oignon", synonyms: ["oignon", "onion"] },
+  { pattern: /\bechalotes?\b/, label: "échalote", synonyms: ["echalote", "échalote", "shallot"] },
+  { pattern: /\btomates?\b/, label: "tomate", synonyms: ["tomate", "tomato"] },
+  { pattern: /\bcarottes?\b/, label: "carotte", synonyms: ["carotte", "carrot"] },
+  { pattern: /\bcourgettes?\b/, label: "courgette", synonyms: ["courgette", "zucchini"] },
+  { pattern: /\baubergines?\b/, label: "aubergine", synonyms: ["aubergine", "eggplant"] },
+  { pattern: /\bpoivrons?\b/, label: "poivron", synonyms: ["poivron", "pepper", "bell pepper", "capsicum"] },
+  { pattern: /\bchampignons?\b/, label: "champignon", synonyms: ["champignon", "mushroom"] },
+  { pattern: /\bepinards\b/, label: "épinards", synonyms: ["epinard", "épinard", "spinach"] },
+  { pattern: /\bpatates?\b/, label: "patate", synonyms: ["patate", "pomme de terre", "potato"] },
+
+  // Sweet / aroma
+  { pattern: /\bchocolats?\b/, label: "chocolat", synonyms: ["chocolat", "chocolate", "cacao", "cocoa"] },
+  { pattern: /\bvanilles?\b/, label: "vanille", synonyms: ["vanille", "vanilla"] },
+  { pattern: /\bmiels?\b/, label: "miel", synonyms: ["miel", "honey"] },
+  { pattern: /\bcitrons?\b/, label: "citron", synonyms: ["citron", "lemon"] },
+  { pattern: /\boranges?\b/, label: "orange", synonyms: ["orange"] },
+
+  // Other exotic
+  { pattern: /\bgochujang\b/, label: "gochujang", synonyms: ["gochujang"] },
+  { pattern: /\bsriracha\b/, label: "sriracha", synonyms: ["sriracha"] },
+  { pattern: /\bharissa\b/, label: "harissa", synonyms: ["harissa"] },
+  { pattern: /\bmiso\b/, label: "miso", synonyms: ["miso"] },
+  { pattern: /\btahini\b/, label: "tahini", synonyms: ["tahini"] },
+  { pattern: /\bpanko\b/, label: "panko", synonyms: ["panko"] },
+  { pattern: /\bwasabi\b/, label: "wasabi", synonyms: ["wasabi"] },
+  { pattern: /\bkimchi\b/, label: "kimchi", synonyms: ["kimchi"] },
+];
+
+function foldLigatures(value: string): string {
+  return value.replace(/œ/gi, "oe").replace(/æ/gi, "ae");
+}
+
 function stepReferencesUnknownIngredients(
   step: string,
-  knownTokens: Set<string>
+  ingredientBlob: string
 ): string[] {
-  const normalized = normalizeLookup(step);
+  const normalized = normalizeLookup(foldLigatures(step));
   const offenders: string[] = [];
 
-  const CANDIDATE_NOUNS = [
-    "provolone", "mozzarella", "parmesan", "pecorino", "ricotta", "feta",
-    "burrata", "cheddar", "gruyere", "emmental", "halloumi", "mascarpone",
-    "ribeye", "entrecote", "bavette", "guanciale", "pancetta", "chorizo",
-    "gochujang", "sriracha", "harissa", "miso", "tahini", "panko",
-    "wasabi", "kimchi", "yuzu", "togarashi", "tamarin",
-  ];
-
-  for (const noun of CANDIDATE_NOUNS) {
-    if (normalized.includes(noun) && !knownTokens.has(noun)) {
-      offenders.push(noun);
+  for (const entry of CANDIDATE_NOUNS) {
+    if (!entry.pattern.test(normalized)) {
+      continue;
+    }
+    const hasMatch = entry.synonyms.some((synonym) =>
+      ingredientBlob.includes(normalizeLookup(synonym))
+    );
+    if (!hasMatch) {
+      offenders.push(entry.label);
     }
   }
 
@@ -240,15 +328,12 @@ export function validateStrictRecipe(
   }
 
   // --- Steps referencing unknown ingredients ---
-  const knownTokens = new Set<string>();
-  for (const ingredient of recipe.ingredientDrafts) {
-    for (const token of ingredientMatchTokens(ingredient.name)) {
-      knownTokens.add(token);
-    }
-  }
+  const ingredientBlob = normalizeLookup(
+    foldLigatures(recipe.ingredientDrafts.map((ingredient) => ingredient.name ?? "").join(" | "))
+  );
   const unknownStepOffenders = new Set<string>();
   for (const step of recipe.stepDrafts) {
-    for (const offender of stepReferencesUnknownIngredients(step.detail, knownTokens)) {
+    for (const offender of stepReferencesUnknownIngredients(step.detail, ingredientBlob)) {
       unknownStepOffenders.add(offender);
     }
   }

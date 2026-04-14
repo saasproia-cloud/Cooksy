@@ -317,7 +317,11 @@ export async function distillTranscriptForRecipe(
   }
 ): Promise<string | null> {
   const trimmed = transcript.trim();
-  if (trimmed.length < 200) {
+  // Lowered from 200 to 80 so short audio-only voiceovers still get a
+  // structured digest pass — without it the LLM falls through to its
+  // own template completion and hallucinates ingredients. Anything
+  // below 80 chars is genuinely too sparse to distill reliably.
+  if (trimmed.length < 80) {
     return null;
   }
 
@@ -449,7 +453,9 @@ export async function distillTranscriptForRecipe(
     }
 
     const cleaned = text.trim();
-    return cleaned.length > 40 ? cleaned : null;
+    // Loosened from 40 to 30 chars so very short structured digests
+    // still get propagated to the normalizer.
+    return cleaned.length > 30 ? cleaned : null;
   } catch {
     return null;
   }
@@ -495,7 +501,7 @@ export async function transcribeMediaFromUrl(
     formData.append("language", "fr");
     formData.append(
       "prompt",
-      "Transcription d'une vidéo de recette de cuisine en français (parfois mots anglais). Vocabulaire attendu : farine, levure, eau, sel, sucre, œufs, beurre, huile d'olive, ail, oignon, échalote, poulet, bœuf, porc, agneau, poisson, saumon, thon, cabillaud, crevettes, tomate, courgette, aubergine, fromage, yaourt, crème, lait, basilic, persil, coriandre, paprika, cumin, curcuma, gingembre, poivre, chapelure, panko, mayonnaise, sauce, épices cajuns, Sriracha, gochujang, miso, dashi, mirin, soja, sésame, miel, sirop d'érable, ketchup, moutarde. Plats internationaux : Philly cheesesteak, smash burger, cheeseburger, hoagie, birria, tacos al pastor, quesadilla, enchilada, fajitas, burrito, gyros, shawarma, kebab, falafel, hummus, pita, naan, butter chicken, tikka masala, curry rouge, pad thaï, ramen, pho, bibimbap, kimchi, gyoza, sushi, poke bowl, carbonara, bolognese, lasagne, gnocchi, risotto, focaccia, bruschetta, tiramisu, chimichurri, tzatziki, tahini, pesto, ratatouille, cassoulet, tartiflette, raclette, croque-monsieur, quiche lorraine. Fromages spécifiques : provolone, mozzarella, burrata, ricotta, mascarpone, parmesan, pecorino, gorgonzola, gruyère, comté, emmental, reblochon, raclette, brie, camembert, chèvre, feta, halloumi, manchego, cheddar, monterey jack. Marques fréquentes : Kiri, Boursin, Philadelphia, Knorr, Maggi, Tabasco, Heinz, Hellmann's, Lay's, Doritos. Coupes de viande : entrecôte, faux-filet, ribeye, picanha, bavette, onglet, paleron, joue de bœuf, jarret, magret, suprême. Charcuteries : prosciutto, pancetta, chorizo, salami, jambon de Parme, lardons, bacon, guanciale. Unités : cuillère à soupe, cuillère à café, pincée, gramme, kilo, litre, millilitre, tasse, verre. Verbes : préparer, mélanger, ajouter, cuire, faire revenir, pétrir, laisser reposer, étaler, frire, dorer, assaisonner, couper, éplucher, émincer, saler, poivrer, servir, smasher, caraméliser, déglacer, flamber, mariner, paner, paner, glacer, napper, poêler, rôtir, mijoter, blanchir."
+      "Transcription d'une vidéo de recette de cuisine en français (parfois mots anglais). Préserve TOUJOURS les quantités exactes prononcées (ex: '300 grammes', 'deux cuillères à soupe', '500 ml', 'une pincée') et les unités complètes — n'abrège jamais 'cuillère à soupe' en 'à soupe', n'abrège jamais 'cuillère à café' en 'à café'. Ne dédouble jamais un mot ('œufs œufs' → 'œufs'). Vocabulaire attendu : farine, levure, eau, sel, sucre, œufs, beurre, huile d'olive, ail, oignon, échalote, poulet, bœuf, porc, agneau, poisson, saumon, thon, cabillaud, crevettes, tomate, courgette, aubergine, fromage, yaourt, crème, lait, basilic, persil, coriandre, paprika, cumin, curcuma, gingembre, poivre, chapelure, panko, mayonnaise, sauce, épices cajuns, Sriracha, gochujang, miso, dashi, mirin, soja, sésame, miel, sirop d'érable, ketchup, moutarde. Plats internationaux : Philly cheesesteak, smash burger, cheeseburger, hoagie, birria, tacos al pastor, quesadilla, enchilada, fajitas, burrito, gyros, shawarma, kebab, falafel, hummus, pita, naan, butter chicken, tikka masala, curry rouge, pad thaï, ramen, pho, bibimbap, kimchi, gyoza, sushi, poke bowl, carbonara, bolognese, lasagne, gnocchi, risotto, focaccia, bruschetta, tiramisu, crêpes, pancakes, gaufres, clafoutis, far breton, financiers, madeleines, chimichurri, tzatziki, tahini, pesto, ratatouille, cassoulet, tartiflette, raclette, croque-monsieur, quiche lorraine. Fromages spécifiques : provolone, mozzarella, burrata, ricotta, mascarpone, parmesan, pecorino, gorgonzola, gruyère, comté, emmental, reblochon, raclette, brie, camembert, chèvre, feta, halloumi, manchego, cheddar, monterey jack. Marques fréquentes : Kiri, Boursin, Philadelphia, Knorr, Maggi, Tabasco, Heinz, Hellmann's, Lay's, Doritos. Coupes de viande : entrecôte, faux-filet, ribeye, picanha, bavette, onglet, paleron, joue de bœuf, jarret, magret, suprême. Charcuteries : prosciutto, pancetta, chorizo, salami, jambon de Parme, lardons, bacon, guanciale. Unités complètes : cuillère à soupe, cuillère à café, pincée, gramme, kilo, litre, millilitre, tasse, verre. Verbes : préparer, mélanger, ajouter, cuire, faire revenir, pétrir, laisser reposer, étaler, frire, dorer, assaisonner, couper, éplucher, émincer, saler, poivrer, servir, smasher, caraméliser, déglacer, flamber, mariner, paner, glacer, napper, poêler, rôtir, mijoter, blanchir."
     );
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -540,7 +546,20 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
       ? "Source principale (audio)"
       : "Transcription audio";
 
+  const audioPrimaryBlock = input.audioIsPrimarySource
+    ? [
+      "SOURCE AUDIO PRIORITAIRE :",
+      "- La bande audio de la vidéo est ta SEULE source fiable. Il n'y a pas (ou très peu) de légende.",
+      "- N'invente JAMAIS un ingrédient qui n'est pas prononcé dans la transcription ou clairement déductible d'un geste décrit.",
+      "- N'applique JAMAIS un template de plat standard (carbonara, butter chicken, smash burger…) si ses ingrédients-signature ne sont pas dans l'audio.",
+      "- Si un fragment audio est mal reconnu (ex: 'à soupe' isolé, 'à café' isolé, 'oeufs oeufs'), corrige-le silencieusement en unité + ingrédient propres ('cuillère à soupe' + nom, dédupliqué).",
+      "- Si une quantité ou unité est manquante, laisse le champ vide — ne devine PAS une quantité standard.",
+      "- Vérifie que chaque étape ne référence QUE des ingrédients présents dans la liste finale."
+    ].join("\n")
+    : "";
+
   return [
+    audioPrimaryBlock,
     `Mode d'import : ${input.mode}`,
     input.sourceUrl ? `URL source : ${input.sourceUrl}` : "",
     input.remoteImageUrl ? `Image distante probable : ${input.remoteImageUrl}` : "",
@@ -610,7 +629,14 @@ function buildCookabilityReviewPrompt(
     "",
     "6. Le titre n'est jamais un mot de catégorie seul (sandwich, burger, pizza, pasta, salade, tacos, wrap, bowl, curry, ramen, gratin, quiche, omelette). S'il l'est, recompose un titre précis depuis DISH ou les ingrédients distinctifs.",
     "",
-    "7. Si après corrections la recette est toujours plus générique que le digest et que tu ne peux pas la corriger toi-même, mets `confidence='low'`, `needsWebFallback=true` et fournis un `searchQuery` précis basé sur DISH + 2-3 ingrédients distinctifs."
+    "7. Si après corrections la recette est toujours plus générique que le digest et que tu ne peux pas la corriger toi-même, mets `confidence='low'`, `needsWebFallback=true` et fournis un `searchQuery` précis basé sur DISH + 2-3 ingrédients distinctifs.",
+    "",
+    "VÉRIFICATION DES MOTS SUSPECTS (applique universellement, pas seulement avec digest) :",
+    "- Pour CHAQUE ingredientDraft, si le champ `name` contient un fragment d'unité au début ('à soupe', 'à café', 'cuillère', 'pincée', 'gramme', 'grammes', 'piece') : CORRIGE en déplaçant l'unité dans le champ `unit` et en gardant uniquement le nom propre de l'ingrédient dans `name`. Ne laisse JAMAIS 'À soupe huile' ou 'À café sel' dans le nom final.",
+    "- Pour CHAQUE ingredientDraft, si le champ `name` contient un mot dupliqué consécutif (ex: 'Oeufs Oeufs', 'Farine farine', 'Huile huile') : dédoublonne immédiatement.",
+    "- Si un ingrédient est présent qui ne peut pas raisonnablement appartenir au plat détecté (ex: poulet ou pâtes dans une recette de crêpes sucrées, thon dans un gâteau au chocolat, sucre dans une pizza savoyarde), et qu'il n'est ni dans le digest ni dans la transcription ni dans la légende : SUPPRIME-LE.",
+    "- Pour CHAQUE étape, si son texte mentionne un ingrédient ('poulet', 'pâtes', 'ail', 'crème', 'farine', 'beurre', 'sucre', 'fromage', etc.) qui n'est PAS dans la liste finale d'ingrédients : soit tu ajoutes l'ingrédient manquant à la liste si le digest/transcription le confirme, soit tu reformules l'étape pour retirer la référence fantôme.",
+    "- Vérifie que chaque ingredientDraft.name commence par une lettre d'alphabet (pas par un nombre, pas par 'à', pas par 'de', pas par 'du')."
   ].join("\n");
 }
 

@@ -648,6 +648,27 @@ function reconstructDishFirstRecipe(
   };
 }
 
+const TEMPLATE_SIGNATURE_PATTERNS: Record<DishTemplateId, RegExp | null> = {
+  smash_burger: /\b(burger|smash|bun|buns|steak\s*hach[ée]|ground\s*beef|hamburger)\b/i,
+  burger: /\b(burger|bun|buns|steak\s*hach[ée]|ground\s*beef|hamburger)\b/i,
+  crispy_chicken_tacos: /\b(taco|tacos|tortilla|poulet|chicken)\b/i,
+  tacos: /\b(taco|tacos|tortilla)\b/i,
+  chicken_curry_pasta: /\b(p[aâ]tes|pasta|spaghetti|penne|tagliatelle|curry)\b/i,
+  pasta: /\b(p[aâ]tes|pasta|spaghetti|penne|tagliatelle|linguine|farfalle|rigatoni|fusilli|lasagne|lasagnes|ravioli|gnocchi|macaroni)\b/i,
+  crepes: /\b(cr[êe]pes?|pancakes?|galettes?|p[aâ]te\s+[àa]\s+cr[êe]pes?)\b/i,
+  tiramisu: /\b(tiramisu|mascarpone|boudoirs?|ladyfingers?|biscuits?\s+[àa]\s+la\s+cuiller)\b/i,
+  curry: /\b(curry|masala|tikka|korma|madras|vindaloo|butter\s+chicken|poulet\s+au\s+curry)\b/i,
+  generic: null
+};
+
+function templateSignaturePresent(templateId: DishTemplateId, text: string): boolean {
+  const pattern = TEMPLATE_SIGNATURE_PATTERNS[templateId];
+  if (!pattern) {
+    return true;
+  }
+  return pattern.test(text);
+}
+
 function detectDishIntent(
   input: NormalizerInput,
   parsed: RecipeImportResult
@@ -655,6 +676,7 @@ function detectDishIntent(
   const candidates = buildDishIntentCandidates(input, parsed);
   let bestMatch: DishIntent | null = null;
   let foodSignalScore = 0;
+  const aggregatedText = candidates.map((c) => c.text).join(" \n ");
 
   for (const candidate of candidates) {
     foodSignalScore = Math.max(foodSignalScore, foodSignalStrength(candidate.text));
@@ -680,6 +702,17 @@ function detectDishIntent(
   }
 
   if (bestMatch) {
+    // Confidence floor: a template match only wins if at least one of its
+    // signature ingredients/keywords actually appears in the aggregated source
+    // text. Otherwise the dish name is kept (for display) but the template is
+    // downgraded to "generic" so we never inject cross-template ingredients.
+    if (!templateSignaturePresent(bestMatch.templateId, aggregatedText)) {
+      return {
+        ...bestMatch,
+        templateId: "generic",
+        confidenceScore: Math.min(bestMatch.confidenceScore, 0.32)
+      };
+    }
     return bestMatch;
   }
 

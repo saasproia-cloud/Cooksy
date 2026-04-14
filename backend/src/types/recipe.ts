@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { normalizeWhitespace } from "../utils/text.js";
 import {
+  cleanIngredientNameField,
   normalizeFrenchIngredientName,
   normalizeFrenchUnit,
 } from "../services/ingredientNormalization.js";
@@ -106,6 +107,13 @@ export type NormalizerInput = {
   transcript?: string;
   transcriptDigest?: string;
   imageDataUrl?: string;
+  /**
+   * True when the social caption is empty/sparse and the audio
+   * transcript is the only meaningful source of recipe content. The
+   * normalizer uses this to forbid template-completion behavior and
+   * stick strictly to what was actually spoken.
+   */
+  audioIsPrimarySource?: boolean;
 };
 
 export function hasSuspiciousRecipeTitle(value: string): boolean {
@@ -566,8 +574,8 @@ function sanitizeTitle(value: string): string {
 }
 
 function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngredientDraft[] {
-  const amount = clean(ingredient.amount);
-  const unit = normalizeFrenchUnit(clean(ingredient.unit));
+  let amount = clean(ingredient.amount);
+  let unit = normalizeFrenchUnit(clean(ingredient.unit));
   const originalName = clean(ingredient.name);
   const isServeOnlyIngredient = /\b(?:to serve|for serving|pour servir|optional|facultatif)\b/i.test(originalName);
   const nameSegments = splitCompoundIngredientText(ingredient.name);
@@ -576,13 +584,31 @@ function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngre
 
   for (const [index, rawName] of nameSegments.entries()) {
     const cleanedName = sanitizeIngredientName(rawName);
-    // Apply the normalization table AFTER the legacy cleanup so noisy
+    // Universal ASR-artifact pass: extract any unit/amount tokens that
+    // leaked into the name field (e.g. "à soupe huile" -> name "Huile"
+    // + unit "c. à soupe") and collapse duplicated head words ("Oeufs
+    // Oeufs" -> "Œufs"). Back-fills empty amount/unit fields on the
+    // first segment only, so compound ingredients don't duplicate.
+    const asrCleaned = cleanIngredientNameField(cleanedName, unit || undefined, amount || undefined);
+    if (asrCleaned.dropped) {
+      continue;
+    }
+    if (index === 0) {
+      if (!amount && asrCleaned.extractedAmount) {
+        amount = asrCleaned.extractedAmount;
+      }
+      if (!unit && asrCleaned.extractedUnit) {
+        unit = normalizeFrenchUnit(asrCleaned.extractedUnit);
+      }
+    }
+    const preNormalized = asrCleaned.name || cleanedName;
+    // Apply the normalization table AFTER the ASR cleanup so noisy
     // spoken forms ("oeufs", "blanc de poulet", "tomates cerises") get
     // a canonical display. The normalizer is non-generifying by design
     // and falls back to cleaned raw input when no match is found.
-    const name = cleanedName
-      ? (normalizeFrenchIngredientName(cleanedName).displayName || cleanedName)
-      : cleanedName;
+    const name = preNormalized
+      ? (normalizeFrenchIngredientName(preNormalized).displayName || preNormalized)
+      : preNormalized;
     const nutritionQuery = sanitizeNutritionQuery(
       nutritionQuerySegments[index] ?? nutritionQuerySegments[0] ?? name,
       name

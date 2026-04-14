@@ -11,6 +11,7 @@ import {
   RecipeImportNotFoodError
 } from "./services/importService.js";
 import { enrichShoppingImages } from "./services/shoppingImageService.js";
+import { transcribeWithGoogleFromUrl } from "./services/googleSpeechService.js";
 import {
   buildURLImportFailureResponse,
   buildURLImportResponse
@@ -128,6 +129,18 @@ app.post("/api/shopping/enrich", async (request) => {
   return {
     items: await enrichShoppingImages(body.items)
   };
+});
+
+const googleSttTestSchema = z.object({
+  url: z.string().url()
+});
+
+app.post("/api/test/google-stt", async (request, reply) => {
+  const body = googleSttTestSchema.parse(request.body);
+  const transcript = await transcribeWithGoogleFromUrl(body.url);
+  console.log("[google-stt test] transcript:", transcript);
+  reply.status(200);
+  return { transcript };
 });
 
 app.setErrorHandler((error, request, reply) => {
