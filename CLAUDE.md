@@ -1,251 +1,187 @@
 APP CONTEXT:
 
-This project is a premium mobile application that transforms short-form cooking videos (TikTok, Instagram, etc.) into clean, structured, and fully usable recipes.
+This project is a premium mobile application that transforms short-form cooking videos (TikTok, Instagram, etc.) into clean, structured, and usable recipes.
 
-The goal is to provide users with a high-quality cooking experience similar to top apps like Recime, but more reliable and easier to follow.
+The goal is to produce recipes that are:
+- clear
+- structured
+- faithful to the source
+- directly usable in real cooking
 
-Users must be able to cook the recipe successfully WITHOUT watching the original video.
-
-The app focuses on:
-
-* clarity
-* simplicity
-* usability
-* premium UX
+Users must be able to cook WITHOUT watching the original video.
 
 ---
 
 CORE PRINCIPLE:
 
-The system does not "summarize" recipes.
+The system does NOT blindly generate recipes.
 
-It RECONSTRUCTS them into a complete, structured, and usable format.
+It MUST:
+→ extract
+→ preserve
+→ structure
+→ complete ONLY when needed
 
----
-
-CRITICAL RULES:
-
-The system MUST ALWAYS output a COMPLETE, COOKABLE recipe.
-
-A recipe is considered COMPLETE ONLY IF it includes:
-
-* a clear dish name
-* a full ingredient list (never empty)
-* a structured step-by-step instruction list (minimum 6–12 steps depending on dish complexity)
-* detailed nutrition data (calories, protein, carbs, fats)
-
-The recipe must be executable without the original video.
+Never degrade high-quality input.
 
 ---
 
-FAILURE CONDITIONS:
+CRITICAL RULE:
 
-The system MUST NEVER:
-
-* return partial recipes
-* return vague ingredients
-* return fewer than 5–6 steps
-* leave nutrition empty
-* copy raw TikTok text
-* generate incoherent steps
-* forget ingredients
-* reference missing ingredients
+If the input (caption or audio) already contains a good recipe:
+→ DO NOT rewrite it entirely
+→ DO NOT simplify it
+→ ONLY clean and structure it
 
 ---
 
-RECONSTRUCTION LOGIC:
+SOURCE PRIORITY (MANDATORY):
 
-1. Detect dish name (MANDATORY)
+1. Caption (highest priority)
+2. Audio (complement only)
+3. Inference (last resort)
 
-2. Extract ingredients if available
+The system MUST NOT mix sources blindly.
 
-3. Extract instructions (ALWAYS rewrite and clean)
-
-4. If missing:
-   → generate ingredients logically
-   → generate full instructions from scratch
-
-5. If no description:
-   → infer from video/audio/title
-   → generate full recipe
-
-6. If still unclear:
-   → return "not_food"
+It must preserve the most reliable source.
 
 ---
 
-INGREDIENT NORMALIZATION:
+STRUCTURE PRESERVATION (CRITICAL):
 
-* remove noise and brand names
-* standardize ingredient names
-* map synonyms:
-  "tomates cerises" → "tomato"
-  "blanc de poulet" → "chicken"
-  "yaourt grec" → "greek yogurt"
+If the input contains sections like:
+- marinade
+- sauce
+- salad
+- assembly
 
-Each ingredient must include:
+→ These sections MUST be preserved.
 
-* quantity
-* unit
-* clean name
+Recipes must support:
 
----
+Recipe
+  Sections[]
+    - name
+    - ingredients[]
+    - optional steps[]
 
-INGREDIENT CONSISTENCY (CRITICAL):
-
-* every ingredient must be used at least once
-* no step can reference missing ingredients
-* no ingredient should be forgotten
+Never flatten structured content.
 
 ---
 
-INSTRUCTION QUALITY:
+INGREDIENT RULES:
 
-Each step must:
+Ingredients must be:
 
-* describe a clear cooking action
-* follow logical order
-* be concise (max 2–3 sentences)
-* include timing when relevant
-* include temperature when needed
-* reference ingredients explicitly
+- natural
+- precise
+- human-readable
 
-Avoid vague or generic steps.
+NEVER:
+
+- force quantity if unknown
+- generate fake units
+- produce unnatural formats
+
+Examples:
+
+❌ "30 salade"
+❌ "à soupe huile"
+❌ "à café paprika"
+
+✅ "salade"
+✅ "2 c. à s. d’huile"
+✅ "1 c. à c. de paprika"
 
 ---
 
-COOKING LOGIC VALIDATION:
+PRECISION RULE (CRITICAL):
+
+NEVER reduce ingredient specificity.
+
+Examples:
+
+❌ "ribeye" → "steak"
+❌ "provolone" → "cheese"
+❌ "blanc de poulet" → "chicken"
+
+Keep original names whenever possible.
+
+---
+
+GENERATION RULE:
+
+ONLY generate when necessary.
+
+If data is missing:
+→ complete logically
+
+If data is already present:
+→ preserve it
+
+---
+
+INSTRUCTIONS:
+
+Steps must:
+
+- follow logical cooking order
+- reference existing ingredients
+- be clear and actionable
+- avoid unnecessary verbosity
+
+Do NOT rewrite steps if already clear.
+
+---
+
+CONSISTENCY RULES:
+
+- every important ingredient should be used
+- no step can reference a missing ingredient
+- no duplication or contradiction
+
+---
+
+VALIDATION (MANDATORY):
 
 Before returning:
 
-* ensure no duplicated cooking actions
-* ensure correct order (prep → cook → assemble → serve)
-* ensure nothing is missing
+- structure is preserved
+- ingredients are valid
+- no malformed entries
+- steps are coherent
+- recipe is cookable
 
-Fix or regenerate if needed.
-
----
-
-STEP STRUCTURE:
-
-If needed, group steps:
-
-* Marinade
-* Sauce
-* Dough
-* Assembly
-
-Otherwise keep simple numbered steps.
+If not:
+→ fix OR regenerate only the problematic parts
 
 ---
 
 NUTRITION:
 
-Always generate:
+Generate realistic estimates if possible.
 
-* calories
-* protein
-* carbs
-* fats
-
-Use realistic estimation.
+If insufficient data:
+→ estimate conservatively
 
 ---
 
-UX GOAL:
+FAILURE CASE:
 
-The output must feel like a premium cooking app:
-
-* clean
-* structured
-* easy to follow
-* visually scannable
-* no noise
-* no inconsistencies
-
-The user must be able to cook successfully using only this recipe.
-
-BACKEND PIPELINE LOGIC:
-
-The system must follow a multi-source reconstruction pipeline when generating recipes from video imports.
-
----
-
-## MULTI-SOURCE EXTRACTION
-
-Always extract information from all available sources:
-
-* caption (text)
-* audio (speech-to-text)
-* metadata (title)
-
-The system must combine all sources, not rely on only one.
-
----
-
-## RECONSTRUCTION STRATEGY
-
-If data is incomplete:
-
-* generate missing ingredients logically
-* generate missing steps from scratch
-* complete the recipe using cooking knowledge
-
-The system must never return incomplete recipes.
-
----
-
-## FALLBACK STRATEGY
-
-If caption and audio contain no usable information:
-
-* infer the dish from context
-* generate a full recipe based on known cooking patterns
-
-If still impossible:
+If there is not enough information to identify a dish:
 → return "not_food"
 
 ---
 
-## CRITICAL VALIDATION STEP (MANDATORY)
+FINAL OBJECTIVE:
 
-After generating the recipe, the system MUST validate:
+The system must:
 
-### Ingredient consistency:
+- outperform raw input
+- preserve structure
+- avoid hallucination
+- produce reliable recipes every time
 
-* every ingredient is used at least once
-* no step references missing ingredients
-
-### Logical cooking flow:
-
-* correct step order
-* no duplicated or contradictory steps
-
-### Completeness:
-
-* all phases are present (prep → cook → assemble → serve)
-* no vague or missing instructions
-
-### Real-world feasibility:
-
-* the recipe must be realistically cookable
-
----
-
-## AUTO-CORRECTION
-
-If validation fails:
-
-* fix inconsistencies automatically
-  OR
-* regenerate the instructions
-
-This step is mandatory before returning output.
-
----
-
-## FINAL OUTPUT RULE
-
-The system must ONLY return a recipe after validation has passed.
-
-Incomplete or incoherent recipes are strictly forbidden.
+No over-generation.
+No degradation.
+Only controlled reconstruction.

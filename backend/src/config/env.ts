@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import dotenv from "dotenv";
@@ -14,6 +16,42 @@ for (const envPath of envSearchPaths) {
   dotenv.config({ path: envPath, override: false });
 }
 
+// Railway (and most container platforms) don't allow uploading files —
+// only environment variables. If the user provides the service-account
+// JSON directly via GOOGLE_APPLICATION_CREDENTIALS_JSON, write it to a
+// temp file at boot and point GOOGLE_APPLICATION_CREDENTIALS at it so the
+// google-auth-library picks it up transparently. This runs BEFORE any
+// google client is instantiated because env.ts is imported at startup.
+function materializeGoogleCredentialsFromInlineJSON(): void {
+  const inlineJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
+  if (!inlineJson) {
+    return;
+  }
+
+  try {
+    // Accept either raw JSON or base64-encoded JSON (Railway sometimes
+    // mangles multi-line secrets; base64 is the safe transport).
+    let decoded = inlineJson;
+    if (!decoded.startsWith("{")) {
+      decoded = Buffer.from(inlineJson, "base64").toString("utf8");
+    }
+    JSON.parse(decoded); // validate
+
+    const targetPath = path.join(os.tmpdir(), "cooksy-google-credentials.json");
+    fs.writeFileSync(targetPath, decoded, { mode: 0o600 });
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = targetPath;
+    console.info(
+      `[env] Materialized GOOGLE_APPLICATION_CREDENTIALS_JSON -> ${targetPath}`
+    );
+  } catch (error) {
+    console.warn(
+      `[env] Failed to materialize GOOGLE_APPLICATION_CREDENTIALS_JSON (${(error as Error).message}); Google Speech-to-Text will stay disabled.`
+    );
+  }
+}
+
+materializeGoogleCredentialsFromInlineJSON();
+
 const rawEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
@@ -29,7 +67,8 @@ const rawEnvSchema = z.object({
   APIFY_TIKTOK_ACTOR_ID: z.string().default("clockworks/tiktok-scraper"),
   APIFY_INSTAGRAM_ACTOR_ID: z.string().default("apify/instagram-api-scraper"),
   APIFY_PINTEREST_ACTOR_ID: z.string().default("devcake/pinterest-pin-scraping"),
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional()
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+  GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional()
 });
 
 const envSchema = z.object({
@@ -47,7 +86,8 @@ const envSchema = z.object({
   APIFY_TIKTOK_ACTOR_ID: z.string(),
   APIFY_INSTAGRAM_ACTOR_ID: z.string(),
   APIFY_PINTEREST_ACTOR_ID: z.string(),
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional()
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+  GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional()
 });
 
 function isConfigured(value: string): boolean {
@@ -61,12 +101,35 @@ export const env = envSchema.parse({
   BACKEND_BASE_URL: resolveBackendBaseURL(rawEnv)
 });
 
+function isGoogleCredentialsReadable(credentialsPath: string | undefined): boolean {
+  const trimmed = credentialsPath?.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  try {
+    const stats = fs.statSync(trimmed);
+    if (!stats.isFile()) {
+      console.warn(
+        `[env] GOOGLE_APPLICATION_CREDENTIALS=${trimmed} exists but is not a file; Google Speech-to-Text disabled.`
+      );
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn(
+      `[env] GOOGLE_APPLICATION_CREDENTIALS=${trimmed} not readable (${(error as Error).message}); Google Speech-to-Text disabled.`
+    );
+    return false;
+  }
+}
+
 export const providerStatus = {
   openAI: isConfigured(env.OPENAI_API_KEY),
   apify: isConfigured(env.APIFY_TOKEN),
   serpApi: isConfigured(env.SERPAPI_KEY),
   usda: isConfigured(env.USDA_API_KEY),
-  googleSpeech: Boolean(env.GOOGLE_APPLICATION_CREDENTIALS?.trim())
+  googleSpeech: isGoogleCredentialsReadable(env.GOOGLE_APPLICATION_CREDENTIALS)
 };
 
 export class BackendConfigurationError extends Error {

@@ -269,6 +269,92 @@ export async function normalizeRecipeFromContext(
   });
 }
 
+/**
+ * Preservation-mode normalization. Used when the recipe compiler has
+ * already parsed a structured recipe but needs LLM help for specific
+ * gaps (nutrition, a few missing steps, etc.).
+ *
+ * The system prompt explicitly forbids restructuring, rewriting, or
+ * flattening sections. The LLM is told to ONLY clean/normalize and
+ * fill the gaps specified.
+ */
+export async function normalizeRecipePreservationMode(
+  input: NormalizerInput,
+  compilerRecipe: RecipeImportResult,
+  options?: {
+    timeoutMs?: number;
+    fillNutrition?: boolean;
+    fillSteps?: boolean;
+  }
+): Promise<RecipeImportResult> {
+  requireProvider("openAI");
+  const imageDataUrl = await resolveNormalizationImageDataUrl(input, options?.timeoutMs);
+
+  // Build a structured summary of what the compiler has already produced
+  const sectionSummary = buildCompilerSectionSummary(compilerRecipe);
+  const gaps: string[] = [];
+  if (options?.fillNutrition !== false) gaps.push("nutrition (calories, protéines, glucides, lipides)");
+  if (options?.fillSteps) gaps.push("étapes manquantes");
+
+  const normalizedRecipe = await requestStructuredRecipeFromOpenAI({
+    userPrompt: buildNormalizationPrompt(input),
+    imageDataUrl,
+    timeoutMs: options?.timeoutMs,
+    systemInstructions: [
+      "# MODE PRÉSERVATION (CRITIQUE)",
+      "La recette suivante a DÉJÀ été structurée par un compilateur déterministe à partir de la source primaire.",
+      "Tu NE DOIS PAS restructurer, réécrire, ou aplatir cette recette.",
+      "Tu NE DOIS PAS changer les noms d'ingrédients, les quantités ni leur ordre.",
+      "Tu NE DOIS PAS fusionner ou supprimer des sections/groupes existants.",
+      "",
+      "# TON RÔLE EST LIMITÉ À :",
+      `- Combler UNIQUEMENT ces lacunes : ${gaps.join(", ") || "aucune — vérifie seulement"}.`,
+      "- Corriger des fautes d'orthographe évidentes.",
+      "- Compléter le titre s'il est vide ou trop générique.",
+      "- Estimer la nutrition si absente.",
+      "- Ajouter des étapes UNIQUEMENT si la recette en a moins de 3.",
+      "",
+      "# RECETTE DÉJÀ STRUCTURÉE (NE PAS MODIFIER) :",
+      sectionSummary,
+      "",
+      "# CONTRAINTES ABSOLUES :",
+      "- Préserve TOUS les champs `group` et `section` tels quels.",
+      "- Ne réduis JAMAIS la spécificité d'un ingrédient.",
+      "- Si tu n'es pas sûr d'une correction → GARDE L'ORIGINAL.",
+      "- Réponds uniquement avec un JSON valide respectant strictement le schéma. Écris en français.",
+    ]
+  });
+
+  return sanitizeRecipeImport({
+    ...normalizedRecipe,
+    creatorHandle: normalizedRecipe.creatorHandle || input.socialAuthor
+  });
+}
+
+function buildCompilerSectionSummary(recipe: RecipeImportResult): string {
+  const groups = new Map<string, string[]>();
+  for (const ingredient of recipe.ingredientDrafts) {
+    const group = (ingredient.group ?? "").trim() || "(sans section)";
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group)!.push(
+      `${ingredient.amount || "?"} ${ingredient.unit || ""} ${ingredient.name}`.trim()
+    );
+  }
+
+  const lines: string[] = [];
+  lines.push(`Titre: ${recipe.title}`);
+  lines.push(`Ingrédients (${recipe.ingredientDrafts.length}) :`);
+  for (const [group, ingredients] of groups) {
+    lines.push(`  ${group}: ${ingredients.join(", ")}`);
+  }
+  lines.push(`Étapes (${recipe.stepDrafts.length}) :`);
+  for (const step of recipe.stepDrafts.slice(0, 12)) {
+    const prefix = step.section ? `[${step.section}] ` : "";
+    lines.push(`  - ${prefix}${step.detail.slice(0, 80)}`);
+  }
+  return lines.join("\n");
+}
+
 export async function reviewRecipeCookability(
   input: {
     draft: RecipeImportResult;

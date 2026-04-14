@@ -24,6 +24,10 @@ export type StrictIssueCode =
   | "TITLE_DRIFTED_FROM_DIGEST"
   | "INGREDIENTS_TOO_FEW"
   | "INGREDIENT_VAGUE"
+  | "INGREDIENT_UNIT_SWAP"
+  | "QUANTITY_IMPLAUSIBLE"
+  | "SPECIFICITY_REDUCED"
+  | "SECTION_LOST"
   | "STEPS_TOO_FEW"
   | "STEP_FRAGMENT_NOISE"
   | "INGREDIENT_NOT_USED_IN_STEPS"
@@ -44,6 +48,10 @@ export interface StrictValidationContext {
   digestDish?: string;
   digestExplicitIngredients?: string[];
   minimumSteps?: number;
+  /** If the input had sections, pass the count here for SECTION_LOST detection */
+  inputSectionCount?: number;
+  /** Original ingredient names from primary source for SPECIFICITY_REDUCED detection */
+  originalIngredientNames?: string[];
 }
 
 export interface StrictValidationReport {
@@ -364,6 +372,101 @@ export function validateStrictRecipe(
         "Supprime les hashtags, CTA ('abonne-toi', 'lien en bio'), URLs, mentions @ et timestamps des étapes. Garde uniquement les instructions de cuisine.",
       offenders: noisyStepIndexes,
     });
+  }
+
+  // --- Unit/name swap detection ---
+  const unitSwapOffenders: string[] = [];
+  const UNIT_FRAGMENTS_IN_NAME = /^(?:à\s+(?:soupe|café)|cuillère|cuilleres?|c\.\s*à\s*(?:s|c)|cas|cac|grammes?|gramme|pincée|pincees?|sachet|tablespoon|teaspoon|tbsp|tsp|cup)\b/i;
+  for (const ingredient of recipe.ingredientDrafts) {
+    if (UNIT_FRAGMENTS_IN_NAME.test(ingredient.name.trim())) {
+      unitSwapOffenders.push(ingredient.name);
+    }
+  }
+  if (unitSwapOffenders.length > 0) {
+    hardIssues.push({
+      code: "INGREDIENT_UNIT_SWAP",
+      severity: "hard",
+      message: `Unité détectée dans le nom d'ingrédient: ${unitSwapOffenders.join(", ")}.`,
+      repairHint: "Déplace l'unité dans le champ unit et garde uniquement le nom de l'ingrédient dans name.",
+      offenders: unitSwapOffenders,
+    });
+  }
+
+  // --- Quantity plausibility ---
+  const implausibleOffenders: string[] = [];
+  for (const ingredient of recipe.ingredientDrafts) {
+    const amount = parseFloat((ingredient.amount ?? "").replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const unitLow = (ingredient.unit ?? "").trim().toLowerCase();
+    const hasMetricUnit = /^(?:g|kg|mg|ml|cl|dl|l|oz|lb|c\.|pincée|sachet|tasse)/.test(unitLow);
+    // Unitless counts > 30 are suspicious for any ingredient
+    if (!hasMetricUnit && amount > 30) {
+      implausibleOffenders.push(`${ingredient.amount} ${ingredient.name}`);
+    }
+    // Metric sanity: > 5kg or > 5l is suspicious
+    if (/^(?:kg|l)$/.test(unitLow) && amount > 5) {
+      implausibleOffenders.push(`${ingredient.amount}${unitLow} ${ingredient.name}`);
+    }
+  }
+  if (implausibleOffenders.length > 0) {
+    softIssues.push({
+      code: "QUANTITY_IMPLAUSIBLE",
+      severity: "soft",
+      message: `Quantités suspectes: ${implausibleOffenders.join(", ")}.`,
+      repairHint: "Vérifie ces quantités. Préfère supprimer la quantité plutôt que garder une valeur incorrecte.",
+      offenders: implausibleOffenders,
+    });
+  }
+
+  // --- Section loss detection ---
+  if (ctx.inputSectionCount && ctx.inputSectionCount >= 2) {
+    const outputSections = new Set(
+      recipe.ingredientDrafts
+        .map((i) => (i.group ?? "").trim())
+        .filter(Boolean)
+    );
+    const outputStepSections = new Set(
+      recipe.stepDrafts
+        .map((s) => (s.section ?? "").trim())
+        .filter(Boolean)
+    );
+    const totalOutputSections = Math.max(outputSections.size, outputStepSections.size);
+    if (totalOutputSections < 2) {
+      hardIssues.push({
+        code: "SECTION_LOST",
+        severity: "hard",
+        message: `L'entrée avait ${ctx.inputSectionCount} sections mais la sortie n'en a que ${totalOutputSections}.`,
+        repairHint: "Restaure les sections (group/section) perdues. Les sous-préparations distinctes doivent être préservées.",
+      });
+    }
+  }
+
+  // --- Specificity reduction detection ---
+  if (ctx.originalIngredientNames?.length) {
+    const reducedOffenders: string[] = [];
+    for (const original of ctx.originalIngredientNames) {
+      const origTokens = normalizeLookup(original).split(/\s+/).filter(Boolean);
+      if (origTokens.length < 2) continue; // Single-word ingredients can't be reduced
+      // Check if any current ingredient is a single-word generification of this multi-word original
+      const wasReduced = recipe.ingredientDrafts.some((current) => {
+        const currentTokens = normalizeLookup(current.name).split(/\s+/).filter(Boolean);
+        if (currentTokens.length >= origTokens.length) return false;
+        // The current name is shorter AND its tokens are a subset of the original
+        return currentTokens.every((t) => origTokens.includes(t));
+      });
+      if (wasReduced) {
+        reducedOffenders.push(original);
+      }
+    }
+    if (reducedOffenders.length > 0) {
+      softIssues.push({
+        code: "SPECIFICITY_REDUCED",
+        severity: "soft",
+        message: `Ingrédients dont la spécificité a été réduite: ${reducedOffenders.join(", ")}.`,
+        repairHint: "Garde le nom spécifique original (ex: 'provolone' pas 'fromage', 'ribeye' pas 'steak').",
+        offenders: reducedOffenders,
+      });
+    }
   }
 
   // --- Nutrition ---

@@ -1075,15 +1075,27 @@ function dedupeIngredients(ingredients: RecipeIngredientDraft[]): RecipeIngredie
   const canonicalOrder: string[] = [];
   const byKey = new Map<string, RecipeIngredientDraft>();
 
+  // Section-aware dedup: when ANY ingredient has a non-empty group,
+  // we never merge across groups. Cross-group same ingredient is VALID
+  // (e.g. crème fraîche in "Sauce" and "Salade" as separate entries).
+  const hasAnyGroup = ingredients.some((i) => (i.group ?? "").trim().length > 0);
+
   for (const ingredient of ingredients) {
     const nameKey = canonicalIngredientKey(ingredient.name);
     if (!nameKey) {
       continue;
     }
-    // Key dedupe on (group|name) so the same ingredient can legitimately appear
-    // in multiple sub-preparations (e.g. crème fraîche in "Sauce" and "Salade").
-    const groupKey = normalizeLookup(ingredient.group ?? "");
-    const key = groupKey ? `${groupKey}::${nameKey}` : nameKey;
+
+    let key: string;
+    if (hasAnyGroup) {
+      // When sections exist, ALWAYS key on (group|name) — even for
+      // ingredients without a group (they get their own implicit group).
+      const groupKey = normalizeLookup(ingredient.group ?? "") || "__ungrouped__";
+      key = `${groupKey}::${nameKey}`;
+    } else {
+      // No sections at all — dedupe purely by name (backward compat).
+      key = nameKey;
+    }
 
     const existing = byKey.get(key);
     if (existing) {

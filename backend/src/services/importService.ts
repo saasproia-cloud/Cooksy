@@ -18,6 +18,11 @@ import {
 } from "./heuristicRecipeService.js";
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
+  compileRecipeFromSources,
+  measureRecipeQuality,
+  type CompilerResult,
+} from "./recipeCompiler.js";
+import {
   containsLikelyFoodTitleTerm,
   hasMeaningfulFoodSignal,
   hasCookabilityGaps,
@@ -167,6 +172,70 @@ export async function importFromUrl(input: {
     });
   }
 
+  // =====================================================================
+  // COMPILER-FIRST GATE: Try deterministic compilation BEFORE any LLM call.
+  // If the caption contains a structured recipe, use it directly.
+  // LLM is only called as a LAST RESORT when the compiler output is incomplete.
+  // =====================================================================
+  const compilerInput = buildUrlNormalizationContext({
+    canonicalSourceURL: resolvedSourceURL,
+    sharedText: input.sharedText,
+    pageSummary: null,
+    socialContent: null
+  });
+  const compilerResult = compileRecipeFromSources(compilerInput);
+
+  if (compilerResult.compilerUsed && !compilerResult.llmNeeded) {
+    console.info(
+      `[importService] Compiler produced complete recipe (primary=${compilerResult.primarySource}, enriched=${compilerResult.usedEnrichment}) — skipping LLM for ${resolvedSourceURL}`
+    );
+
+    const compilerRecipe = {
+      ...compilerResult.recipe,
+      sourceUrl: compilerResult.recipe.sourceUrl || resolvedSourceURL,
+      remoteImageUrl: compilerResult.recipe.remoteImageUrl || ""
+    };
+
+    // Still finalize (nutrition, metadata) but skip the LLM reconstruction
+    const finalizedRecipe = await finalizeImportedRecipe(compilerRecipe, {
+      skipNutrition: false
+    });
+
+    // Non-degradation guard: measure quality before/after finalization
+    const preQuality = measureRecipeQuality(compilerRecipe);
+    const postQuality = measureRecipeQuality(finalizedRecipe.recipe);
+    const bestRecipe = postQuality >= preQuality * 0.85
+      ? finalizedRecipe.recipe
+      : compilerRecipe;
+
+    const durationMs = Date.now() - startedAt;
+    const debug = buildImportDebug(bestRecipe, {
+      sourceKind: "url",
+      strategy: "social",
+      durationMs,
+      usedApify: false,
+      usedTranscription: false,
+      usedWebFallback: compilerResult.usedEnrichment,
+      usedUsda: finalizedRecipe.usedUsda,
+      nutritionCoverage: finalizedRecipe.nutritionCoverage,
+      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
+      preferWeakMetadataReason: false
+    });
+    logImportDebug(bestRecipe, debug);
+    console.info(
+      `[importService] URL import completed via compiler in ${durationMs}ms for ${resolvedSourceURL}`
+    );
+
+    return { recipe: bestRecipe, debug };
+  }
+
+  // Compiler output is incomplete — fall through to the existing LLM pipeline
+  if (compilerResult.compilerUsed) {
+    console.info(
+      `[importService] Compiler output incomplete (primary=${compilerResult.primarySource}, ingredients=${compilerResult.recipe.ingredientDrafts.length}, steps=${compilerResult.recipe.stepDrafts.length}) — falling through to LLM pipeline for ${resolvedSourceURL}`
+    );
+  }
+
   const sourcePlatform = platformFromUrl(resolvedSourceURL);
   const initialSocialContentOptions = sourcePlatform === "tiktok"
     ? {
@@ -227,6 +296,51 @@ export async function importFromUrl(input: {
     fallbackPages,
     audioIsPrimarySource: captionWasSparse && Boolean(transcript)
   });
+
+  // Re-run compiler with full social context now available
+  const enrichedCompilerResult = compileRecipeFromSources(buildContext());
+  if (enrichedCompilerResult.compilerUsed && !enrichedCompilerResult.llmNeeded) {
+    console.info(
+      `[importService] Compiler (with social) produced complete recipe (primary=${enrichedCompilerResult.primarySource}, ingredients=${enrichedCompilerResult.recipe.ingredientDrafts.length}, steps=${enrichedCompilerResult.recipe.stepDrafts.length}) — skipping LLM for ${canonicalSourceURL}`
+    );
+
+    const compilerRecipe = {
+      ...enrichedCompilerResult.recipe,
+      sourceUrl: enrichedCompilerResult.recipe.sourceUrl || canonicalSourceURL,
+      remoteImageUrl: enrichedCompilerResult.recipe.remoteImageUrl || socialContent?.imageUrls[0] || pageSummary?.imageUrl || ""
+    };
+
+    const finalizedRecipe = await finalizeImportedRecipe(compilerRecipe, {
+      skipNutrition: false
+    });
+
+    const preQuality = measureRecipeQuality(compilerRecipe);
+    const postQuality = measureRecipeQuality(finalizedRecipe.recipe);
+    const bestRecipe = postQuality >= preQuality * 0.85
+      ? finalizedRecipe.recipe
+      : compilerRecipe;
+
+    const durationMs = Date.now() - startedAt;
+    const debug = buildImportDebug(bestRecipe, {
+      platform: resolvedSocialContent?.platform,
+      sourceKind: "url",
+      strategy: importStrategy,
+      durationMs,
+      usedApify: resolvedSocialContent?.source === "apify",
+      usedTranscription: false,
+      usedWebFallback: enrichedCompilerResult.usedEnrichment,
+      usedUsda: finalizedRecipe.usedUsda,
+      nutritionCoverage: finalizedRecipe.nutritionCoverage,
+      matchedNutritionIngredients: finalizedRecipe.matchedIngredients,
+      preferWeakMetadataReason: false
+    });
+    logImportDebug(bestRecipe, debug);
+    console.info(
+      `[importService] URL import completed via compiler (with social) in ${durationMs}ms for ${canonicalSourceURL}`
+    );
+
+    return { recipe: bestRecipe, debug };
+  }
 
   let recipe = recipeFromContext(buildContext());
 
@@ -566,7 +680,23 @@ export async function importFromUrl(input: {
     buildContext(),
     executionDeadline
   );
-  const finalizedRecipe = await finalizeImportedRecipe(validatedRecipe, {
+
+  // NON-DEGRADATION GUARD: if compiler had partial output, compare LLM result
+  // against it and pick the better one.
+  let bestValidatedRecipe = validatedRecipe;
+  if (compilerResult.compilerUsed && compilerResult.recipe.ingredientDrafts.length >= 2) {
+    const compilerQuality = measureRecipeQuality(compilerResult.recipe);
+    const llmQuality = measureRecipeQuality(validatedRecipe);
+    if (llmQuality < compilerQuality * 0.85) {
+      console.warn(
+        `[importService] Non-degradation guard: LLM output (q=${llmQuality.toFixed(2)}) worse than ` +
+        `compiler partial (q=${compilerQuality.toFixed(2)}) — using compiler output for ${canonicalSourceURL}`
+      );
+      bestValidatedRecipe = compilerResult.recipe;
+    }
+  }
+
+  const finalizedRecipe = await finalizeImportedRecipe(bestValidatedRecipe, {
     skipNutrition: false
   });
   const durationMs = Date.now() - startedAt;
