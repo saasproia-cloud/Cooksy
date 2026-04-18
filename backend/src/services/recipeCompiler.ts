@@ -24,11 +24,26 @@ import {
   type NormalizerInput,
 } from "../types/recipe.js";
 import { normalizeWhitespace } from "../utils/text.js";
+
+// Line-preserving whitespace normalizer. `normalizeWhitespace` collapses
+// `\n` into a single space, which destroys the bullet/section structure
+// the parser depends on. Use this when the caller is about to split by
+// newline (parseStructuredRecipe, section parser).
+function normalizeLineWhitespace(value: string): string {
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\t\f\v ]+/g, " ")
+    .replace(/[\t\f\v ]*\n[\t\f\v ]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 import {
   normalizeFrenchUnit,
   cleanIngredientNameField,
   normalizeFrenchIngredientName,
 } from "./ingredientNormalization.js";
+import { passesDualGate } from "./foodTermGate.js";
+import { cleanWebText } from "./sourceSanitizer.js";
 
 // =====================================================================
 // Types
@@ -99,11 +114,16 @@ export function classifySources(input: NormalizerInput): ClassifiedSource[] {
   // Structured data from web pages (JSON-LD/microdata)
   const structuredText = (input.pageStructuredData ?? []).join("\n");
   if (structuredText.trim()) {
+    const structuredRecipeText = extractRecipeFromStructuredData(
+      input.pageStructuredData ?? []
+    );
     sources.push({
       kind: "structured_data",
       isPrimary: false,
-      text: structuredText,
-      parsed: null, // structured data uses a different parser path
+      text: structuredRecipeText || structuredText,
+      parsed: structuredRecipeText
+        ? parseStructuredRecipe(structuredRecipeText)
+        : null,
     });
   }
 
@@ -148,9 +168,11 @@ export function classifySources(input: NormalizerInput): ClassifiedSource[] {
 }
 
 function electPrimary(sources: ClassifiedSource[]): void {
-  // HARD RULE: If caption contains a structured recipe, it IS the primary.
+  // HARD RULE (non-negotiable): If the caption fires either dual
+  // condition of captionTriggersHardPrimary, it IS primary — no score
+  // comparison, no override. See plan §3 "CAPTION HARD RULE".
   const caption = sources.find((s) => s.kind === "caption");
-  if (caption?.parsed && isCaptionStructuredRecipe(caption.parsed)) {
+  if (caption?.parsed && captionTriggersHardPrimary(caption.parsed)) {
     caption.isPrimary = true;
     return;
   }
@@ -180,11 +202,39 @@ function electPrimary(sources: ClassifiedSource[]): void {
 }
 
 /**
- * A caption qualifies as a structured recipe when it has explicit
- * ingredient-like content. This is the HARD gate.
+ * Caption HARD RULE trigger (plan §3, §5 Fix S1). The caption becomes
+ * PRIMARY unconditionally when EITHER:
+ *
+ *   (a) it contains a plausible ingredient list (≥ 3 ingredient lines),
+ *       OR
+ *   (b) it contains ≥ 2 explicit recipe section headers each with at
+ *       least one ingredient underneath.
+ *
+ * Either condition alone is sufficient. This fires with or without
+ * numbered steps — a caption that lists 10 ingredients in sections but
+ * has zero numbered steps must still be elected as primary rather than
+ * delegated to the LLM for full reconstruction.
+ */
+export function captionTriggersHardPrimary(parsed: ParsedRecipe): boolean {
+  // Condition (a): plausible ingredient list.
+  if (parsed.rawIngredientCount >= 3) return true;
+
+  // Condition (b): explicit sections (named, non-empty) with content.
+  const explicitSectionsWithContent = parsed.sections.filter(
+    (s) => s.name.trim().length > 0 && s.ingredients.length >= 1
+  ).length;
+  if (explicitSectionsWithContent >= 2) return true;
+
+  return false;
+}
+
+/**
+ * @deprecated Retained for API stability in existing call sites. New
+ * code must use {@link captionTriggersHardPrimary} which implements the
+ * non-negotiable hard-rule contract.
  */
 export function isCaptionStructuredRecipe(parsed: ParsedRecipe): boolean {
-  return parsed.rawIngredientCount >= 3 && parsed.rawStepCount >= 1;
+  return captionTriggersHardPrimary(parsed);
 }
 
 function hasMinimalRecipeSignal(source: ClassifiedSource): boolean {
@@ -206,15 +256,19 @@ function hasMinimalRecipeSignal(source: ClassifiedSource): boolean {
  *   3. Grouping heuristics (consecutive ingredient-like lines form sections)
  */
 export function parseStructuredRecipe(text: string): ParsedRecipe {
-  const cleaned = normalizeWhitespace(text || "").trim();
+  const cleaned = normalizeLineWhitespace(text || "");
   if (!cleaned) {
     return emptyParsedRecipe();
   }
 
-  const lines = cleaned.split(/\n/).map((l) => l.trim()).filter(Boolean);
-  if (!lines.length) {
+  const rawLines = cleaned.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  if (!rawLines.length) {
     return emptyParsedRecipe();
   }
+
+  // Expand digest-style one-liners: "Ingredients: a, b, c" becomes a
+  // list header plus one bullet per item. Same for "Steps:".
+  const lines = expandDigestOneLiners(rawLines);
 
   const title = extractTitle(lines);
   const sections = parseSections(lines);
@@ -341,23 +395,16 @@ function looksLikeIngredientLine(line: string): boolean {
   // Must have alphabetical content
   if (!/[A-Za-zÀ-ÿ]/.test(trimmed)) return false;
 
-  // Check structural patterns
-  for (const pattern of INGREDIENT_LINE_PATTERNS) {
-    if (pattern.test(trimmed)) return true;
-  }
-
-  // Short lines (≤ 6 words) without verbs are likely ingredients
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length <= 5 && words.length >= 1 && !containsCookingVerb(trimmed)) {
-    return true;
-  }
-
-  return false;
+  // Dual-gate: must pass BOTH structural-shape AND food-signal gates.
+  // This replaces the previous permissive short-line fallback that
+  // allowed contamination like "PC", "Photo editor", "AI videos for Mac"
+  // through as "ingredients". See foodTermGate.ts.
+  return passesDualGate(trimmed);
 }
 
 // --- Step Detection ---
 
-const COOKING_VERB_PATTERN = /\b(?:cuire|cuisson|chauffer|mélanger|couper|ajouter|verser|laisser|servir|assaisonner|préchauffer|faire|préparer|incorporer|pétrir|étaler|malaxer|saisir|griller|caraméliser|retourner|garnir|napper|finir|enrober|diluer|disposer|réchauffer|rouler|rabattre|cook|mix|heat|add|pour|serve|bake|fry|grill|roast|sauté|sear|whisk|stir|fold|knead|chop|dice|mince|slice|marinate|season|simmer|boil|blanch|broil|braise|deglaze|reduce|melt|beat|cream|blend|stuff|brush|drizzle|toss|layer|spread|wrap|roll|assemble|plate|garnish)\b/i;
+const COOKING_VERB_PATTERN = /\b(?:cuire|cuisson|chauffer|mélanger|couper|ajouter|verser|laisser|servir|assaisonner|préchauffer|faire|préparer|incorporer|pétrir|étaler|malaxer|saisir|griller|caraméliser|retourner|garnir|napper|finir|enrober|diluer|disposer|réchauffer|rouler|rabattre|mariner|fouetter|battre|émincer|hacher|rincer|égoutter|monter|dresser|décorer|éplucher|laver|beurrer|huiler|salir|saler|poivrer|réduire|déglacer|flamber|rôtir|frire|sauter|mijoter|bouillir|dorer|tailler|tamiser|infuser|aplatir|rassembler|partager|tartiner|parsemer|pré-chauffer|cook|mix|heat|add|pour|serve|bake|fry|grill|roast|sauté|sear|whisk|stir|fold|knead|chop|dice|mince|slice|marinate|season|simmer|boil|blanch|broil|braise|deglaze|reduce|melt|beat|cream|blend|stuff|brush|drizzle|toss|layer|spread|wrap|roll|assemble|plate|garnish|sprinkle|drain|rinse|peel|chill|refrigerate|cool|top|cover)\b/i;
 
 function containsCookingVerb(text: string): boolean {
   return COOKING_VERB_PATTERN.test(text);
@@ -432,8 +479,16 @@ function parseSections(lines: string[]): RecipeSection[] {
     }
 
     // Classify the line
-    const isIngredient = looksLikeIngredientLine(line);
-    const isStep = looksLikeStepLine(line);
+    let isIngredient = looksLikeIngredientLine(line);
+    let isStep = looksLikeStepLine(line);
+
+    // Disambiguate numbered imperatives: "1. Mariner le poulet" has a
+    // bullet shape AND a cooking verb — the dual-gate shape check accepts
+    // the `\d+[.)]` prefix, but the line is unambiguously a step. Force
+    // step classification when a numbered line carries a cooking verb.
+    if (isIngredient && isStep && /^\d+[.)]\s+/.test(line) && containsCookingVerb(line)) {
+      isIngredient = false;
+    }
 
     if (mode === "unknown") {
       // Auto-detect mode from content
@@ -606,46 +661,94 @@ export function conservativeEnrich(
     if (!secondary.parsed) continue;
     if (secondary.parsed.rawIngredientCount < 2) continue;
 
-    // Only enrich if the secondary is clearly structured and we're missing data
+    // Only enrich when the secondary is clearly structured (recipeLines
+    // >= 4, steps >= 2). Per plan MERGE RULE 2 ("strong" secondary).
     const secondaryIsStrong =
       secondary.parsed.rawIngredientCount >= 4 && secondary.parsed.rawStepCount >= 2;
     if (!secondaryIsStrong) continue;
 
-    // Fill missing steps (only if primary has very few)
-    if (enriched.rawStepCount < 2) {
-      enriched = fillMissingSteps(enriched, secondary.parsed);
-    }
-
-    // Fill missing ingredients (only in the default section, conservative)
-    if (enriched.rawIngredientCount < 3) {
-      enriched = fillMissingIngredients(enriched, secondary.parsed);
-    }
+    // Section-aware enrichment. The helpers apply their own per-section
+    // gating so a multi-section primary where one section is step-light
+    // can still be augmented even when the global step count is high.
+    enriched = fillMissingSteps(enriched, secondary.parsed);
+    enriched = fillMissingIngredients(enriched, secondary.parsed);
   }
 
   return enriched;
 }
 
-function fillMissingSteps(primary: ParsedRecipe, secondary: ParsedRecipe): ParsedRecipe {
-  // Only fill if primary has < 2 steps
-  if (primary.rawStepCount >= 2) return primary;
+// Find the primary section whose name canonicalizes to the same key as
+// the given secondary section. Returns undefined when there is no match
+// and the caller must decide whether to introduce a new section.
+function findMatchingSection(
+  primarySections: RecipeSection[],
+  secondaryName: string
+): RecipeSection | undefined {
+  const target = normalizeForComparison(secondaryName);
+  if (!target) {
+    // Unnamed secondary section — match primary unnamed section if any.
+    return primarySections.find((s) => !s.name.trim());
+  }
+  return primarySections.find(
+    (s) => normalizeForComparison(s.name) === target
+  );
+}
 
-  // Find sections in secondary that have steps
-  const newSections = primary.sections.map((s) => ({ ...s }));
+/**
+ * Section-aware step enrichment (plan §5 Fix S2, §7 Phase 3).
+ *
+ * For each secondary section that has steps, locate the matching
+ * primary section by normalized name. If found, append missing steps
+ * to THAT section. If no match is found, introduce a new section (we
+ * NEVER append to the last section blindly — that was the original
+ * structure-loss bug).
+ *
+ * Primary steps are only considered "low" at the section granularity:
+ * a section with 0 or 1 steps can still be enriched by a secondary
+ * that has a matching section with more steps.
+ */
+function fillMissingSteps(primary: ParsedRecipe, secondary: ParsedRecipe): ParsedRecipe {
+  const newSections: RecipeSection[] = primary.sections.map((s) => ({
+    ...s,
+    ingredients: [...s.ingredients],
+    steps: [...s.steps],
+  }));
   if (newSections.length === 0) {
     newSections.push({ name: "", ingredients: [], steps: [] });
   }
 
-  // Add steps from secondary to the last section
-  const lastSection = newSections[newSections.length - 1];
   for (const secSection of secondary.sections) {
-    for (const step of secSection.steps) {
-      // Avoid duplicating existing steps
-      const isDupe = lastSection.steps.some(
-        (existing) => normalizeForComparison(existing.detail) === normalizeForComparison(step.detail)
-      );
-      if (!isDupe) {
-        lastSection.steps.push({ ...step });
+    if (secSection.steps.length === 0) continue;
+
+    const match = findMatchingSection(newSections, secSection.name);
+
+    if (match) {
+      // Only enrich sections that are step-light.
+      if (match.steps.length >= 2) continue;
+      for (const step of secSection.steps) {
+        const isDupe = match.steps.some(
+          (existing) =>
+            normalizeForComparison(existing.detail) ===
+            normalizeForComparison(step.detail)
+        );
+        if (!isDupe) {
+          match.steps.push({ ...step, section: match.name });
+        }
       }
+    } else if (primary.rawStepCount < 2) {
+      // No section match AND primary is globally step-starved → introduce
+      // the secondary section as a new entry. This respects MERGE RULE 5:
+      // the secondary section has an explicit name (non-empty) and real
+      // content. Unnamed secondary sections are appended as a new
+      // unnamed group rather than merged into the last existing one.
+      newSections.push({
+        name: secSection.name || "",
+        ingredients: [],
+        steps: secSection.steps.map((s) => ({
+          ...s,
+          section: secSection.name || "",
+        })),
+      });
     }
   }
 
@@ -655,26 +758,116 @@ function fillMissingSteps(primary: ParsedRecipe, secondary: ParsedRecipe): Parse
   return { ...primary, sections: newSections, rawStepCount: totalSteps };
 }
 
-function fillMissingIngredients(primary: ParsedRecipe, secondary: ParsedRecipe): ParsedRecipe {
-  if (primary.rawIngredientCount >= 3) return primary;
-
-  const newSections = primary.sections.map((s) => ({ ...s, ingredients: [...s.ingredients] }));
+/**
+ * Section-aware ingredient enrichment (plan §5 Fix S3).
+ *
+ * For each secondary section, find the matching primary section by
+ * normalized name. If found, add non-duplicate ingredients to THAT
+ * section. If no match is found, apply MERGE RULE 5 for conservative
+ * secondary section introduction:
+ *   - The secondary section must have an explicit (non-empty) name.
+ *   - It must contain ≥ 3 ingredients.
+ *   - None of its ingredients may collide with an existing primary
+ *     ingredient under a DIFFERENT section name (prevents re-grouping).
+ *
+ * Otherwise the secondary section's ingredients are discarded.
+ */
+function fillMissingIngredients(
+  primary: ParsedRecipe,
+  secondary: ParsedRecipe
+): ParsedRecipe {
+  const newSections: RecipeSection[] = primary.sections.map((s) => ({
+    ...s,
+    ingredients: [...s.ingredients],
+    steps: [...s.steps],
+  }));
   if (newSections.length === 0) {
     newSections.push({ name: "", ingredients: [], steps: [] });
   }
 
-  const existingNames = new Set(
-    newSections.flatMap((s) => s.ingredients.map((i) => normalizeForComparison(i.name)))
-  );
+  // Map of normalized-name -> section name, used for collision detection.
+  const ingredientToSection = new Map<string, string>();
+  for (const s of newSections) {
+    for (const ing of s.ingredients) {
+      const key = normalizeForComparison(ing.name);
+      if (key) ingredientToSection.set(key, s.name);
+    }
+  }
 
-  const targetSection = newSections[0]; // Add to first/default section
+  const primaryHasNames = newSections.some((s) => s.name.trim().length > 0);
+
   for (const secSection of secondary.sections) {
-    for (const ingredient of secSection.ingredients) {
-      const key = normalizeForComparison(ingredient.name);
-      if (key && !existingNames.has(key)) {
-        targetSection.ingredients.push({ ...ingredient, group: targetSection.name });
-        existingNames.add(key);
+    const match = findMatchingSection(newSections, secSection.name);
+
+    if (match) {
+      // Matching section → add non-duplicate ingredients directly.
+      const existing = new Set(
+        match.ingredients.map((i) => normalizeForComparison(i.name))
+      );
+      for (const ingredient of secSection.ingredients) {
+        const key = normalizeForComparison(ingredient.name);
+        if (!key || existing.has(key)) continue;
+        match.ingredients.push({ ...ingredient, group: match.name });
+        existing.add(key);
+        ingredientToSection.set(key, match.name);
       }
+      continue;
+    }
+
+    // MERGE RULE 5 — conservative secondary section introduction.
+    const hasExplicitName = secSection.name.trim().length > 0;
+    const hasSufficientIngredients = secSection.ingredients.length >= 3;
+    if (!hasExplicitName || !hasSufficientIngredients) {
+      // Unnamed / thin secondary section — only fold ingredients into
+      // the primary's first section if the primary is globally ingredient-
+      // starved (< 3) AND the primary has no named structure (avoids
+      // mixing unnamed secondary content into a structured primary).
+      if (primary.rawIngredientCount >= 3 || primaryHasNames) continue;
+      const fallback = newSections[0];
+      const existing = new Set(
+        fallback.ingredients.map((i) => normalizeForComparison(i.name))
+      );
+      for (const ingredient of secSection.ingredients) {
+        const key = normalizeForComparison(ingredient.name);
+        if (!key || existing.has(key)) continue;
+        fallback.ingredients.push({ ...ingredient, group: fallback.name });
+        existing.add(key);
+        ingredientToSection.set(key, fallback.name);
+      }
+      continue;
+    }
+
+    // Conflict check — no ingredient in the candidate section may
+    // already live under a DIFFERENT section in the primary.
+    const hasConflict = secSection.ingredients.some((ing) => {
+      const key = normalizeForComparison(ing.name);
+      if (!key) return false;
+      const existingSection = ingredientToSection.get(key);
+      return existingSection !== undefined && existingSection !== secSection.name;
+    });
+    if (hasConflict) continue;
+
+    // Section-label near-duplicate check — do not introduce a section
+    // whose normalized name collides with any existing primary section.
+    const labelKey = normalizeForComparison(secSection.name);
+    const labelDup = newSections.some(
+      (s) => normalizeForComparison(s.name) === labelKey
+    );
+    if (labelDup) continue;
+
+    // All gates pass — introduce the secondary section.
+    const introduced: RecipeSection = {
+      name: secSection.name,
+      ingredients: secSection.ingredients.map((ing) => ({
+        ...ing,
+        group: secSection.name,
+      })),
+      steps: [],
+    };
+    newSections.push(introduced);
+    for (const ing of introduced.ingredients) {
+      const key = normalizeForComparison(ing.name);
+      if (key) ingredientToSection.set(key, secSection.name);
     }
   }
 
@@ -1007,13 +1200,112 @@ export function compileRecipeFromSources(input: NormalizerInput): CompilerResult
 // Helpers
 // =====================================================================
 
+// Digest-style one-liners like "Ingredients: 250g farine, 3 oeufs, 500ml
+// lait" come from transcript-distillation. Split them so each ingredient
+// becomes its own bullet line the section parser can classify.
+const DIGEST_INGREDIENTS_RE = /^(?:ingredients?|ingrédients?|ings?)\s*[:：]\s*(.+)$/i;
+const DIGEST_STEPS_RE = /^(?:steps?|étapes?|etapes?|instructions?|preparation|préparation|method)\s*[:：]\s*(.+)$/i;
+const DIGEST_TITLE_RE = /^(?:dish|plat|recipe|recette|title|titre)\s*[:：]\s*(.+)$/i;
+
+function expandDigestOneLiners(lines: string[]): string[] {
+  const out: string[] = [];
+  for (const line of lines) {
+    const titleMatch = line.match(DIGEST_TITLE_RE);
+    if (titleMatch && titleMatch[1].trim()) {
+      out.push(titleMatch[1].trim());
+      continue;
+    }
+    const ingMatch = line.match(DIGEST_INGREDIENTS_RE);
+    if (ingMatch && ingMatch[1].includes(",")) {
+      out.push("Ingrédients:");
+      for (const part of ingMatch[1].split(/[,;]/).map((p) => p.trim()).filter(Boolean)) {
+        out.push(`- ${part}`);
+      }
+      continue;
+    }
+    const stepMatch = line.match(DIGEST_STEPS_RE);
+    if (stepMatch && stepMatch[1].includes(",")) {
+      out.push("Étapes:");
+      const parts = stepMatch[1].split(/[,;]/).map((p) => p.trim()).filter(Boolean);
+      parts.forEach((part, idx) => out.push(`${idx + 1}. ${part}`));
+      continue;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+// Convert schema.org Recipe JSON-LD entries into a bullet/numbered text
+// form the section parser can consume. Returns "" when nothing recipe-
+// shaped is found.
+function extractRecipeFromStructuredData(raw: string[]): string {
+  const lines: string[] = [];
+  let title = "";
+
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item);
+      return;
+    }
+    const obj = node as Record<string, unknown>;
+    const type = obj["@type"];
+    const isRecipe = typeof type === "string"
+      ? /recipe/i.test(type)
+      : Array.isArray(type) && type.some((t) => typeof t === "string" && /recipe/i.test(t));
+
+    if (isRecipe) {
+      if (!title && typeof obj.name === "string") title = obj.name.trim();
+      const ings = obj.recipeIngredient;
+      if (Array.isArray(ings)) {
+        for (const ing of ings) {
+          if (typeof ing === "string" && ing.trim()) {
+            lines.push(`- ${ing.trim()}`);
+          }
+        }
+      }
+      const steps = obj.recipeInstructions;
+      if (Array.isArray(steps)) {
+        let idx = 1;
+        for (const step of steps) {
+          const detail = typeof step === "string"
+            ? step
+            : step && typeof step === "object"
+              ? String((step as { text?: unknown }).text ?? "")
+              : "";
+          if (detail.trim()) {
+            lines.push(`${idx}. ${detail.trim()}`);
+            idx += 1;
+          }
+        }
+      }
+    }
+
+    for (const value of Object.values(obj)) visit(value);
+  };
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "string") continue;
+    try {
+      visit(JSON.parse(entry));
+    } catch {
+      // Not JSON — skip (microdata HTML would be handled upstream).
+    }
+  }
+
+  if (lines.length === 0) return "";
+  return title ? `${title}\n\n${lines.join("\n")}` : lines.join("\n");
+}
+
 function collectCaptionText(input: NormalizerInput): string {
-  const parts = [
-    input.socialCaption,
-    input.sharedText,
-    input.socialDescription,
-    input.socialSubtitles,
-  ]
+  // Caption is socialCaption + sharedText ONLY. socialDescription is
+  // intentionally excluded here — TikTok/Instagram descriptions carry
+  // creator bios, music attributions, promos, and branded noise that
+  // contaminated the caption source in the previous pipeline. It is
+  // surfaced as its own source via the sourceSanitizer. socialSubtitles
+  // are likewise kept separate so ASR-grade content does not pollute
+  // the highest-quality source.
+  const parts = [input.socialCaption, input.sharedText]
     .filter((v): v is string => Boolean(v?.trim()))
     .map((v) => v.trim());
 
@@ -1040,5 +1332,9 @@ function collectWebText(input: NormalizerInput): string {
     .filter((v): v is string => Boolean(v?.trim()))
     .map((v) => v.trim());
 
-  return parts.join("\n\n");
+  if (parts.length === 0) return "";
+
+  // Strip nav/cookie/sidebar/footer boilerplate before parsing so the
+  // compiler's line classifier sees recipe-candidate lines only.
+  return cleanWebText(parts.join("\n\n"));
 }

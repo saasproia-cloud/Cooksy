@@ -36,7 +36,8 @@ const urlImportSchema = z.object({
   url: z.string().url(),
   sharedText: z.string().optional(),
   previewMode: z.boolean().optional(),
-  sharedMode: z.boolean().optional()
+  sharedMode: z.boolean().optional(),
+  debug: z.boolean().optional()
 });
 
 const textImportSchema = z.object({
@@ -65,9 +66,12 @@ app.get("/health", async () => {
 app.post("/api/import/url", async (request, reply) => {
   try {
     const body = urlImportSchema.parse(request.body);
+    const debugRequested = body.debug === true
+      || (request.query as Record<string, unknown> | undefined)?.debug === "true";
     const imported = await importFromUrl(body, {
       previewMode: body.previewMode,
-      sharedMode: body.sharedMode
+      sharedMode: body.sharedMode,
+      debug: debugRequested
     });
     const response = await buildURLImportResponse({
       recipe: imported.recipe,
@@ -77,6 +81,9 @@ app.post("/api/import/url", async (request, reply) => {
 
     console.log("FINAL_RESPONSE", JSON.stringify(response, null, 2));
     reply.status(200);
+    if (debugRequested && imported.pipelineTrace) {
+      return { ...response, pipelineTrace: imported.pipelineTrace };
+    }
     return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

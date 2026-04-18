@@ -1,0 +1,15 @@
+{
+  "name": "contaminated-caption",
+  "description": "Caption with non-food noise (PC, Photo editor, brand strings) → dual gate filters out, only food ingredients survive.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@mix/video/1",
+    "socialCaption": "Recette Carbonara\n\n- PC\n- Photo editor\n- AI videos for Mac\n- 200g pancetta\n- 3 oeufs\n- 100g parmesan\n- 400g spaghetti\n- Kiri Studio Pro Edition\n- poivre noir\n\n1. Cuire les pâtes\n2. Faire revenir la pancetta\n3. Mélanger les oeufs avec le parmesan\n4. Assembler tout"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 4,
+    "mustContainIngredientTokens": ["pancetta", "parmesan", "spaghetti"],
+    "mustNotContainIngredientTokens": ["pc", "photo editor", "ai videos", "kiri studio"]
+  }
+}

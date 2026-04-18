@@ -1,0 +1,16 @@
+{
+  "name": "strong-caption-no-steps",
+  "description": "10 ingredients with section headers but zero numbered steps → caption HARD RULE still elects it as primary.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@steak/video/1",
+    "socialCaption": "Smash Burgers deluxe\n\nPour les galettes:\n- 500g boeuf haché\n- 1 c. à c. sel\n- poivre noir\n\nPour le topping:\n- 4 tranches cheddar\n- 2 oignons rouges\n- 4 cornichons\n- 2 c. à s. sauce burger\n\nPour le pain:\n- 4 buns brioches\n- beurre\n- sésame"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 8,
+    "minSections": 2,
+    "captionHardRuleFired": true,
+    "recommendedMode": "preservation"
+  }
+}

@@ -7,6 +7,7 @@ import {
   recipeCookabilitySignals,
   type RecipeImportResult,
 } from "../types/recipe.js";
+import { containsFoodSignal } from "./foodTermGate.js";
 
 // =====================================================================
 // Strict recipe validator.
@@ -26,6 +27,7 @@ export type StrictIssueCode =
   | "INGREDIENT_VAGUE"
   | "INGREDIENT_UNIT_SWAP"
   | "QUANTITY_IMPLAUSIBLE"
+  | "IMPLAUSIBLE_QUANTITY"
   | "SPECIFICITY_REDUCED"
   | "SECTION_LOST"
   | "STEPS_TOO_FEW"
@@ -33,7 +35,10 @@ export type StrictIssueCode =
   | "INGREDIENT_NOT_USED_IN_STEPS"
   | "STEP_REFERENCES_MISSING_INGREDIENT"
   | "NUTRITION_INCOMPLETE"
-  | "SIGNATURE_GESTURE_MISSING";
+  | "SIGNATURE_GESTURE_MISSING"
+  | "NON_FOOD_INGREDIENT"
+  | "SECTION_INGREDIENT_MISMATCH"
+  | "DUPLICATE_CROSS_SECTION";
 
 export interface StrictIssue {
   code: StrictIssueCode;
@@ -377,8 +382,18 @@ export function validateStrictRecipe(
   // --- Unit/name swap detection ---
   const unitSwapOffenders: string[] = [];
   const UNIT_FRAGMENTS_IN_NAME = /^(?:à\s+(?:soupe|café)|cuillère|cuilleres?|c\.\s*à\s*(?:s|c)|cas|cac|grammes?|gramme|pincée|pincees?|sachet|tablespoon|teaspoon|tbsp|tsp|cup)\b/i;
+  const LEADING_NUMBER_IN_NAME = /^\d+(?:[.,]\d+)?(?:\s|$)/;
+  const ORPHAN_ARTICLE_PREFIX = /^(?:de\s+la\s|du\s|d['’])/i;
+  const PURE_QUANTITY = /^\d+(?:[.,]\d+)?\s*(?:g|kg|mg|ml|cl|dl|l|oz|lb)?$/i;
   for (const ingredient of recipe.ingredientDrafts) {
-    if (UNIT_FRAGMENTS_IN_NAME.test(ingredient.name.trim())) {
+    const name = ingredient.name.trim();
+    if (!name) continue;
+    if (
+      UNIT_FRAGMENTS_IN_NAME.test(name) ||
+      LEADING_NUMBER_IN_NAME.test(name) ||
+      ORPHAN_ARTICLE_PREFIX.test(name) ||
+      PURE_QUANTITY.test(name)
+    ) {
       unitSwapOffenders.push(ingredient.name);
     }
   }
@@ -386,9 +401,50 @@ export function validateStrictRecipe(
     hardIssues.push({
       code: "INGREDIENT_UNIT_SWAP",
       severity: "hard",
-      message: `Unité détectée dans le nom d'ingrédient: ${unitSwapOffenders.join(", ")}.`,
-      repairHint: "Déplace l'unité dans le champ unit et garde uniquement le nom de l'ingrédient dans name.",
+      message: `Unité/quantité détectée dans le nom d'ingrédient: ${unitSwapOffenders.join(", ")}.`,
+      repairHint: "Déplace l'unité/quantité dans les champs amount/unit et garde uniquement le nom de l'ingrédient dans name. Retire les préfixes 'de la', 'du', 'd''.",
       offenders: unitSwapOffenders,
+    });
+  }
+
+  // --- Non-food ingredient (hard, plan §9) ---
+  const nonFoodOffenders: string[] = [];
+  for (const ingredient of recipe.ingredientDrafts) {
+    const name = ingredient.name?.trim();
+    if (!name) continue;
+    if (!containsFoodSignal(name)) {
+      nonFoodOffenders.push(name);
+    }
+  }
+  if (nonFoodOffenders.length > 0) {
+    hardIssues.push({
+      code: "NON_FOOD_INGREDIENT",
+      severity: "hard",
+      message: `Ingrédients non alimentaires détectés: ${nonFoodOffenders.join(", ")}.`,
+      repairHint: "Supprime les entrées qui ne sont pas des aliments (logiciels, marques non-alimentaires, CTAs, descriptions du créateur).",
+      offenders: nonFoodOffenders,
+    });
+  }
+
+  // --- Implausible quantity (hard, plan §9) ---
+  // Amount > 20 AND unit is empty AND name is a singular common ingredient.
+  const implausibleQuantityOffenders: string[] = [];
+  for (const ingredient of recipe.ingredientDrafts) {
+    const amount = parseFloat((ingredient.amount ?? "").replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 20) continue;
+    const unit = (ingredient.unit ?? "").trim();
+    if (unit.length > 0) continue;
+    const tokenCount = (ingredient.name ?? "").trim().split(/\s+/).filter(Boolean).length;
+    if (tokenCount === 0 || tokenCount > 2) continue;
+    implausibleQuantityOffenders.push(`${ingredient.amount} ${ingredient.name}`.trim());
+  }
+  if (implausibleQuantityOffenders.length > 0) {
+    hardIssues.push({
+      code: "IMPLAUSIBLE_QUANTITY",
+      severity: "hard",
+      message: `Quantités invraisemblables (nombre sans unité sur ingrédient singulier): ${implausibleQuantityOffenders.join(", ")}.`,
+      repairHint: "Supprime la quantité ou ajoute une unité correcte. Exemple: '30 salade' doit devenir '1 salade' ou 'salade' seule.",
+      offenders: implausibleQuantityOffenders,
     });
   }
 
@@ -439,6 +495,83 @@ export function validateStrictRecipe(
         repairHint: "Restaure les sections (group/section) perdues. Les sous-préparations distinctes doivent être préservées.",
       });
     }
+  }
+
+  // --- Cross-section duplicate ingredient (soft, plan §9) ---
+  // Same normalized ingredient appearing in multiple sections with the same
+  // quantity/unit is almost always an enrichment bug. Different quantities
+  // are legitimate (e.g. "oignon" in both marinade and garniture).
+  const ingredientGroupMap = new Map<string, Array<{ group: string; amount: string; unit: string }>>();
+  for (const ing of recipe.ingredientDrafts) {
+    const key = normalizeLookup(ing.name ?? "");
+    if (!key) continue;
+    const group = (ing.group ?? "").trim();
+    const amount = (ing.amount ?? "").trim();
+    const unit = (ing.unit ?? "").trim();
+    const bucket = ingredientGroupMap.get(key) ?? [];
+    bucket.push({ group, amount, unit });
+    ingredientGroupMap.set(key, bucket);
+  }
+  const crossSectionOffenders: string[] = [];
+  for (const [name, entries] of ingredientGroupMap) {
+    if (entries.length < 2) continue;
+    const distinctGroups = new Set(entries.map((e) => e.group).filter(Boolean));
+    if (distinctGroups.size < 2) continue;
+    const signatures = new Set(entries.map((e) => `${e.amount}|${e.unit}`));
+    if (signatures.size === 1) {
+      crossSectionOffenders.push(name);
+    }
+  }
+  if (crossSectionOffenders.length > 0) {
+    softIssues.push({
+      code: "DUPLICATE_CROSS_SECTION",
+      severity: "soft",
+      message: `Ingrédient dupliqué à l'identique dans plusieurs sections: ${crossSectionOffenders.join(", ")}.`,
+      repairHint: "Soit fusionne les sections, soit ajuste la quantité pour différencier l'usage (sections multiples avec la même quantité = souvent un bug d'enrichissement).",
+      offenders: crossSectionOffenders,
+    });
+  }
+
+  // --- Section/ingredient mismatch (soft, plan §9) ---
+  // For each named section with ≥ 2 ingredients, at least one ingredient
+  // should be referenced by that section's steps. Otherwise the section is
+  // probably detached from the cooking narrative.
+  const sectionIngredientOffenders: string[] = [];
+  const sectionsByName = new Map<string, { ingredients: string[]; stepsText: string[] }>();
+  for (const ing of recipe.ingredientDrafts) {
+    const group = (ing.group ?? "").trim();
+    if (!group) continue;
+    const entry = sectionsByName.get(group) ?? { ingredients: [], stepsText: [] };
+    entry.ingredients.push(normalizeLookup(ing.name ?? ""));
+    sectionsByName.set(group, entry);
+  }
+  for (const step of recipe.stepDrafts) {
+    const section = (step.section ?? "").trim();
+    if (!section) continue;
+    const entry = sectionsByName.get(section) ?? { ingredients: [], stepsText: [] };
+    entry.stepsText.push(normalizeLookup(step.detail ?? ""));
+    sectionsByName.set(section, entry);
+  }
+  for (const [sectionName, entry] of sectionsByName) {
+    if (entry.ingredients.length < 2 || entry.stepsText.length === 0) continue;
+    const joinedSteps = entry.stepsText.join(" ");
+    const anyReferenced = entry.ingredients.some((ing) => {
+      if (!ing) return false;
+      const head = ing.split(/\s+/)[0];
+      return head.length >= 3 && joinedSteps.includes(head);
+    });
+    if (!anyReferenced) {
+      sectionIngredientOffenders.push(sectionName);
+    }
+  }
+  if (sectionIngredientOffenders.length > 0) {
+    softIssues.push({
+      code: "SECTION_INGREDIENT_MISMATCH",
+      severity: "soft",
+      message: `Sections dont les ingrédients ne sont référencés dans aucune étape: ${sectionIngredientOffenders.join(", ")}.`,
+      repairHint: "Ajoute une étape qui utilise explicitement au moins un ingrédient de la section, ou retire la section si elle n'apporte rien à la préparation.",
+      offenders: sectionIngredientOffenders,
+    });
   }
 
   // --- Specificity reduction detection ---

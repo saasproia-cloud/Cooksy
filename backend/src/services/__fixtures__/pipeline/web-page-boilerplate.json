@@ -1,0 +1,16 @@
+{
+  "name": "web-page-boilerplate",
+  "description": "Web page text includes nav/cookies/newsletter junk → cleanWebText strips it, only recipe content survives.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://marmiton.org/recipe/omelette",
+    "pageTitle": "Omelette aux fines herbes",
+    "pageTextContent": "Accueil | Menu | About | Contact\nAccept cookies to continue\nSubscribe to our newsletter\n\nOmelette aux fines herbes\n\nIngrédients:\n- 3 oeufs\n- 1 c. à s. beurre\n- 1 pincée sel\n- persil frais\n- ciboulette\n\n1. Battre les oeufs avec une pincée de sel\n2. Faire fondre le beurre dans la poêle\n3. Verser les oeufs et cuire à feu doux\n4. Parsemer de persil et ciboulette\n5. Plier et servir\n\nCopyright 2024 Marmiton | Privacy Policy | Terms\nFollow us on Facebook Twitter Pinterest",
+    "pageDescription": "Une omelette légère aux herbes fraîches."
+  },
+  "expect": {
+    "minIngredients": 3,
+    "mustContainIngredientTokens": ["oeuf", "beurre"],
+    "mustNotContainIngredientTokens": ["accueil", "cookies", "copyright", "newsletter"]
+  }
+}

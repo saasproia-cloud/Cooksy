@@ -1,0 +1,15 @@
+{
+  "name": "cross-section-duplicates",
+  "description": "Same ingredient appears in two sections with different quantities → both preserved (dedupe S4 fix).",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@dup/video/1",
+    "socialCaption": "Poulet mariné grillé\n\nPour la marinade:\n- 2 gousses ail\n- 200g yaourt\n- 1 c. à s. huile d'olive\n\nPour la sauce yaourt:\n- 150g yaourt\n- 1 gousse ail\n- 1 c. à s. jus de citron\n- menthe\n\n1. Mariner le poulet 1h\n2. Griller le poulet\n3. Mélanger la sauce\n4. Servir avec la sauce"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 5,
+    "minSections": 2,
+    "mustContainIngredientTokens": ["ail", "yaourt"]
+  }
+}

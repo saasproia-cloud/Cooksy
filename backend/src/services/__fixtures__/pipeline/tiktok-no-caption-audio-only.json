@@ -1,0 +1,14 @@
+{
+  "name": "tiktok-no-caption-audio-only",
+  "description": "Empty caption → transcript is the only food-bearing source.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@audioonly/video/1",
+    "socialCaption": "",
+    "transcript": "Pour ce gratin dauphinois il nous faut 1 kilo de pommes de terre, 500 millilitres de crème fraîche, 200 millilitres de lait, 2 gousses d'ail, 100 grammes de gruyère râpé, sel poivre et muscade. On épluche les pommes de terre, on les tranche fin, on frotte le plat avec l'ail, on verse la crème et le lait, on ajoute les pommes de terre, on sale on poivre on met la muscade, on saupoudre de gruyère, et on enfourne 45 minutes à 180 degrés."
+  },
+  "expect": {
+    "minIngredients": 0,
+    "llmNeeded": true
+  }
+}

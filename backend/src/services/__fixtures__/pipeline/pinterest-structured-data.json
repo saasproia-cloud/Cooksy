@@ -1,0 +1,18 @@
+{
+  "name": "pinterest-structured-data",
+  "description": "Web page with JSON-LD Recipe block → structured data ingredients parsed.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://pinterest.com/recipe/tarte-pommes",
+    "pageTitle": "Tarte aux pommes classique",
+    "pageDescription": "La meilleure tarte aux pommes française.",
+    "pageStructuredData": [
+      "{\"@context\":\"https://schema.org\",\"@type\":\"Recipe\",\"name\":\"Tarte aux pommes classique\",\"recipeIngredient\":[\"250g farine\",\"125g beurre\",\"1 oeuf\",\"50g sucre\",\"1 pincée sel\",\"6 pommes\",\"2 c. à s. sucre roux\",\"1 c. à c. cannelle\"],\"recipeInstructions\":[\"Préparer la pâte\",\"Éplucher les pommes\",\"Garnir le moule\",\"Cuire 30 min à 180°C\"]}"
+    ]
+  },
+  "expect": {
+    "minIngredients": 5,
+    "minSteps": 3,
+    "mustContainIngredientTokens": ["farine", "beurre", "pommes"]
+  }
+}

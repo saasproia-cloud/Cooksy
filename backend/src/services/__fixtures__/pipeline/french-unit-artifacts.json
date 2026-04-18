@@ -1,0 +1,15 @@
+{
+  "name": "french-unit-artifacts",
+  "description": "Leaked French unit fragments (à soupe, à café) are lifted into the unit field rather than leaking into ingredient names.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@fr/video/1",
+    "socialCaption": "Vinaigrette\n\n- 3 c. à soupe huile d'olive\n- 1 c. à soupe vinaigre balsamique\n- 1 c. à café moutarde\n- 1 pincée sel\n- 1 pincée poivre\n- 1 c. à café miel\n\n1. Mélanger la moutarde et le vinaigre\n2. Incorporer l'huile en filet\n3. Assaisonner"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 4,
+    "mustNotContainIngredientTokens": ["à soupe", "à café"],
+    "mustContainIngredientTokens": ["huile", "moutarde"]
+  }
+}

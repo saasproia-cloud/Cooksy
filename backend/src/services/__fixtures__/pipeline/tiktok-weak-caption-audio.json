@@ -1,0 +1,14 @@
+{
+  "name": "tiktok-weak-caption-audio",
+  "description": "Sparse caption + rich transcript digest → digest lines survive dual gate.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@audio/video/1",
+    "socialCaption": "Trop bon 😋",
+    "transcriptDigest": "Dish: crêpes nutella banane\nIngredients: 250g farine, 3 oeufs, 500ml lait, 1 pincée sel, 30g beurre fondu, nutella, 2 bananes\nSteps: mélanger les oeufs avec la farine, ajouter le lait, cuire les crêpes, tartiner nutella, ajouter banane\n"
+  },
+  "expect": {
+    "minIngredients": 4,
+    "mustContainIngredientTokens": ["farine", "lait"]
+  }
+}

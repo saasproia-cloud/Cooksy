@@ -1,0 +1,16 @@
+{
+  "name": "tiktok-strong-caption-fr",
+  "description": "Structured FR caption with 3 sections → sections preserved, LLM not needed.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@chef/video/1",
+    "socialCaption": "Poulet tikka masala maison\n\nPour la marinade:\n- 500g blanc de poulet\n- 2 c. à s. yaourt grec\n- 1 c. à c. curry\n- 1 gousse ail\n\nPour la sauce:\n- 400g tomates concassées\n- 200ml crème de coco\n- 1 oignon rouge\n- 1 c. à s. garam masala\n\nPour servir:\n- 200g riz basmati\n- coriandre fraîche\n\n1. Mariner le poulet 30 min\n2. Faire revenir l'oignon\n3. Ajouter les tomates et la crème\n4. Cuire le poulet dans la sauce\n5. Servir sur le riz"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 8,
+    "minSteps": 4,
+    "minSections": 2,
+    "mustContainIngredientTokens": ["poulet", "coco", "tomate"]
+  }
+}

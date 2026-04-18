@@ -1,0 +1,13 @@
+{
+  "name": "non-food-content",
+  "description": "Tech/beauty caption without food signals → compiler output empty / needs LLM fallback.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@tech/video/1",
+    "socialCaption": "Top 5 apps for your PC\n\n- Photoshop\n- Figma\n- Notion\n- VS Code\n- Cursor\n\nLink in bio to download!"
+  },
+  "expect": {
+    "maxIngredients": 0,
+    "llmNeeded": true
+  }
+}

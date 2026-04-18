@@ -1,0 +1,15 @@
+{
+  "name": "multi-section-recipe",
+  "description": "4+ sections → all preserved, no flattening, dedupe doesn't merge across groups.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@multi/video/1",
+    "socialCaption": "Bo Bun complet\n\nPour la marinade:\n- 400g boeuf\n- 2 c. à s. sauce soja\n- 1 gousse ail\n- 1 c. à c. sucre\n\nPour la sauce nuoc mam:\n- 4 c. à s. nuoc mam\n- 2 c. à s. sucre\n- 1 citron vert\n- 1 piment\n\nPour la salade:\n- 1 laitue\n- 200g nouilles de riz\n- menthe fraîche\n- coriandre\n\nPour la garniture:\n- 50g cacahuètes\n- 2 oignons frits\n- ciboulette\n\n1. Mariner le boeuf\n2. Cuire les nouilles\n3. Préparer la sauce\n4. Dresser les bols\n5. Garnir avec cacahuètes"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 10,
+    "minSteps": 3,
+    "minSections": 3
+  }
+}

@@ -142,3 +142,78 @@ test("summarizeIssuesForRepairPrompt is deterministic and includes hint", () => 
   assert.ok(summary.includes("NUTRITION_INCOMPLETE"));
   assert.ok(summary.includes("→"));
 });
+
+test("NON_FOOD_INGREDIENT fires on non-food entries", () => {
+  const recipe = makeRecipe();
+  recipe.ingredientDrafts.push({
+    amount: "1",
+    unit: "",
+    name: "Photo editor",
+    nutritionQuery: "",
+  });
+  const report = validateStrictRecipe(recipe);
+  assert.ok(report.hardIssues.some((i) => i.code === "NON_FOOD_INGREDIENT"));
+});
+
+test("IMPLAUSIBLE_QUANTITY fires on '30 salade'", () => {
+  const recipe = makeRecipe();
+  recipe.ingredientDrafts.push({
+    amount: "30",
+    unit: "",
+    name: "salade",
+    nutritionQuery: "",
+  });
+  const report = validateStrictRecipe(recipe);
+  assert.ok(report.hardIssues.some((i) => i.code === "IMPLAUSIBLE_QUANTITY"));
+});
+
+test("IMPLAUSIBLE_QUANTITY does NOT fire on '200 g farine'", () => {
+  const recipe = makeRecipe();
+  recipe.ingredientDrafts.push({
+    amount: "200",
+    unit: "g",
+    name: "farine",
+    nutritionQuery: "",
+  });
+  const report = validateStrictRecipe(recipe);
+  assert.equal(report.hardIssues.some((i) => i.code === "IMPLAUSIBLE_QUANTITY"), false);
+});
+
+test("DUPLICATE_CROSS_SECTION fires when same ingredient/quantity appears in two sections", () => {
+  const recipe = makeRecipe({
+    ingredientDrafts: [
+      { amount: "1", unit: "", name: "oignon", nutritionQuery: "", group: "Marinade" },
+      { amount: "1", unit: "", name: "oignon", nutritionQuery: "", group: "Garniture" },
+      { amount: "400", unit: "g", name: "Ribeye", nutritionQuery: "", group: "Marinade" },
+      { amount: "2", unit: "piece", name: "Pain hoagie", nutritionQuery: "", group: "Garniture" },
+      { amount: "120", unit: "g", name: "Provolone", nutritionQuery: "", group: "Garniture" },
+      { amount: "2", unit: "c. à soupe", name: "Beurre", nutritionQuery: "", group: "Marinade" },
+    ],
+  });
+  const report = validateStrictRecipe(recipe);
+  assert.ok(report.softIssues.some((i) => i.code === "DUPLICATE_CROSS_SECTION"));
+});
+
+test("INGREDIENT_UNIT_SWAP fires on leading-number name", () => {
+  const recipe = makeRecipe();
+  recipe.ingredientDrafts.push({
+    amount: "",
+    unit: "",
+    name: "200 farine",
+    nutritionQuery: "",
+  });
+  const report = validateStrictRecipe(recipe);
+  assert.ok(report.hardIssues.some((i) => i.code === "INGREDIENT_UNIT_SWAP"));
+});
+
+test("INGREDIENT_UNIT_SWAP fires on orphan article prefix", () => {
+  const recipe = makeRecipe();
+  recipe.ingredientDrafts.push({
+    amount: "",
+    unit: "",
+    name: "de la crème",
+    nutritionQuery: "",
+  });
+  const report = validateStrictRecipe(recipe);
+  assert.ok(report.hardIssues.some((i) => i.code === "INGREDIENT_UNIT_SWAP"));
+});

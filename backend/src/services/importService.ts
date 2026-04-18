@@ -2,9 +2,22 @@ import { fetchPageSummary, resolveRemoteURL } from "./generalPageService.js";
 import {
   distillTranscriptForRecipe,
   normalizeRecipeFromContext,
+  normalizeRecipePreservationMode,
   reviewRecipeCookability,
   transcribeMediaFromUrl
 } from "./openAIService.js";
+import { analyzeGaps, type GapReport } from "./gapAnalyzer.js";
+import {
+  buildCleanedPrimarySnapshot,
+  makeSnapshot,
+  selectBestSnapshot,
+  type PipelineSnapshot,
+} from "./pipelineSnapshots.js";
+import {
+  createPipelineTrace,
+  summarizeSnapshot,
+  type PipelineTrace,
+} from "./pipelineTrace.js";
 import { transcribeWithGoogleFromUrl } from "./googleSpeechService.js";
 import { providerStatus } from "../config/env.js";
 import { fetchFallbackPages } from "./searchFallbackService.js";
@@ -50,6 +63,7 @@ import { platformFromUrl } from "../utils/text.js";
 type ImportExecutionOptions = {
   previewMode?: boolean;
   sharedMode?: boolean;
+  debug?: boolean;
 };
 
 type ImportRuntimeProfile = "preview" | "shared" | "full";
@@ -91,15 +105,25 @@ const SHARED_WEB_TIMEOUT_MS = 5_000;
 const SHARED_RESERVE_MS = 1_200;
 const FULL_TOTAL_LIMIT_MS = 120_000;
 
+// Phase 4: opt-in pipeline v2 enables preservation-mode dispatch + baseline
+// snapshot + non-degradation selector. Legacy path (quality-ratio guard)
+// remains the default until fixture validation completes.
+const PIPELINE_V2 = process.env.PIPELINE_V2 === "true";
+const PRESERVATION_TIMEOUT_MS = 18_000;
+
 export async function importFromUrl(input: {
   url: string;
   sharedText?: string;
-}, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug }> {
+}, options?: ImportExecutionOptions): Promise<{ recipe: RecipeImportResult; debug: ImportDebug; pipelineTrace?: PipelineTrace }> {
   const profile = runtimeProfile(options);
   const previewMode = profile === "preview";
   const sharedMode = profile === "shared";
   const startedAt = Date.now();
   const executionDeadline = deadlineForProfile(profile, startedAt);
+  const traceEnabled = options?.debug === true;
+  const pipelineTrace: PipelineTrace | undefined = traceEnabled
+    ? createPipelineTrace(input.url)
+    : undefined;
   const sharedTextRecipe = recipeFromContext(
     buildUrlNormalizationContext({
       canonicalSourceURL: input.url,
@@ -340,6 +364,85 @@ export async function importFromUrl(input: {
     );
 
     return { recipe: bestRecipe, debug };
+  }
+
+  // =====================================================================
+  // Phase 4: cleaned_primary baseline + gap-aware preservation-mode attempt.
+  // =====================================================================
+  const pipelineSnapshots: PipelineSnapshot[] = [];
+  let cleanedPrimaryBaseline: PipelineSnapshot | null = null;
+  if (PIPELINE_V2) {
+    const baselineSource =
+      enrichedCompilerResult.compilerUsed && enrichedCompilerResult.recipe.ingredientDrafts.length > 0
+        ? enrichedCompilerResult.recipe
+        : compilerResult.recipe;
+    cleanedPrimaryBaseline = buildCleanedPrimarySnapshot({
+      ...baselineSource,
+      sourceUrl: baselineSource.sourceUrl || canonicalSourceURL,
+      remoteImageUrl:
+        baselineSource.remoteImageUrl || socialContent?.imageUrls[0] || pageSummary?.imageUrl || ""
+    });
+    pipelineSnapshots.push(cleanedPrimaryBaseline);
+    if (enrichedCompilerResult.compilerUsed) {
+      pipelineSnapshots.push(makeSnapshot("compiler_enriched", enrichedCompilerResult.recipe));
+    }
+
+    if (pipelineTrace) {
+      pipelineTrace.primarySource = enrichedCompilerResult.primarySource
+        ?? compilerResult.primarySource
+        ?? undefined;
+      pipelineTrace.compilerIngredientCount = enrichedCompilerResult.recipe.ingredientDrafts.length;
+      pipelineTrace.compilerStepCount = enrichedCompilerResult.recipe.stepDrafts.length;
+      pipelineTrace.compilerSectionCount = cleanedPrimaryBaseline.sectionCount;
+      pipelineTrace.compilerQuality = cleanedPrimaryBaseline.quality;
+    }
+
+    const gapReport = analyzeGaps(enrichedCompilerResult.recipe);
+    if (pipelineTrace) {
+      pipelineTrace.gaps = gapReport.gaps;
+      pipelineTrace.recommendedMode = gapReport.recommendedMode;
+      pipelineTrace.llmMode = gapReport.recommendedMode;
+    }
+    console.info(
+      `[importService] Phase 4 gap analysis: mode=${gapReport.recommendedMode} gaps=[${gapReport.gaps.join(",")}] ingredients=${gapReport.ingredientCount} steps=${gapReport.stepCount} sections=${gapReport.sectionCount} for ${canonicalSourceURL}`
+    );
+
+    if (
+      gapReport.recommendedMode === "preservation" &&
+      hasExecutionBudget(executionDeadline, sharedMode ? SHARED_RESERVE_MS : 0)
+    ) {
+      try {
+        const preservationContext = buildContext();
+        const preservationTimeout = boundedExecutionTimeout(
+          executionDeadline,
+          PRESERVATION_TIMEOUT_MS,
+          sharedMode ? SHARED_RESERVE_MS : 0
+        );
+        if (preservationTimeout && preservationTimeout > 3_000) {
+          const preservationStart = Date.now();
+          const preservedRecipe = await normalizeRecipePreservationMode(
+            preservationContext,
+            enrichedCompilerResult.recipe,
+            {
+              timeoutMs: preservationTimeout,
+              fillNutrition: gapReport.needsNutrition,
+              fillSteps: gapReport.needsSteps,
+            }
+          );
+          pipelineSnapshots.push(makeSnapshot("llm_preservation", preservedRecipe));
+          if (pipelineTrace) {
+            pipelineTrace.llmDurationMs = Date.now() - preservationStart;
+          }
+          console.info(
+            `[importService] Phase 4 preservation mode produced ingredients=${preservedRecipe.ingredientDrafts.length} steps=${preservedRecipe.stepDrafts.length} for ${canonicalSourceURL}`
+          );
+        }
+      } catch (error) {
+        console.warn(
+          `[importService] Phase 4 preservation mode failed — falling through to full pipeline: ${(error as Error).message}`
+        );
+      }
+    }
   }
 
   let recipe = recipeFromContext(buildContext());
@@ -681,10 +784,23 @@ export async function importFromUrl(input: {
     executionDeadline
   );
 
-  // NON-DEGRADATION GUARD: if compiler had partial output, compare LLM result
-  // against it and pick the better one.
+  // NON-DEGRADATION GUARD (plan §10): compare against the cleaned_primary
+  // baseline when PIPELINE_V2 is enabled; otherwise use the legacy
+  // quality-ratio guard that only compares to the compiler partial output.
   let bestValidatedRecipe = validatedRecipe;
-  if (compilerResult.compilerUsed && compilerResult.recipe.ingredientDrafts.length >= 2) {
+  if (PIPELINE_V2 && cleanedPrimaryBaseline) {
+    pipelineSnapshots.push(makeSnapshot("validated", validatedRecipe));
+    const chosen = selectBestSnapshot(pipelineSnapshots);
+    if (pipelineTrace) {
+      pipelineTrace.snapshots = pipelineSnapshots.map(summarizeSnapshot);
+      pipelineTrace.snapshotUsed = chosen.stage;
+      pipelineTrace.nonDegradationTriggered = chosen.isBaseline;
+    }
+    console.info(
+      `[importService] Phase 4 snapshot selection: stage=${chosen.stage} isBaseline=${chosen.isBaseline} foodCoverage=${chosen.foodSignalCoverage.toFixed(2)} specificity=${chosen.specificityScore.toFixed(2)} sections=${chosen.sectionCount} ingredients=${chosen.ingredientCount} for ${canonicalSourceURL}`
+    );
+    bestValidatedRecipe = chosen.recipe;
+  } else if (compilerResult.compilerUsed && compilerResult.recipe.ingredientDrafts.length >= 2) {
     const compilerQuality = measureRecipeQuality(compilerResult.recipe);
     const llmQuality = measureRecipeQuality(validatedRecipe);
     if (llmQuality < compilerQuality * 0.85) {
@@ -721,9 +837,13 @@ export async function importFromUrl(input: {
     ` (preview=${previewMode} strategy=${importStrategy} transcript=${Boolean(transcript)} webFallback=${usedWebFallback} usda=${finalizedRecipe.usedUsda}) for ${canonicalSourceURL}`
   );
 
+  if (pipelineTrace) {
+    pipelineTrace.totalDurationMs = durationMs;
+  }
   return {
     recipe: finalizedRecipe.recipe,
-    debug
+    debug,
+    ...(pipelineTrace ? { pipelineTrace } : {})
   };
 }
 

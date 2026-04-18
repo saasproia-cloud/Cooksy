@@ -6,6 +6,10 @@ import {
   normalizeFrenchIngredientName,
   normalizeFrenchUnit,
 } from "../services/ingredientNormalization.js";
+import {
+  containsFoodSignal,
+  hasPlausibleIngredientShape,
+} from "../services/foodTermGate.js";
 
 export const recipeIngredientSchema = z.object({
   amount: z.string().default(""),
@@ -1075,12 +1079,53 @@ function dedupeIngredients(ingredients: RecipeIngredientDraft[]): RecipeIngredie
   const canonicalOrder: string[] = [];
   const byKey = new Map<string, RecipeIngredientDraft>();
 
-  // Section-aware dedup: when ANY ingredient has a non-empty group,
-  // we never merge across groups. Cross-group same ingredient is VALID
+  // Section-aware dedup: when ANY ingredient has a non-empty group, we
+  // never merge across groups. Cross-group same ingredient is VALID
   // (e.g. crème fraîche in "Sauce" and "Salade" as separate entries).
+  //
+  // Bug fix (plan §5 Fix S4): in the previous implementation, ingredients
+  // without a group shared a single "__ungrouped__" namespace — meaning
+  // two un-grouped ingredients with the same name (one between two
+  // distinct groups, another at the head of the list) would incorrectly
+  // merge, and position-based identity was lost. We now assign each
+  // ungrouped entry its own position-based pseudo-group so dedup keys
+  // are unique unless they truly share an adjacent grouping intent.
   const hasAnyGroup = ingredients.some((i) => (i.group ?? "").trim().length > 0);
 
-  for (const ingredient of ingredients) {
+  // Precompute pseudo-groups for ungrouped items based on proximity to
+  // the nearest preceding grouped ingredient. All ungrouped items after
+  // "Sauce" and before "Salade" are co-grouped under "__before::Salade"
+  // (or, if there is no following group, under "__after::<lastGroup>").
+  const pseudoGroupByIndex: string[] = new Array(ingredients.length);
+  if (hasAnyGroup) {
+    let lastGroup = "";
+    let seenAnyGroup = false;
+    for (let i = 0; i < ingredients.length; i += 1) {
+      const g = (ingredients[i].group ?? "").trim();
+      if (g) {
+        pseudoGroupByIndex[i] = g;
+        lastGroup = g;
+        seenAnyGroup = true;
+        continue;
+      }
+      // Look forward for the next grouped ingredient to bracket this run.
+      if (!seenAnyGroup) {
+        pseudoGroupByIndex[i] = "__pre__";
+      } else {
+        let next = "";
+        for (let j = i + 1; j < ingredients.length; j += 1) {
+          const g2 = (ingredients[j].group ?? "").trim();
+          if (g2) { next = g2; break; }
+        }
+        pseudoGroupByIndex[i] = next
+          ? `__between::${lastGroup}::${next}`
+          : `__after::${lastGroup}`;
+      }
+    }
+  }
+
+  for (let i = 0; i < ingredients.length; i += 1) {
+    const ingredient = ingredients[i];
     const nameKey = canonicalIngredientKey(ingredient.name);
     if (!nameKey) {
       continue;
@@ -1088,9 +1133,7 @@ function dedupeIngredients(ingredients: RecipeIngredientDraft[]): RecipeIngredie
 
     let key: string;
     if (hasAnyGroup) {
-      // When sections exist, ALWAYS key on (group|name) — even for
-      // ingredients without a group (they get their own implicit group).
-      const groupKey = normalizeLookup(ingredient.group ?? "") || "__ungrouped__";
+      const groupKey = normalizeLookup(ingredient.group ?? "") || pseudoGroupByIndex[i];
       key = `${groupKey}::${nameKey}`;
     } else {
       // No sections at all — dedupe purely by name (backward compat).
@@ -1148,7 +1191,28 @@ function isPlausibleIngredientName(name: string): boolean {
     return false;
   }
 
-  return /[a-zA-ZÀ-ÿ]/.test(name);
+  if (!/[a-zA-ZÀ-ÿ]/.test(name)) {
+    return false;
+  }
+
+  // Dual-gate floor — reject title-like, brand-like, or non-food names
+  // that slipped past the blocklists (e.g. "PC", "Photo editor",
+  // "Kiri Studio Pro Edition"). We require the name to both:
+  //   - match a plausible ingredient shape (short, non-narrative,
+  //     non-product-name, non-article-title)
+  //   - contain at least one known food token.
+  //
+  // We still allow the existing upstream blocklists to run first so
+  // their specific error signals (article/social/narrative noise) are
+  // preserved.
+  if (!hasPlausibleIngredientShape(name)) {
+    return false;
+  }
+  if (!containsFoodSignal(name)) {
+    return false;
+  }
+
+  return true;
 }
 
 function isPlausibleCookingStep(detail: string): boolean {
@@ -1201,7 +1265,7 @@ function isPlausibleCookingStep(detail: string): boolean {
     return false;
   }
   const wordCount = normalized.split(" ").filter(Boolean).length;
-  const startsLikeProcedure = /^(?:puis|ensuite|d abord|commencer|faire|ajouter|mettre|melanger|verser|laisser|couper|cuire|servir|incorporer|assaisonner|saisir|griller|carameliser|retourner|garnir|napper|finir|degazer|dégazer|former|aplatir|etaler|étaler|proceder|procéder|enrober|diluer|petrir|pétrir|disposez|disposer|rechauffez|rechauffer|roulez|rouler|rabattez|rabattre)\b/.test(normalized);
+  const startsLikeProcedure = /^(?:puis|ensuite|d abord|commencer|faire|ajouter|mettre|melanger|verser|laisser|couper|cuire|servir|incorporer|assaisonner|saisir|griller|carameliser|retourner|garnir|napper|finir|degazer|dégazer|former|aplatir|etaler|étaler|proceder|procéder|enrober|diluer|petrir|pétrir|disposez|disposer|rechauffez|rechauffer|roulez|rouler|rabattez|rabattre|preparer|préparer|eplucher|éplucher|mariner|emincer|émincer|hacher|rincer|egoutter|égoutter|dresser|decorer|décorer|laver|beurrer|huiler|saler|poivrer|reduire|réduire|deglacer|déglacer|flamber|rotir|rôtir|sauter|mijoter|bouillir|dorer|tailler|tamiser|infuser|parsemer|tartiner|battre|fouetter|monter|assembler|enfourner)\b/.test(normalized);
   if (wordCount > 38 && !containsCookingVerb(normalized)) {
     return false;
   }
@@ -1646,10 +1710,11 @@ const likelyFoodTitlePatterns = [
 ];
 
 const cookingVerbPatterns = [
-  /\b(?:preheat|heat|mix|stir|add|combine|cook|bake|roast|fry|boil|simmer|whisk|blend|serve|set|put|wipe|keep|rest|pour|flip)\b/,
-  /\b(?:prechauffez|faites|melangez|melanger|ajoutez|ajouter|versez|verser|cuisez|cuire|laissez|laisser|deposez|deposer|disposez|disposer|fouettez|fouetter|diluez|diluer|petrissez|petrir|pétrir|rechauffez|rechauffer|roulez|rouler|rabattez|rabattre)\b/,
-  /\b(?:incorporez|incorporer|faites revenir|repartissez|repartir|servez|servir|enfournez|enfourner|chauffez|chauffer|degazez|degazer|dégazer|formez|former|montez|monter|assemblez|assembler)\b/,
-  /\b(?:coupez|couper|grillez|griller|saisissez|saisir|caramelisez|carameliser|retournez|retourner|garnissez|garnir|nappez|napper|ecrasez|ecraser|aplatissez|aplatir|etalez|etaler|étaler|enrobez|enrober|procedez|proceder|procédez|procéder|fermez|fermer)\b/
+  /\b(?:preheat|heat|mix|stir|add|combine|cook|bake|roast|fry|boil|simmer|whisk|blend|serve|set|put|wipe|keep|rest|pour|flip|marinate|season|sear|drain|rinse|peel|chill|refrigerate|cool|top|cover|sprinkle|drizzle|toss|fold|knead|chop|dice|mince|slice)\b/,
+  /\b(?:prechauffez|faites|melangez|melanger|ajoutez|ajouter|versez|verser|cuisez|cuire|laissez|laisser|deposez|deposer|disposez|disposer|fouettez|fouetter|diluez|diluer|petrissez|petrir|pétrir|rechauffez|rechauffer|roulez|rouler|rabattez|rabattre|preparer|préparer|preparez|préparez)\b/,
+  /\b(?:incorporez|incorporer|faites revenir|faire revenir|repartissez|repartir|servez|servir|enfournez|enfourner|chauffez|chauffer|degazez|degazer|dégazer|formez|former|montez|monter|assemblez|assembler)\b/,
+  /\b(?:coupez|couper|grillez|griller|saisissez|saisir|caramelisez|carameliser|retournez|retourner|garnissez|garnir|nappez|napper|ecrasez|ecraser|aplatissez|aplatir|etalez|etaler|étaler|enrobez|enrober|procedez|proceder|procédez|procéder|fermez|fermer)\b/,
+  /\b(?:marinez|mariner|émincez|emincez|émincer|emincer|hachez|hacher|rincez|rincer|egouttez|égouttez|egoutter|égoutter|dressez|dresser|decorez|décorez|decorer|décorer|epluchez|épluchez|eplucher|éplucher|lavez|laver|beurrez|beurrer|huilez|huiler|salez|saler|poivrez|poivrer|reduisez|réduisez|reduire|réduire|deglacez|déglacez|deglacer|déglacer|flambez|flamber|rotissez|rôtissez|rotir|rôtir|sautez|sauter|mijotez|mijoter|bouillez|bouillir|dorez|dorer|taillez|tailler|tamisez|tamiser|infusez|infuser|parsemez|parsemer|tartinez|tartiner|battez|battre)\b/
 ];
 
 const titleCutoffPatterns = [

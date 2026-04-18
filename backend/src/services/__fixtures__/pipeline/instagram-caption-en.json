@@ -1,0 +1,16 @@
+{
+  "name": "instagram-caption-en",
+  "description": "English caption with explicit sections → EN headers detected.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://instagram.com/p/abc",
+    "socialCaption": "Honey garlic salmon\n\nFor the sauce:\n- 3 tbsp honey\n- 2 tbsp soy sauce\n- 2 garlic cloves\n- 1 tsp ginger\n\nFor the salmon:\n- 2 salmon fillets\n- 1 tbsp olive oil\n- salt and pepper\n\nFor serving:\n- 1 cup rice\n- green onions\n- sesame seeds\n\n1. Mix the sauce\n2. Sear salmon skin-side down\n3. Glaze with sauce\n4. Serve over rice"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 7,
+    "minSteps": 3,
+    "minSections": 2,
+    "mustContainIngredientTokens": ["salmon", "honey", "soy"]
+  }
+}

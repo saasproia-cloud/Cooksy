@@ -1,0 +1,14 @@
+{
+  "name": "generic-title",
+  "description": "Single-word category title → gap analysis flags it as needsTitle.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@gen/video/1",
+    "socialCaption": "Sandwich\n\n- 2 tranches pain de mie\n- 100g jambon blanc\n- 50g emmental\n- 1 tomate\n- beurre\n\n1. Beurrer les tranches\n2. Garnir avec jambon et fromage\n3. Toaster"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 4,
+    "needsTitle": true
+  }
+}
