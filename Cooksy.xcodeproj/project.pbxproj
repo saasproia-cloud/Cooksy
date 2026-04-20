@@ -70,6 +70,9 @@
 		EB03BB00745A6F42077168F0 /* RecipeValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* RecipeValidationService.swift */; };
 		EF6766BBFB2920DA16C208E8 /* RecipeBookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */; };
 		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
+		F10000000000000000000011 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* ProfileView.swift */; };
+		F10000000000000000000012 /* ProfileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* ProfileSettingsView.swift */; };
+		F10000000000000000000013 /* ProfileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ProfileComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -162,6 +165,9 @@
 		F994BB5264D63C2BB2AB20A4 /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeWebImportService.swift; sourceTree = "<group>"; };
 		FD31655D8A0CBE5D299EB204 /* RecipeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeStore.swift; sourceTree = "<group>"; };
+		F10000000000000000000001 /* ProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		F10000000000000000000002 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
+		F10000000000000000000003 /* ProfileComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -382,10 +388,21 @@
 				E915287779E0755E4F3ED9B6 /* Home */,
 				A1C0F2021A11111111111111 /* Plan */,
 				81C38A0D1D456AD4675C53AB /* Placeholders */,
+				F10000000000000000000021 /* Profile */,
 				8E1A0A25123456789ABCDE01 /* Recipes */,
 				37DB3216E05B7D23CA205548 /* Shared */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		F10000000000000000000021 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000003 /* ProfileComponents.swift */,
+				F10000000000000000000002 /* ProfileSettingsView.swift */,
+				F10000000000000000000001 /* ProfileView.swift */,
+			);
+			path = Profile;
 			sourceTree = "<group>";
 		};
 		DBF22409252D66CE309B8A32 /* Cooksy */ = {
@@ -600,6 +617,9 @@
 				8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */,
 				A20000000000000000000002 /* RecipeImportFailureView.swift in Sources */,
 				849D18B4B61099D1E30E0EE1 /* TrendingRecipePreviewView.swift in Sources */,
+				F10000000000000000000013 /* ProfileComponents.swift in Sources */,
+				F10000000000000000000012 /* ProfileSettingsView.swift in Sources */,
+				F10000000000000000000011 /* ProfileView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
