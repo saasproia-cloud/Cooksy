@@ -70,14 +70,10 @@ struct RootTabView: View {
                 .tag(AppTab.recipes)
 
                 NavigationStack {
-                    PlaceholderView(
-                        title: "Profile",
-                        message: "Your account, settings and saved routines will live here soon.",
-                        systemImage: "person.crop.circle"
-                    )
+                    ProfileView()
                 }
                 .tabItem {
-                    Label("Profile", systemImage: "person")
+                    Label("Plus", systemImage: "line.horizontal.3")
                 }
                 .tag(AppTab.more)
             }
