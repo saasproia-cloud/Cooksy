@@ -24,6 +24,7 @@ final class CooksyAppDelegate: NSObject, UIApplicationDelegate, ObservableObject
 struct CooksyApp: App {
     @UIApplicationDelegateAdaptor(CooksyAppDelegate.self) private var appDelegate
     @StateObject private var recipeStore = RecipeStore()
+    @StateObject private var sessionStore = SessionStore()
     private let sharedLinkInbox = SharedLinkInbox()
 
     init() {
@@ -35,6 +36,10 @@ struct CooksyApp: App {
         WindowGroup {
             RootTabView(sharedLinkInbox: sharedLinkInbox, appDelegate: appDelegate)
                 .environmentObject(recipeStore)
+                .environmentObject(sessionStore)
+                .task {
+                    await sessionStore.bootstrap()
+                }
         }
     }
 }
