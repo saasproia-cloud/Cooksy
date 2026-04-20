@@ -159,6 +159,56 @@ enum AppConfiguration {
         true
 #endif
     }
+
+    // MARK: - Supabase
+
+    enum SupabaseConfigurationError: LocalizedError {
+        case missingURL
+        case invalidURL(String)
+        case missingAnonKey
+
+        var errorDescription: String? {
+            switch self {
+            case .missingURL:
+                return "SupabaseURL n'est pas configurée dans Info.plist."
+            case .invalidURL(let value):
+                return "SupabaseURL est invalide: \(value)"
+            case .missingAnonKey:
+                return "SupabaseAnonKey n'est pas configurée dans Info.plist."
+            }
+        }
+    }
+
+    static var supabaseURL: URL {
+        get throws {
+            let raw = ProcessInfo.processInfo.environment["SUPABASE_URL"]
+                ?? Bundle.main.object(forInfoDictionaryKey: "SupabaseURL") as? String
+
+            guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw SupabaseConfigurationError.missingURL
+            }
+
+            guard let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  url.scheme != nil, url.host != nil else {
+                throw SupabaseConfigurationError.invalidURL(raw)
+            }
+
+            return url
+        }
+    }
+
+    static var supabaseAnonKey: String {
+        get throws {
+            let raw = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]
+                ?? Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String
+
+            guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw SupabaseConfigurationError.missingAnonKey
+            }
+
+            return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
 }
 
 private struct BackendBaseURLCandidate {

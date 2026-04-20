@@ -73,6 +73,8 @@
 		F10000000000000000000011 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* ProfileView.swift */; };
 		F10000000000000000000012 /* ProfileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* ProfileSettingsView.swift */; };
 		F10000000000000000000013 /* ProfileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ProfileComponents.swift */; };
+		F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SupabaseClientProvider.swift */; };
+		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -168,6 +170,8 @@
 		F10000000000000000000001 /* ProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		F10000000000000000000002 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* ProfileComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileComponents.swift; sourceTree = "<group>"; };
+		F20000000000000000000001 /* SupabaseClientProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseClientProvider.swift; sourceTree = "<group>"; };
+		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -221,6 +225,8 @@
 				2E794E10F13FD478C88E8D95 /* RecipeImportPipeline.swift */,
 				9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */,
 				DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */,
+				F20000000000000000000001 /* SupabaseClientProvider.swift */,
+				F20000000000000000000002 /* SessionStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -620,6 +626,8 @@
 				F10000000000000000000013 /* ProfileComponents.swift in Sources */,
 				F10000000000000000000012 /* ProfileSettingsView.swift in Sources */,
 				F10000000000000000000011 /* ProfileView.swift in Sources */,
+				F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */,
+				F20000000000000000000012 /* SessionStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
