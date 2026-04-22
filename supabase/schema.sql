@@ -14,9 +14,14 @@ create table if not exists public.profiles (
   avatar_url text,
   is_premium boolean not null default false,
   onboarding_completed_at timestamptz,
+  onboarding_answers jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Backfill column for profiles tables created before onboarding_answers existed.
+alter table public.profiles
+  add column if not exists onboarding_answers jsonb not null default '{}'::jsonb;
 
 -- Auto-create a profile row whenever a new auth user signs up
 create or replace function public.handle_new_user()

@@ -63,6 +63,7 @@
 		B59D8AF82D964A6D8D92D2BC /* RecipeWebImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E76937A97BDE51B26E1F365F /* Foundation.framework */; };
+		E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E8B6A0132F962D6B00310B81 /* Supabase */; };
 		D66E5382CB61F6BCC307F937 /* CooksyShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DF9D5C4EB2EE74782AA2994D /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		E4E9A669F8A587355B41ABD6 /* SharedImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A178E636136507ED9665AA0A /* SharedImportDraft.swift */; };
@@ -75,6 +76,43 @@
 		F10000000000000000000013 /* ProfileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ProfileComponents.swift */; };
 		F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SupabaseClientProvider.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
+		F30000000000000000000101 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* OnboardingFlow.swift */; };
+		F30000000000000000000102 /* OnboardingAnswers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* OnboardingAnswers.swift */; };
+		F30000000000000000000103 /* OnboardingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000003 /* OnboardingCoordinator.swift */; };
+		F30000000000000000000104 /* OnboardingHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000004 /* OnboardingHaptics.swift */; };
+		F30000000000000000000105 /* AnimatedCheckmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000005 /* AnimatedCheckmark.swift */; };
+		F30000000000000000000106 /* OnboardingProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000006 /* OnboardingProgressBar.swift */; };
+		F30000000000000000000107 /* OnboardingChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000007 /* OnboardingChrome.swift */; };
+		F30000000000000000000108 /* BigChoiceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000008 /* BigChoiceCard.swift */; };
+		F30000000000000000000109 /* ChoicePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000009 /* ChoicePill.swift */; };
+		F30000000000000000000110 /* LevelCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000010 /* LevelCard.swift */; };
+		F30000000000000000000111 /* CustomSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000011 /* CustomSlider.swift */; };
+		F30000000000000000000112 /* SegmentedDots.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000012 /* SegmentedDots.swift */; };
+		F30000000000000000000113 /* ServingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000013 /* ServingCard.swift */; };
+		F30000000000000000000114 /* CuisineTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000014 /* CuisineTile.swift */; };
+		F30000000000000000000115 /* ShimmerModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000015 /* ShimmerModifier.swift */; };
+		F30000000000000000000116 /* SparkleCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000016 /* SparkleCanvas.swift */; };
+		F30000000000000000000117 /* SignInWithAppleButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000017 /* SignInWithAppleButtonView.swift */; };
+		F30000000000000000000118 /* GoogleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000018 /* GoogleSignInButtonView.swift */; };
+		F30000000000000000000119 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000019 /* SplashView.swift */; };
+		F30000000000000000000120 /* WelcomeHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000020 /* WelcomeHeroView.swift */; };
+		F30000000000000000000121 /* DemoBeforeAfterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000021 /* DemoBeforeAfterView.swift */; };
+		F30000000000000000000122 /* ValueProofView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000022 /* ValueProofView.swift */; };
+		F30000000000000000000123 /* PrimaryGoalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000023 /* PrimaryGoalView.swift */; };
+		F30000000000000000000124 /* SourcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000024 /* SourcesView.swift */; };
+		F30000000000000000000125 /* SkillLevelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000025 /* SkillLevelView.swift */; };
+		F30000000000000000000126 /* TimeSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000026 /* TimeSliderView.swift */; };
+		F30000000000000000000127 /* FrequencyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000027 /* FrequencyView.swift */; };
+		F30000000000000000000128 /* DietView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000028 /* DietView.swift */; };
+		F30000000000000000000129 /* AllergiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000029 /* AllergiesView.swift */; };
+		F30000000000000000000130 /* ServingSizeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000030 /* ServingSizeView.swift */; };
+		F30000000000000000000131 /* CuisinesGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000031 /* CuisinesGridView.swift */; };
+		F30000000000000000000132 /* ChallengesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000032 /* ChallengesView.swift */; };
+		F30000000000000000000133 /* ProfileBuildingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000033 /* ProfileBuildingView.swift */; };
+		F30000000000000000000134 /* PersonalizedPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000034 /* PersonalizedPreviewView.swift */; };
+		F30000000000000000000135 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000035 /* SignUpView.swift */; };
+		F30000000000000000000136 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000036 /* LoginView.swift */; };
+		F30000000000000000000137 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000037 /* PaywallView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -172,6 +210,43 @@
 		F10000000000000000000003 /* ProfileComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileComponents.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* SupabaseClientProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseClientProvider.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		F30000000000000000000001 /* OnboardingFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
+		F30000000000000000000002 /* OnboardingAnswers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingAnswers.swift; sourceTree = "<group>"; };
+		F30000000000000000000003 /* OnboardingCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingCoordinator.swift; sourceTree = "<group>"; };
+		F30000000000000000000004 /* OnboardingHaptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingHaptics.swift; sourceTree = "<group>"; };
+		F30000000000000000000005 /* AnimatedCheckmark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnimatedCheckmark.swift; sourceTree = "<group>"; };
+		F30000000000000000000006 /* OnboardingProgressBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingProgressBar.swift; sourceTree = "<group>"; };
+		F30000000000000000000007 /* OnboardingChrome.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingChrome.swift; sourceTree = "<group>"; };
+		F30000000000000000000008 /* BigChoiceCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BigChoiceCard.swift; sourceTree = "<group>"; };
+		F30000000000000000000009 /* ChoicePill.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChoicePill.swift; sourceTree = "<group>"; };
+		F30000000000000000000010 /* LevelCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LevelCard.swift; sourceTree = "<group>"; };
+		F30000000000000000000011 /* CustomSlider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomSlider.swift; sourceTree = "<group>"; };
+		F30000000000000000000012 /* SegmentedDots.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SegmentedDots.swift; sourceTree = "<group>"; };
+		F30000000000000000000013 /* ServingCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServingCard.swift; sourceTree = "<group>"; };
+		F30000000000000000000014 /* CuisineTile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CuisineTile.swift; sourceTree = "<group>"; };
+		F30000000000000000000015 /* ShimmerModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShimmerModifier.swift; sourceTree = "<group>"; };
+		F30000000000000000000016 /* SparkleCanvas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SparkleCanvas.swift; sourceTree = "<group>"; };
+		F30000000000000000000017 /* SignInWithAppleButtonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignInWithAppleButtonView.swift; sourceTree = "<group>"; };
+		F30000000000000000000018 /* GoogleSignInButtonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoogleSignInButtonView.swift; sourceTree = "<group>"; };
+		F30000000000000000000019 /* SplashView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		F30000000000000000000020 /* WelcomeHeroView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeHeroView.swift; sourceTree = "<group>"; };
+		F30000000000000000000021 /* DemoBeforeAfterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoBeforeAfterView.swift; sourceTree = "<group>"; };
+		F30000000000000000000022 /* ValueProofView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ValueProofView.swift; sourceTree = "<group>"; };
+		F30000000000000000000023 /* PrimaryGoalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrimaryGoalView.swift; sourceTree = "<group>"; };
+		F30000000000000000000024 /* SourcesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourcesView.swift; sourceTree = "<group>"; };
+		F30000000000000000000025 /* SkillLevelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkillLevelView.swift; sourceTree = "<group>"; };
+		F30000000000000000000026 /* TimeSliderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimeSliderView.swift; sourceTree = "<group>"; };
+		F30000000000000000000027 /* FrequencyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrequencyView.swift; sourceTree = "<group>"; };
+		F30000000000000000000028 /* DietView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DietView.swift; sourceTree = "<group>"; };
+		F30000000000000000000029 /* AllergiesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AllergiesView.swift; sourceTree = "<group>"; };
+		F30000000000000000000030 /* ServingSizeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServingSizeView.swift; sourceTree = "<group>"; };
+		F30000000000000000000031 /* CuisinesGridView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CuisinesGridView.swift; sourceTree = "<group>"; };
+		F30000000000000000000032 /* ChallengesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChallengesView.swift; sourceTree = "<group>"; };
+		F30000000000000000000033 /* ProfileBuildingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileBuildingView.swift; sourceTree = "<group>"; };
+		F30000000000000000000034 /* PersonalizedPreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersonalizedPreviewView.swift; sourceTree = "<group>"; };
+		F30000000000000000000035 /* SignUpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
+		F30000000000000000000036 /* LoginView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		F30000000000000000000037 /* PaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -195,6 +270,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */,
 				4F7D2E190405771A3F93F9DC /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -392,6 +468,7 @@
 			children = (
 				8C4F61A3C33D5034B4CB3E32 /* CreateRecipe */,
 				E915287779E0755E4F3ED9B6 /* Home */,
+				F30000000000000000000201 /* Onboarding */,
 				A1C0F2021A11111111111111 /* Plan */,
 				81C38A0D1D456AD4675C53AB /* Placeholders */,
 				F10000000000000000000021 /* Profile */,
@@ -437,6 +514,66 @@
 				C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */,
 			);
 			path = Home;
+			sourceTree = "<group>";
+		};
+		F30000000000000000000201 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				F30000000000000000000001 /* OnboardingFlow.swift */,
+				F30000000000000000000002 /* OnboardingAnswers.swift */,
+				F30000000000000000000003 /* OnboardingCoordinator.swift */,
+				F30000000000000000000202 /* Components */,
+				F30000000000000000000203 /* Screens */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		F30000000000000000000202 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				F30000000000000000000004 /* OnboardingHaptics.swift */,
+				F30000000000000000000005 /* AnimatedCheckmark.swift */,
+				F30000000000000000000006 /* OnboardingProgressBar.swift */,
+				F30000000000000000000007 /* OnboardingChrome.swift */,
+				F30000000000000000000008 /* BigChoiceCard.swift */,
+				F30000000000000000000009 /* ChoicePill.swift */,
+				F30000000000000000000010 /* LevelCard.swift */,
+				F30000000000000000000011 /* CustomSlider.swift */,
+				F30000000000000000000012 /* SegmentedDots.swift */,
+				F30000000000000000000013 /* ServingCard.swift */,
+				F30000000000000000000014 /* CuisineTile.swift */,
+				F30000000000000000000015 /* ShimmerModifier.swift */,
+				F30000000000000000000016 /* SparkleCanvas.swift */,
+				F30000000000000000000017 /* SignInWithAppleButtonView.swift */,
+				F30000000000000000000018 /* GoogleSignInButtonView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		F30000000000000000000203 /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				F30000000000000000000019 /* SplashView.swift */,
+				F30000000000000000000020 /* WelcomeHeroView.swift */,
+				F30000000000000000000021 /* DemoBeforeAfterView.swift */,
+				F30000000000000000000022 /* ValueProofView.swift */,
+				F30000000000000000000023 /* PrimaryGoalView.swift */,
+				F30000000000000000000024 /* SourcesView.swift */,
+				F30000000000000000000025 /* SkillLevelView.swift */,
+				F30000000000000000000026 /* TimeSliderView.swift */,
+				F30000000000000000000027 /* FrequencyView.swift */,
+				F30000000000000000000028 /* DietView.swift */,
+				F30000000000000000000029 /* AllergiesView.swift */,
+				F30000000000000000000030 /* ServingSizeView.swift */,
+				F30000000000000000000031 /* CuisinesGridView.swift */,
+				F30000000000000000000032 /* ChallengesView.swift */,
+				F30000000000000000000033 /* ProfileBuildingView.swift */,
+				F30000000000000000000034 /* PersonalizedPreviewView.swift */,
+				F30000000000000000000035 /* SignUpView.swift */,
+				F30000000000000000000036 /* LoginView.swift */,
+				F30000000000000000000037 /* PaywallView.swift */,
+			);
+			path = Screens;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -532,6 +669,9 @@
 				Base,
 			);
 			mainGroup = BEFF8E79044DB072549ACEA6;
+			packageReferences = (
+				E8B6A0122F962C8D00310B81 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			productRefGroup = B112FB767A46FF60171FF77D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -628,6 +768,43 @@
 				F10000000000000000000011 /* ProfileView.swift in Sources */,
 				F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */,
 				F20000000000000000000012 /* SessionStore.swift in Sources */,
+				F30000000000000000000101 /* OnboardingFlow.swift in Sources */,
+				F30000000000000000000102 /* OnboardingAnswers.swift in Sources */,
+				F30000000000000000000103 /* OnboardingCoordinator.swift in Sources */,
+				F30000000000000000000104 /* OnboardingHaptics.swift in Sources */,
+				F30000000000000000000105 /* AnimatedCheckmark.swift in Sources */,
+				F30000000000000000000106 /* OnboardingProgressBar.swift in Sources */,
+				F30000000000000000000107 /* OnboardingChrome.swift in Sources */,
+				F30000000000000000000108 /* BigChoiceCard.swift in Sources */,
+				F30000000000000000000109 /* ChoicePill.swift in Sources */,
+				F30000000000000000000110 /* LevelCard.swift in Sources */,
+				F30000000000000000000111 /* CustomSlider.swift in Sources */,
+				F30000000000000000000112 /* SegmentedDots.swift in Sources */,
+				F30000000000000000000113 /* ServingCard.swift in Sources */,
+				F30000000000000000000114 /* CuisineTile.swift in Sources */,
+				F30000000000000000000115 /* ShimmerModifier.swift in Sources */,
+				F30000000000000000000116 /* SparkleCanvas.swift in Sources */,
+				F30000000000000000000117 /* SignInWithAppleButtonView.swift in Sources */,
+				F30000000000000000000118 /* GoogleSignInButtonView.swift in Sources */,
+				F30000000000000000000119 /* SplashView.swift in Sources */,
+				F30000000000000000000120 /* WelcomeHeroView.swift in Sources */,
+				F30000000000000000000121 /* DemoBeforeAfterView.swift in Sources */,
+				F30000000000000000000122 /* ValueProofView.swift in Sources */,
+				F30000000000000000000123 /* PrimaryGoalView.swift in Sources */,
+				F30000000000000000000124 /* SourcesView.swift in Sources */,
+				F30000000000000000000125 /* SkillLevelView.swift in Sources */,
+				F30000000000000000000126 /* TimeSliderView.swift in Sources */,
+				F30000000000000000000127 /* FrequencyView.swift in Sources */,
+				F30000000000000000000128 /* DietView.swift in Sources */,
+				F30000000000000000000129 /* AllergiesView.swift in Sources */,
+				F30000000000000000000130 /* ServingSizeView.swift in Sources */,
+				F30000000000000000000131 /* CuisinesGridView.swift in Sources */,
+				F30000000000000000000132 /* ChallengesView.swift in Sources */,
+				F30000000000000000000133 /* ProfileBuildingView.swift in Sources */,
+				F30000000000000000000134 /* PersonalizedPreviewView.swift in Sources */,
+				F30000000000000000000135 /* SignUpView.swift in Sources */,
+				F30000000000000000000136 /* LoginView.swift in Sources */,
+				F30000000000000000000137 /* PaywallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -988,6 +1165,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E8B6A0122F962C8D00310B81 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E8B6A0132F962D6B00310B81 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E8B6A0122F962C8D00310B81 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 887139783D33E0D937603AB7 /* Project object */;
 }
