@@ -10,7 +10,7 @@ struct ValueProofView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Pourquoi 24 000 gourmets\nont adopté Cooksy.",
+            title: "Pourquoi 24\u{00A0}000 gourmets\nont adopté Cooksy.",
             subtitle: "La cuisine te revient simple — comme elle aurait toujours dû l'être.",
             ctaTitle: "Personnaliser mon expérience",
             canAdvance: true,
@@ -141,7 +141,7 @@ private struct SocialProofStrip: View {
                 .fill(CooksyTheme.dividerSubtle)
                 .frame(width: 1, height: 22)
 
-            Text("24 000+ passionnés de cuisine")
+            Text("24\u{00A0}000+ passionnés de cuisine")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .lineLimit(1)

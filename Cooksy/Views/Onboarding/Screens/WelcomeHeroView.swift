@@ -29,10 +29,11 @@ struct WelcomeHeroView: View {
 
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Transforme n'importe quelle vidéo en recette parfaite.")
-                        .font(.system(size: 32, weight: .bold, design: .serif))
+                        .font(.system(size: 26, weight: .bold, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
+                        .minimumScaleFactor(0.9)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
                         .font(.system(size: 16, weight: .medium, design: .rounded))
@@ -40,7 +41,7 @@ struct WelcomeHeroView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 22)
                 .padding(.bottom, 24)
                 .opacity(heroAppeared ? 1 : 0)
                 .offset(y: heroAppeared ? 0 : 12)

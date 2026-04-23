@@ -15,15 +15,16 @@ struct MealPlanView: View {
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    headerSection
+                VStack(alignment: .leading, spacing: 22) {
+                    journalHeader
+                    weekNavigation
                     weekStripSection
-                    dailyProgressCard
+                    todayHeadline
                     mealSections
-                    weeklyOverviewCard
+                    weekStatsCard
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
                 .padding(.bottom, 150)
             }
         }
@@ -31,7 +32,7 @@ struct MealPlanView: View {
         .sheet(item: $pickerContext) { context in
             MealPlanRecipePickerSheet(
                 title: context.dayTitle,
-                mealTitle: context.mealKind.title,
+                mealTitle: frenchMealTitle(for: context.mealKind),
                 recipes: viewModel.recipes,
                 selectedRecipeID: viewModel.recipe(for: context.date, meal: context.mealKind)?.id,
                 onSelect: { recipe in
@@ -42,31 +43,41 @@ struct MealPlanView: View {
                 }
             )
         }
-        .confirmationDialog("Choose a meal to replace", isPresented: $showsReplacementDialog, titleVisibility: .visible) {
+        .confirmationDialog("Choisis un repas à remplacer", isPresented: $showsReplacementDialog, titleVisibility: .visible) {
             ForEach(MealPlanEntry.MealKind.allCases, id: \.self) { kind in
-                Button(kind.title) {
+                Button(frenchMealTitle(for: kind)) {
                     openPicker(for: kind)
                 }
             }
 
-            Button("Cancel", role: .cancel) {}
+            Button("Annuler", role: .cancel) {}
         }
     }
 
-    private var headerSection: some View {
+    // MARK: - Header
+
+    private var journalHeader: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("This Week")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Semaine du")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
 
-                Text("Meal Planner")
-                    .font(.system(size: 30, weight: .bold, design: .serif))
+                Text(Self.weekStartDisplay.string(from: viewModel.currentWeekStart).lowercased())
+                    .font(.system(size: 38, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
 
-                Text(viewModel.weekLabel)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
+                HStack(spacing: 6) {
+                    Rectangle()
+                        .fill(CooksyTheme.ctaOrange.opacity(0.55))
+                        .frame(width: 22, height: 2)
+
+                    Text(Self.weekEndDisplay.string(from: weekEndDate).lowercased())
+                        .font(.system(size: 17, weight: .regular, design: .serif))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                }
             }
 
             Spacer(minLength: 0)
@@ -74,142 +85,209 @@ struct MealPlanView: View {
             Button(action: handleQuickAdd) {
                 ZStack {
                     Circle()
-                        .fill(Color.white)
-                        .frame(width: 34, height: 34)
-                        .shadow(color: CooksyTheme.shadow.opacity(0.12), radius: 10, y: 6)
+                        .fill(CooksyTheme.accentGradient)
+                        .frame(width: 44, height: 44)
+                        .shadow(color: CooksyTheme.ctaOrange.opacity(0.28), radius: 10, y: 6)
 
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(CooksyTheme.ctaOrange)
+                        .font(.system(size: 16, weight: .heavy))
+                        .foregroundStyle(.white)
                 }
             }
             .buttonStyle(.plain)
         }
     }
 
+    private var weekNavigation: some View {
+        HStack(spacing: 14) {
+            weekArrowButton(systemImage: "chevron.left", action: {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                    viewModel.showPreviousWeek()
+                }
+            })
+
+            Rectangle()
+                .fill(CooksyTheme.stroke.opacity(0.8))
+                .frame(height: 1)
+
+            Text(weekNavigationLabel)
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .tracking(1.6)
+                .foregroundStyle(CooksyTheme.secondaryText.opacity(0.82))
+
+            Rectangle()
+                .fill(CooksyTheme.stroke.opacity(0.8))
+                .frame(height: 1)
+
+            weekArrowButton(systemImage: "chevron.right", action: {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                    viewModel.showNextWeek()
+                }
+            })
+        }
+    }
+
+    private func weekArrowButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(Color.white)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
     private var weekStripSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(viewModel.weekDays) { day in
-                    Button(action: { viewModel.selectDay(day.date) }) {
-                        PlannerDayCard(day: day)
+                ForEach(Array(viewModel.weekDays.enumerated()), id: \.element.id) { index, day in
+                    Button(action: {
+                        OnboardingHaptics.selection()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            viewModel.selectDay(day.date)
+                        }
+                    }) {
+                        PlannerDayTile(day: day, accentIndex: index)
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.vertical, 2)
             .padding(.horizontal, 1)
         }
         .gesture(
-            DragGesture(minimumDistance: 20)
+            DragGesture(minimumDistance: 30)
                 .onEnded { value in
-                    if value.translation.width <= -40 {
-                        viewModel.showNextWeek()
-                    } else if value.translation.width >= 40 {
-                        viewModel.showPreviousWeek()
+                    if value.translation.width <= -50 {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                            viewModel.showNextWeek()
+                        }
+                    } else if value.translation.width >= 50 {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                            viewModel.showPreviousWeek()
+                        }
                     }
                 }
         )
     }
 
-    private var dailyProgressCard: some View {
-        let summary = viewModel.dailySummary
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Daily Progress")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-
-                    Text(summary.progressText)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
-
-                Spacer(minLength: 0)
-
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text("Total calories")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-
-                    Text("\(summary.totalCaloriesText) kcal")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.ctaOrange)
-                }
-            }
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(CooksyTheme.stroke.opacity(0.9))
-
-                    Capsule()
-                        .fill(CooksyTheme.ctaOrange)
-                        .frame(width: proxy.size.width * summary.progress)
-                }
-            }
-            .frame(height: 7)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.98))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
+    private var todayHeadline: some View {
+        Text(selectedDayFullLabel)
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .foregroundStyle(CooksyTheme.primaryText)
     }
+
+    // MARK: - Meal sections
 
     private var mealSections: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             ForEach(viewModel.selectedDayMeals) { meal in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(meal.sectionTitle)
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .tracking(1.1)
-                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.86))
+                Button(action: { openPicker(for: meal.kind) }) {
+                    PlannerMealHeroCard(
+                        meal: meal,
+                        mealTitle: frenchMealTitle(for: meal.kind).uppercased()
+                    )
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    if meal.hasRecipe {
+                        Button(role: .destructive) {
+                            viewModel.removeRecipe(from: viewModel.selectedDate, meal: meal.kind)
+                        } label: {
+                            Label("Retirer de ce repas", systemImage: "trash")
+                        }
 
-                    Button(action: { openPicker(for: meal.kind) }) {
-                        PlannerMealCard(meal: meal)
+                        Button {
+                            openPicker(for: meal.kind)
+                        } label: {
+                            Label("Changer de recette", systemImage: "arrow.triangle.swap")
+                        }
+                    } else {
+                        Button {
+                            openPicker(for: meal.kind)
+                        } label: {
+                            Label("Ajouter une recette", systemImage: "plus.circle")
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
     }
 
-    private var weeklyOverviewCard: some View {
+    // MARK: - Week stats
+
+    private var weekStatsCard: some View {
         let overview = viewModel.weeklyOverview
 
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "chart.bar.fill")
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(CooksyTheme.ctaOrange)
-
-                Text("Weekly Overview")
-                    .font(.system(size: 16, weight: .bold, design: .serif))
-                    .foregroundStyle(CooksyTheme.primaryText)
+                Text("Bilan de la semaine")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(1.5)
+                    .foregroundStyle(CooksyTheme.secondaryText.opacity(0.82))
+                Spacer()
             }
+            .padding(.bottom, 14)
 
-            HStack(spacing: 10) {
-                PlannerOverviewMetric(title: "Planned", value: "\(overview.plannedMeals)")
-                PlannerOverviewMetric(title: "Completed", value: "\(overview.completedMeals)")
-                PlannerOverviewMetric(title: "Calories avg", value: "\(overview.averageDailyCalories)")
-            }
+            weekStatRow(label: "Repas planifiés", value: "\(overview.plannedMeals)")
+
+            statsDivider
+
+            weekStatRow(label: "Repas cuisinés", value: "\(overview.completedMeals)")
+
+            statsDivider
+
+            weekStatRow(
+                label: "Calories moyennes",
+                value: overview.averageDailyCalories > 0 ? "~\(overview.averageDailyCalories) kcal" : "—"
+            )
         }
-        .padding(16)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.98))
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.white)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
     }
+
+    private func weekStatRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+
+            Spacer(minLength: 12)
+
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+        }
+        .padding(.vertical, 12)
+    }
+
+    private var statsDivider: some View {
+        Rectangle()
+            .fill(CooksyTheme.stroke.opacity(0.75))
+            .frame(height: 1)
+    }
+
+    // MARK: - Actions
 
     private func handleQuickAdd() {
         if let kind = viewModel.firstEmptyMealKind {
@@ -222,9 +300,100 @@ struct MealPlanView: View {
     private func openPicker(for kind: MealPlanEntry.MealKind) {
         pickerContext = MealPickerContext(
             date: viewModel.selectedDate,
-            dayTitle: viewModel.selectedDayTitle,
+            dayTitle: selectedDayFullLabel,
             mealKind: kind
         )
+    }
+
+    // MARK: - Derived labels
+
+    private var weekEndDate: Date {
+        Calendar(identifier: .gregorian).date(byAdding: .day, value: 6, to: viewModel.currentWeekStart)
+            ?? viewModel.currentWeekStart
+    }
+
+    private var weekNavigationLabel: String {
+        let now = Calendar(identifier: .gregorian).startOfDay(for: .now)
+        let start = Calendar(identifier: .gregorian).startOfDay(for: viewModel.currentWeekStart)
+        let components = Calendar(identifier: .gregorian).dateComponents([.day], from: now, to: start)
+        guard let days = components.day else { return "cette semaine" }
+
+        switch days {
+        case let d where d <= -7:
+            return "semaine passée"
+        case -6...(-1):
+            return "cette semaine"
+        case 0:
+            return "cette semaine"
+        case 1...7:
+            return "semaine prochaine"
+        default:
+            return "à venir"
+        }
+    }
+
+    private var selectedDayFullLabel: String {
+        let calendar = Calendar(identifier: .gregorian)
+        let day = calendar.startOfDay(for: viewModel.selectedDate)
+        let today = calendar.startOfDay(for: .now)
+        let formatted = Self.selectedDayFull.string(from: day)
+
+        if calendar.isDate(day, inSameDayAs: today) {
+            return "Aujourd'hui, \(formatted)"
+        }
+
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+           calendar.isDate(day, inSameDayAs: tomorrow) {
+            return "Demain, \(formatted)"
+        }
+
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
+           calendar.isDate(day, inSameDayAs: yesterday) {
+            return "Hier, \(formatted)"
+        }
+
+        return formatted.capitalizedFrenchHeadline
+    }
+
+    private func frenchMealTitle(for kind: MealPlanEntry.MealKind) -> String {
+        switch kind {
+        case .breakfast: return "Petit-déjeuner"
+        case .lunch:     return "Déjeuner"
+        case .dinner:    return "Dîner"
+        }
+    }
+
+    // MARK: - Formatters
+
+    private static let weekStartDisplay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "d MMMM"
+        return formatter
+    }()
+
+    private static let weekEndDisplay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "d MMMM"
+        return formatter
+    }()
+
+    private static let selectedDayFull: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "EEEE d MMMM"
+        return formatter
+    }()
+}
+
+// MARK: - Helpers
+
+private extension String {
+    /// Capitalize only the first letter so "mardi 22 avril" → "Mardi 22 avril".
+    var capitalizedFrenchHeadline: String {
+        guard let first = first else { return self }
+        return String(first).uppercased() + dropFirst()
     }
 }
 
@@ -238,132 +407,252 @@ private struct MealPickerContext: Identifiable {
     }
 }
 
-private struct PlannerDayCard: View {
+// MARK: - Day tile
+
+private struct PlannerDayTile: View {
     let day: MealPlanViewModel.DayTile
+    let accentIndex: Int
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text(day.weekdayTitle)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(day.isSelected ? Color.white.opacity(0.9) : CooksyTheme.secondaryText)
+        VStack(spacing: 10) {
+            Text(frenchWeekday)
+                .font(.system(size: 10, weight: .black, design: .rounded))
+                .tracking(0.5)
+                .foregroundStyle(day.isSelected ? Color.white.opacity(0.95) : CooksyTheme.secondaryText)
 
             Text(day.dayNumberText)
-                .font(.system(size: 21, weight: .heavy, design: .rounded))
+                .font(.system(size: 26, weight: .bold, design: .serif))
                 .foregroundStyle(day.isSelected ? .white : CooksyTheme.primaryText)
 
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
-                        .fill(progressColor(for: index))
+                        .fill(dotColor(for: index))
                         .frame(width: 5, height: 5)
                 }
             }
         }
-        .frame(width: 58, height: 82)
-        .background(backgroundStyle)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(day.isSelected ? Color.clear : CooksyTheme.stroke, lineWidth: 1)
+        .frame(width: 68, height: 96)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(backgroundStyle)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(day.isSelected ? CooksyTheme.ctaOrangeDark.opacity(0.35) : CooksyTheme.stroke, lineWidth: day.isSelected ? 2 : 1)
+        )
+        .shadow(color: day.isSelected ? CooksyTheme.ctaOrange.opacity(0.22) : Color.black.opacity(0.04), radius: day.isSelected ? 12 : 4, y: day.isSelected ? 6 : 2)
+        .scaleEffect(day.isSelected ? 1.04 : 1.0)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: day.isSelected)
     }
 
-    private var backgroundStyle: some ShapeStyle {
+    private var backgroundStyle: AnyShapeStyle {
         if day.isSelected {
-            return AnyShapeStyle(CooksyTheme.accentGradient)
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: gradientColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
         }
-
-        return AnyShapeStyle(Color.white.opacity(0.98))
+        return AnyShapeStyle(Color.white)
     }
 
-    private func progressColor(for index: Int) -> Color {
+    private var gradientColors: [Color] {
+        // Pick a warm pairing that rotates across the week for a subtle mood-board feel.
+        let palettes: [[Color]] = [
+            [Color(hex: 0xEC8555), Color(hex: 0xC05F2F)],
+            [Color(hex: 0xE17160), Color(hex: 0xB84A3B)],
+            [Color(hex: 0xD98C5F), Color(hex: 0xB56A3C)],
+            [Color(hex: 0xE79D5E), Color(hex: 0xB86B2F)],
+            [Color(hex: 0xE98B4A), Color(hex: 0xB55B28)],
+            [Color(hex: 0xDB7B52), Color(hex: 0xA94A24)],
+            [Color(hex: 0xE7A26A), Color(hex: 0xB87333)]
+        ]
+        return palettes[accentIndex % palettes.count]
+    }
+
+    private func dotColor(for index: Int) -> Color {
+        let filled = index < day.progressDots
         if day.isSelected {
-            return index < day.progressDots ? Color.white.opacity(0.92) : Color.white.opacity(0.28)
+            return filled ? Color.white.opacity(0.95) : Color.white.opacity(0.32)
         }
-
-        return index < day.progressDots ? CooksyTheme.ctaOrange : CooksyTheme.stroke.opacity(0.92)
+        return filled ? CooksyTheme.ctaOrange : CooksyTheme.stroke.opacity(0.9)
     }
+
+    private var frenchWeekday: String {
+        PlannerDayTile.weekdayFR.string(from: day.date).uppercased()
+    }
+
+    private static let weekdayFR: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
 }
 
-private struct PlannerMealCard: View {
+// MARK: - Meal hero card
+
+private struct PlannerMealHeroCard: View {
     let meal: MealPlanViewModel.MealSlot
+    let mealTitle: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        Group {
             if let recipe = meal.recipe {
-                PlannerRecipeThumbnail(recipe: recipe)
+                filledCard(recipe: recipe)
+            } else {
+                emptyCard
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 240)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .shadow(color: Color.black.opacity(0.08), radius: 16, y: 8)
+    }
 
-                VStack(alignment: .leading, spacing: 5) {
+    private func filledCard(recipe: Recipe) -> some View {
+        ZStack(alignment: .topLeading) {
+            PlannerHeroBackground(recipe: recipe)
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.0),
+                    Color.black.opacity(0.08),
+                    Color.black.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
+                    Text(mealTitle)
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(1.8)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .frame(height: 22)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .fill(Color.black.opacity(0.25))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                        )
+
+                    Spacer()
+
+                    Circle()
+                        .fill(Color.white.opacity(0.25))
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                        )
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .leading, spacing: 8) {
                     Text(recipe.title)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .multilineTextAlignment(.leading)
+                        .font(.system(size: 24, weight: .bold, design: .serif))
+                        .foregroundStyle(.white)
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .shadow(color: Color.black.opacity(0.35), radius: 3, y: 1)
 
-                    HStack(spacing: 10) {
-                        if let caloriesLabel = caloriesLabel(for: recipe) {
-                            PlannerMetaLabel(systemImage: "flame.fill", text: caloriesLabel)
+                    HStack(spacing: 12) {
+                        if let minutes = recipe.plannerTotalMinutes {
+                            PlannerHeroMeta(icon: "clock.fill", text: "\(minutes) min")
                         }
 
-                        if let minutes = recipe.totalMinutes {
-                            PlannerMetaLabel(systemImage: "clock.fill", text: "\(minutes)m")
+                        if let caloriesLabel = plannerCaloriesLabel(for: recipe) {
+                            PlannerHeroMeta(icon: "flame.fill", text: caloriesLabel)
                         }
+
+                        PlannerHeroMeta(icon: "bolt.fill", text: RecipePresentationFormatter.difficultyLabel(for: recipe))
                     }
                 }
-            } else {
-                Circle()
-                    .fill(CooksyTheme.blush.opacity(0.7))
-                    .frame(width: 42, height: 42)
-                    .overlay {
+            }
+            .padding(18)
+        }
+    }
+
+    private var emptyCard: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
+
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                .foregroundStyle(CooksyTheme.ctaOrange.opacity(0.4))
+
+            VStack(spacing: 14) {
+                HStack {
+                    Text(mealTitle)
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(1.8)
+                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                        .padding(.horizontal, 10)
+                        .frame(height: 22)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(CooksyTheme.primaryAccentSoft)
+                        )
+                    Spacer()
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(CooksyTheme.primaryAccentSoft)
+                            .frame(width: 54, height: 54)
                         Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .bold))
+                            .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(CooksyTheme.ctaOrange)
                     }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Add a recipe")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text(emptyPrompt)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
+                        .multilineTextAlignment(.center)
 
-                    Text("Plan \(meal.title.lowercased()) for this day.")
+                    Text("Appuie pour choisir une recette")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
+
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(CooksyTheme.secondaryText.opacity(0.75))
+            .padding(18)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(cardBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
     }
 
-    private var cardBackground: some ShapeStyle {
-        if meal.recipe != nil, meal.kind == .breakfast {
-            return AnyShapeStyle(CooksyTheme.blush.opacity(0.62))
+    private var emptyPrompt: String {
+        switch meal.kind {
+        case .breakfast: return "Ajoute ton petit-déjeuner"
+        case .lunch:     return "Ajoute ton déjeuner"
+        case .dinner:    return "Ajoute ton dîner"
         }
-
-        return AnyShapeStyle(Color.white.opacity(0.98))
-    }
-
-    private func caloriesLabel(for recipe: Recipe) -> String? {
-        guard let calories = RecipePresentationFormatter.parseNumber(from: recipe.nutrition?.calories),
-              calories > 0 else {
-            return nil
-        }
-
-        return "\(Int(calories.rounded())) kcal"
     }
 }
 
-private struct PlannerRecipeThumbnail: View {
+private struct PlannerHeroBackground: View {
     let recipe: Recipe
 
     var body: some View {
@@ -373,6 +662,8 @@ private struct PlannerRecipeThumbnail: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 } else {
                     AsyncImage(url: heroImageURL) { phase in
                         switch phase {
@@ -380,6 +671,8 @@ private struct PlannerRecipeThumbnail: View {
                             image
                                 .resizable()
                                 .scaledToFill()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .clipped()
                         default:
                             fallback
                         }
@@ -389,62 +682,48 @@ private struct PlannerRecipeThumbnail: View {
                 fallback
             }
         }
-        .frame(width: 52, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
     private var fallback: some View {
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-            .fill(CooksyTheme.recipeGradient(for: recipe.heroStyle))
+        CooksyTheme.recipeGradient(for: recipe.heroStyle)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-private struct PlannerMetaLabel: View {
-    let systemImage: String
+private struct PlannerHeroMeta: View {
+    let icon: String
     let text: String
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 9, weight: .bold))
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
             Text(text)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
         }
-        .foregroundStyle(CooksyTheme.secondaryText)
+        .foregroundStyle(Color.white.opacity(0.92))
     }
 }
 
-private struct PlannerOverviewMetric: View {
-    let title: String
-    let value: String
+private func plannerCaloriesLabel(for recipe: Recipe) -> String? {
+    guard let calories = RecipePresentationFormatter.parseNumber(from: recipe.nutrition?.calories),
+          calories > 0 else {
+        return nil
+    }
 
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(value)
-                .font(.system(size: 19, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+    return "\(Int(calories.rounded())) kcal"
+}
 
-            Text(title)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(CooksyTheme.background)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
+private extension Recipe {
+    var plannerTotalMinutes: Int? {
+        let prep = details.prepTimeMinutes ?? 0
+        let cook = details.cookTimeMinutes ?? 0
+        let total = prep + cook
+        return total > 0 ? total : nil
     }
 }
+
+// MARK: - Recipe picker sheet (kept, rebranded in French)
 
 private struct MealPlanRecipePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -464,11 +743,11 @@ private struct MealPlanRecipePickerSheet: View {
 
                 if recipes.isEmpty {
                     VStack(spacing: 18) {
-                        Text("No recipes yet")
+                        Text("Aucune recette")
                             .font(.system(size: 28, weight: .regular, design: .serif))
                             .foregroundStyle(CooksyTheme.primaryText)
 
-                        Text("Import or create a recipe first, then come back to plan it here.")
+                        Text("Importe ou crée une recette, puis reviens ici pour la planifier.")
                             .font(.system(size: 16, weight: .medium, design: .rounded))
                             .foregroundStyle(CooksyTheme.secondaryText)
                             .multilineTextAlignment(.center)
@@ -485,7 +764,7 @@ private struct MealPlanRecipePickerSheet: View {
                                 } label: {
                                     HStack {
                                         Image(systemName: "trash")
-                                        Text("Remove this meal")
+                                        Text("Retirer ce repas")
                                             .font(.system(size: 15, weight: .bold, design: .rounded))
                                         Spacer()
                                     }
@@ -530,7 +809,7 @@ private struct MealPlanRecipePickerSheet: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") {
+                    Button("Fermer") {
                         dismiss()
                     }
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
@@ -582,32 +861,46 @@ private struct MealPlanRecipePickerRow: View {
     }
 
     private var detailText: String {
-        let calories = recipe.nutrition?.calories ?? "Calories TBD"
-        if let totalMinutes = recipe.totalMinutes {
+        let calories = recipe.nutrition?.calories ?? "Calories à estimer"
+        if let totalMinutes = recipe.plannerTotalMinutes {
             return "\(calories) • \(totalMinutes) min"
         }
         return calories
     }
 }
 
-private extension MealPlanEntry.MealKind {
-    var title: String {
-        switch self {
-        case .breakfast:
-            return "Breakfast"
-        case .lunch:
-            return "Lunch"
-        case .dinner:
-            return "Dinner"
-        }
-    }
-}
+private struct PlannerRecipeThumbnail: View {
+    let recipe: Recipe
 
-private extension Recipe {
-    var totalMinutes: Int? {
-        let prep = details.prepTimeMinutes ?? 0
-        let cook = details.cookTimeMinutes ?? 0
-        let total = prep + cook
-        return total > 0 ? total : nil
+    var body: some View {
+        Group {
+            if let heroImageURL = recipe.heroImageURL {
+                if heroImageURL.isFileURL, let uiImage = UIImage(contentsOfFile: heroImageURL.path) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    AsyncImage(url: heroImageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        default:
+                            fallback
+                        }
+                    }
+                }
+            } else {
+                fallback
+            }
+        }
+        .frame(width: 56, height: 56)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var fallback: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(CooksyTheme.recipeGradient(for: recipe.heroStyle))
     }
 }

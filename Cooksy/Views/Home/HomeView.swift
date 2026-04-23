@@ -183,30 +183,45 @@ struct HomeView: View {
     }
 
     private var trendingTodaySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Trending Today")
+                Text("Tendances du jour")
                     .font(.system(size: 24, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: 4) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 11, weight: .bold))
-
-                    Text("Hot")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(CooksyTheme.ctaOrange)
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(CooksyTheme.ctaOrange)
+                    .shadow(color: CooksyTheme.ctaOrange.opacity(0.35), radius: 6, y: 2)
             }
 
-            VStack(spacing: 10) {
-                ForEach(viewModel.trendingTodayItems) { item in
-                    trendingDestination(for: item)
+            // IG-Reel style horizontal carousel — each card is a bit narrower
+            // than the content area so the next card peeks (Instagram vibe),
+            // with viewAligned snapping for a premium swipe feel.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(viewModel.trendingTodayItems) { item in
+                        trendingDestination(for: item, width: trendingReelCardWidth)
+                    }
                 }
+                .padding(.trailing, 4)
+                .scrollTargetLayout()
             }
+            .scrollTargetBehavior(.viewAligned)
+            .frame(height: trendingReelCardHeight)
         }
+    }
+
+    /// Slightly narrower than the page content area so the next card peeks ~40pt.
+    private var trendingReelCardWidth: CGFloat {
+        max(UIScreen.main.bounds.width - 80, 260)
+    }
+
+    /// 3:4 aspect + a little breathing room for the drop shadow.
+    private var trendingReelCardHeight: CGFloat {
+        trendingReelCardWidth * 4.0 / 3.0 + 12
     }
 
     @ViewBuilder
@@ -226,14 +241,15 @@ struct HomeView: View {
         }
     }
 
-    private func trendingDestination(for item: HomeViewModel.TrendingRecipe) -> some View {
+    private func trendingDestination(for item: HomeViewModel.TrendingRecipe, width: CGFloat) -> some View {
         NavigationLink {
             TrendingRecipePreviewView(
                 scenario: item.scenario,
                 store: store
             )
         } label: {
-            HomeTrendingRecipeRow(item: item)
+            HomeTrendingReelCard(item: item)
+                .frame(width: width)
         }
         .buttonStyle(.plain)
     }
@@ -354,68 +370,193 @@ private struct HomeRecentImportCardView: View {
     }
 }
 
-private struct HomeTrendingRecipeRow: View {
+/// Full-bleed editorial card used in the "Tendances du jour" horizontal
+/// carousel on Home. The look is IG-Reel inspired: a warm food-themed
+/// gradient, a decorative SF Symbol (no emojis), polaroid-style white
+/// inner stroke, rank + rating pills, and an overlay that darkens the
+/// lower third so the title reads cleanly.
+private struct HomeTrendingReelCard: View {
     let item: HomeViewModel.TrendingRecipe
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("\(item.rank)")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                .frame(width: 16)
+    private var gradient: LinearGradient {
+        guard case .demo(let scenario) = item.artwork else {
+            return CooksyTheme.accentGradient
+        }
+        return LinearGradient(
+            colors: [
+                Color(hex: scenario.hero.topColorHex),
+                Color(hex: scenario.hero.bottomColorHex)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
 
-            HomeArtworkSurface(artwork: item.artwork, emojiSize: 18)
-                .frame(width: 50, height: 50)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+    private var decorativeSymbol: String {
+        guard case .demo(let scenario) = item.artwork else {
+            return "fork.knife"
+        }
+        return Self.symbolForScenario(id: scenario.id, title: scenario.title)
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // Base gradient — food-themed, reused from the scenario palette.
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(gradient)
+
+            // Subtle white blobs add dimension to the background without
+            // relying on emojis.
+            Circle()
+                .fill(Color.white.opacity(0.12))
+                .frame(width: 220, height: 220)
+                .offset(x: 120, y: -110)
+
+            Circle()
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 160, height: 160)
+                .offset(x: -80, y: 140)
+
+            // Large decorative SF Symbol, editorial style.
+            Image(systemName: decorativeSymbol)
+                .font(.system(size: 180, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.22))
+                .offset(x: 40, y: -20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .allowsHitTesting(false)
+
+            // Bottom scrim so title/meta stay legible over any palette.
+            LinearGradient(
+                colors: [
+                    .clear,
+                    Color.black.opacity(0.15),
+                    Color.black.opacity(0.55)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // Top row: rank pill + rating pill
+            HStack(alignment: .top) {
+                HomeTrendingPill(
+                    icon: nil,
+                    text: "#\(item.rank)",
+                    background: Color.black.opacity(0.32),
+                    foreground: .white
                 )
 
-            VStack(alignment: .leading, spacing: 4) {
+                Spacer(minLength: 0)
+
+                HomeTrendingPill(
+                    icon: "star.fill",
+                    text: item.ratingLabel,
+                    background: Color.black.opacity(0.32),
+                    foreground: .white
+                )
+            }
+            .padding(16)
+
+            // Bottom block: title + handle · duration · rating
+            VStack(alignment: .leading, spacing: 6) {
+                Spacer(minLength: 0)
+
                 Text(item.title)
-                    .font(.system(size: 15, weight: .semibold, design: .serif))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .lineLimit(1)
+                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.leading)
+                    .shadow(color: Color.black.opacity(0.25), radius: 6, y: 2)
 
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Text(item.handle)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .lineLimit(1)
+                        .fontWeight(.semibold)
 
-                    Text("•")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(CooksyTheme.stroke)
+                    Text("·")
 
                     Text(item.durationLabel)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
+
+                    Text("·")
+
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 10, weight: .bold))
+                        Text(item.ratingLabel)
+                    }
                 }
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.92))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
             }
-
-            Spacer(minLength: 8)
-
-            HStack(spacing: 4) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 9, weight: .bold))
-
-                Text(item.ratingLabel)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-            }
-            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            .padding(18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+        .overlay(
+            // Polaroid-style inner stroke for the premium editorial feel.
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.35), lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color.black.opacity(0.18), radius: 20, y: 10)
+    }
+
+    /// Picks an SF Symbol appropriate for each demo scenario without
+    /// bringing in new assets. Matches on keywords in the scenario id and
+    /// title so it stays resilient if new scenarios are added.
+    private static func symbolForScenario(id: String, title: String) -> String {
+        let haystack = (id + " " + title).lowercased()
+        let rules: [(keywords: [String], symbol: String)] = [
+            (["nugget", "chicken", "poulet", "tender"], "bird.fill"),
+            (["pasta", "pates", "noodle", "ramen", "spaghet"], "takeoutbag.and.cup.and.straw.fill"),
+            (["taco", "burrito", "quesadilla", "wrap"], "leaf.fill"),
+            (["sushi", "ramen", "asia", "miso", "bowl saumon", "teriyaki"], "fish.fill"),
+            (["salad", "salade", "avocado", "quinoa"], "leaf.circle.fill"),
+            (["dessert", "cake", "gateau", "tiramisu", "choco", "cookie"], "birthday.cake.fill"),
+            (["burger", "sandwich", "grilled"], "flame.fill"),
+            (["pizza"], "circle.hexagongrid.fill"),
+            (["soup", "soupe", "ramen", "stew"], "cup.and.saucer.fill"),
+            (["oat", "porridge", "breakfast", "brunch"], "sun.max.fill"),
+            (["smoothie", "juice"], "drop.fill"),
+            (["egg", "omelette"], "oval.fill")
+        ]
+
+        for rule in rules {
+            if rule.keywords.contains(where: { haystack.contains($0) }) {
+                return rule.symbol
+            }
+        }
+        return "fork.knife"
+    }
+}
+
+private struct HomeTrendingPill: View {
+    let icon: String?
+    let text: String
+    let background: Color
+    let foreground: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            Text(text)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(foreground)
+        .padding(.horizontal, 10)
+        .frame(height: 26)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.98))
+            Capsule(style: .continuous)
+                .fill(background)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
         )
-        .shadow(color: Color.black.opacity(0.04), radius: 14, y: 8)
     }
 }
 

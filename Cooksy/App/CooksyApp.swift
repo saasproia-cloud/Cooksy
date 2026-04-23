@@ -59,8 +59,15 @@ private struct RootRouter: View {
     var body: some View {
         Group {
             switch destination {
-            case .splash:
-                SplashView()
+            case .bootstrap:
+                // While SessionStore is bootstrapping (or the profile row is
+                // still loading), show nothing but the app background. The
+                // native LaunchSplash image (declared in Info.plist via
+                // `UILaunchScreen > UIImageName = LaunchSplash`) already
+                // covers the cold-start moment, so we don't need a second
+                // SwiftUI splash on top of it.
+                CooksyTheme.background
+                    .ignoresSafeArea()
                     .transition(.opacity)
 
             case .onboarding:
@@ -85,15 +92,16 @@ private struct RootRouter: View {
     private var destination: Destination {
         switch sessionStore.phase {
         case .loading:
-            return .splash
+            return .bootstrap
 
         case .signedOut:
             return .onboarding
 
         case .signedIn:
-            // Profile row may still be loading — stay on splash rather than
-            // flashing through paywall if we don't know the state yet.
-            guard let profile = sessionStore.profile else { return .splash }
+            // Profile row may still be loading — stay on the bootstrap
+            // background rather than flashing through paywall if we don't
+            // know the state yet.
+            guard let profile = sessionStore.profile else { return .bootstrap }
             if profile.onboardingCompletedAt == nil { return .onboarding }
             if !profile.isPremium { return .paywall }
             return .home
@@ -101,6 +109,6 @@ private struct RootRouter: View {
     }
 
     private enum Destination: Equatable {
-        case splash, onboarding, paywall, home
+        case bootstrap, onboarding, paywall, home
     }
 }

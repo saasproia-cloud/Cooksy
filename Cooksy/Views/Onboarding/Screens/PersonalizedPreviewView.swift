@@ -255,7 +255,7 @@ private struct SocialStrip: View {
                 .fill(CooksyTheme.dividerSubtle)
                 .frame(width: 1, height: 20)
 
-            Text("24 128 passionnés nous ont rejoint")
+            Text("24\u{00A0}128 passionnés nous ont rejoint")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .lineLimit(1)

@@ -1,21 +1,14 @@
 import SwiftUI
 
 struct RecipeLibraryScreen: View {
-    private enum LibraryCategory: String, CaseIterable {
-        case all = "All"
-        case italian = "Italian"
-        case asian = "Asian"
-        case healthy = "Healthy"
-        case mexican = "Mexican"
-        case other = "Other"
-    }
-
     @ObservedObject private var store: RecipeStore
 
     private let openImportSheet: () -> Void
 
     @State private var searchText = ""
-    @State private var selectedCategory: LibraryCategory = .all
+    /// `nil` = "Toutes les recettes" (no filter).
+    @State private var selectedBookID: RecipeBook.ID? = nil
+    @State private var showsCreateBookSheet = false
 
     init(
         store: RecipeStore,
@@ -41,7 +34,7 @@ struct RecipeLibraryScreen: View {
                 VStack(alignment: .leading, spacing: 18) {
                     headerRow
                     searchField
-                    categoryStrip
+                    bookPickerStrip
 
                     if let featuredRecipe {
                         Text("FEATURED")
@@ -83,6 +76,13 @@ struct RecipeLibraryScreen: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showsCreateBookSheet) {
+            CreateRecipeBookSheet { title in
+                if let book = store.createBook(title: title) {
+                    selectedBookID = book.id
+                }
+            }
+        }
     }
 
     private var headerRow: some View {
@@ -137,29 +137,90 @@ struct RecipeLibraryScreen: View {
         )
     }
 
-    private var categoryStrip: some View {
+    private var bookPickerStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(availableCategories, id: \.rawValue) { category in
-                    Button(action: { selectedCategory = category }) {
-                        Text(category.rawValue)
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(selectedCategory == category ? .white : CooksyTheme.secondaryText)
-                            .padding(.horizontal, 14)
-                            .frame(height: 34)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(selectedCategory == category ? AnyShapeStyle(CooksyTheme.accentGradient) : AnyShapeStyle(Color.white))
-                            )
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .stroke(selectedCategory == category ? Color.clear : CooksyTheme.stroke, lineWidth: 1)
-                            )
+                bookPill(
+                    title: "Toutes les recettes",
+                    systemImage: "books.vertical.fill",
+                    isSelected: selectedBookID == nil
+                ) {
+                    selectedBookID = nil
+                }
+
+                ForEach(userBooks) { book in
+                    bookPill(
+                        title: book.title,
+                        systemImage: "book.closed.fill",
+                        isSelected: selectedBookID == book.id
+                    ) {
+                        selectedBookID = book.id
                     }
-                    .buttonStyle(.plain)
+                }
+
+                bookPill(
+                    title: "Nouveau",
+                    systemImage: "plus",
+                    isSelected: false,
+                    isAccent: true
+                ) {
+                    showsCreateBookSheet = true
                 }
             }
         }
+    }
+
+    private func bookPill(
+        title: String,
+        systemImage: String,
+        isSelected: Bool,
+        isAccent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .bold))
+                Text(title)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(pillForeground(isSelected: isSelected, isAccent: isAccent))
+            .padding(.horizontal, 14)
+            .frame(height: 34)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(pillBackground(isSelected: isSelected, isAccent: isAccent))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(pillStroke(isSelected: isSelected, isAccent: isAccent), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func pillForeground(isSelected: Bool, isAccent: Bool) -> Color {
+        if isSelected { return .white }
+        if isAccent { return CooksyTheme.ctaOrange }
+        return CooksyTheme.secondaryText
+    }
+
+    private func pillBackground(isSelected: Bool, isAccent: Bool) -> AnyShapeStyle {
+        if isSelected { return AnyShapeStyle(CooksyTheme.accentGradient) }
+        return AnyShapeStyle(Color.white)
+    }
+
+    private func pillStroke(isSelected: Bool, isAccent: Bool) -> Color {
+        if isSelected { return .clear }
+        if isAccent { return CooksyTheme.ctaOrange.opacity(0.6) }
+        return CooksyTheme.stroke
+    }
+
+    private var userBooks: [RecipeBook] {
+        store.books
+            .filter { $0.kind == .collection }
+            .sorted { $0.createdAt < $1.createdAt }
     }
 
     private var featuredRecipe: Recipe? {
@@ -179,34 +240,25 @@ struct RecipeLibraryScreen: View {
                 return lhs.updatedAt > rhs.updatedAt
             }
             .filter { recipe in
-                matchesSearch(recipe) && matchesCategory(recipe)
+                matchesSearch(recipe) && matchesBook(recipe)
             }
-    }
-
-    private var availableCategories: [LibraryCategory] {
-        var categories: [LibraryCategory] = [.all, .italian, .asian, .healthy, .mexican]
-        let hasOtherRecipes = store.recipes.contains { inferredCategory(for: $0) == .other }
-        if hasOtherRecipes {
-            categories.append(.other)
-        }
-        return categories
     }
 
     private var emptyStateCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(store.recipes.isEmpty ? "No recipes yet" : "No recipes match this filter")
+            Text(store.recipes.isEmpty ? "Aucune recette pour le moment" : "Aucune recette dans ce livre")
                 .font(.system(size: 28, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
 
             Text(store.recipes.isEmpty
-                 ? "Import your first recipe and it will appear here with search and category filters."
-                 : "Try another search term or switch category to see more recipes.")
+                 ? "Importe ta première recette : elle apparaîtra ici, prête à cuisiner."
+                 : "Essaie un autre terme de recherche ou change de livre pour voir plus de recettes.")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
 
             if store.recipes.isEmpty {
                 Button(action: openImportSheet) {
-                    Text("Import a recipe")
+                    Text("Importer une recette")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
@@ -218,9 +270,9 @@ struct RecipeLibraryScreen: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                Button("Reset filters") {
+                Button("Réinitialiser les filtres") {
                     searchText = ""
-                    selectedCategory = .all
+                    selectedBookID = nil
                 }
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.ctaOrange)
@@ -253,40 +305,9 @@ struct RecipeLibraryScreen: View {
         return haystack.contains(query)
     }
 
-    private func matchesCategory(_ recipe: Recipe) -> Bool {
-        selectedCategory == .all || inferredCategory(for: recipe) == selectedCategory
-    }
-
-    private func inferredCategory(for recipe: Recipe) -> LibraryCategory {
-        let text = RecipePresentationFormatter.normalizedSearchText(
-            for: [
-                recipe.title,
-                recipe.ingredients.map(\.name).joined(separator: " "),
-                recipe.notes ?? ""
-            ].joined(separator: " ")
-        )
-
-        if containsAny(text, keywords: ["pasta", "risotto", "lasagna", "parmesan", "italian", "gnocchi", "tiramisu"]) {
-            return .italian
-        }
-
-        if containsAny(text, keywords: ["ramen", "miso", "ginger", "soy", "teriyaki", "asian", "noodle", "kimchi", "curry"]) {
-            return .asian
-        }
-
-        if containsAny(text, keywords: ["healthy", "protein", "salad", "oats", "avocado", "quinoa", "yogurt", "spinach"]) {
-            return .healthy
-        }
-
-        if containsAny(text, keywords: ["taco", "quesadilla", "mexican", "salsa", "burrito", "birria", "guacamole"]) {
-            return .mexican
-        }
-
-        return .other
-    }
-
-    private func containsAny(_ text: String, keywords: [String]) -> Bool {
-        keywords.contains(where: text.contains)
+    private func matchesBook(_ recipe: Recipe) -> Bool {
+        guard let selectedBookID else { return true }
+        return recipe.bookID == selectedBookID
     }
 }
 
@@ -374,7 +395,7 @@ private struct LibraryRecipeGridCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .top) {
-                LibraryRecipeArtwork(recipe: recipe, cornerRadius: 18)
+                LibraryRecipeArtwork(recipe: recipe, cornerRadius: 18, contentAlignment: .top)
                     .frame(height: 122)
 
                 HStack {
@@ -446,21 +467,21 @@ private struct LibraryRecipeGridCard: View {
 private struct LibraryRecipeArtwork: View {
     let recipe: Recipe
     let cornerRadius: CGFloat
+    /// Bias for center-cropping. Grid thumbnails use `.top` so portrait
+    /// (9:16) photos from TikTok/Reels keep the subject in frame instead
+    /// of showing the background. Featured hero keeps the default `.center`.
+    var contentAlignment: Alignment = .center
 
     var body: some View {
         Group {
             if let heroImageURL = recipe.heroImageURL {
                 if heroImageURL.isFileURL, let uiImage = UIImage(contentsOfFile: heroImageURL.path) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
+                    croppedImage(Image(uiImage: uiImage))
                 } else {
                     AsyncImage(url: heroImageURL) { phase in
                         switch phase {
                         case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
+                            croppedImage(image)
                         default:
                             fallback
                         }
@@ -471,6 +492,14 @@ private struct LibraryRecipeArtwork: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    private func croppedImage(_ image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: contentAlignment)
+            .clipped()
     }
 
     private var fallback: some View {

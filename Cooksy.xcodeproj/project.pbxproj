@@ -94,7 +94,6 @@
 		F30000000000000000000116 /* SparkleCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000016 /* SparkleCanvas.swift */; };
 		F30000000000000000000117 /* SignInWithAppleButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000017 /* SignInWithAppleButtonView.swift */; };
 		F30000000000000000000118 /* GoogleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000018 /* GoogleSignInButtonView.swift */; };
-		F30000000000000000000119 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000019 /* SplashView.swift */; };
 		F30000000000000000000120 /* WelcomeHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000020 /* WelcomeHeroView.swift */; };
 		F30000000000000000000121 /* DemoBeforeAfterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000021 /* DemoBeforeAfterView.swift */; };
 		F30000000000000000000122 /* ValueProofView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000022 /* ValueProofView.swift */; };
@@ -228,7 +227,6 @@
 		F30000000000000000000016 /* SparkleCanvas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SparkleCanvas.swift; sourceTree = "<group>"; };
 		F30000000000000000000017 /* SignInWithAppleButtonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignInWithAppleButtonView.swift; sourceTree = "<group>"; };
 		F30000000000000000000018 /* GoogleSignInButtonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoogleSignInButtonView.swift; sourceTree = "<group>"; };
-		F30000000000000000000019 /* SplashView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		F30000000000000000000020 /* WelcomeHeroView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeHeroView.swift; sourceTree = "<group>"; };
 		F30000000000000000000021 /* DemoBeforeAfterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoBeforeAfterView.swift; sourceTree = "<group>"; };
 		F30000000000000000000022 /* ValueProofView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ValueProofView.swift; sourceTree = "<group>"; };
@@ -553,7 +551,6 @@
 		F30000000000000000000203 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
-				F30000000000000000000019 /* SplashView.swift */,
 				F30000000000000000000020 /* WelcomeHeroView.swift */,
 				F30000000000000000000021 /* DemoBeforeAfterView.swift */,
 				F30000000000000000000022 /* ValueProofView.swift */,
@@ -786,7 +783,6 @@
 				F30000000000000000000116 /* SparkleCanvas.swift in Sources */,
 				F30000000000000000000117 /* SignInWithAppleButtonView.swift in Sources */,
 				F30000000000000000000118 /* GoogleSignInButtonView.swift in Sources */,
-				F30000000000000000000119 /* SplashView.swift in Sources */,
 				F30000000000000000000120 /* WelcomeHeroView.swift in Sources */,
 				F30000000000000000000121 /* DemoBeforeAfterView.swift in Sources */,
 				F30000000000000000000122 /* ValueProofView.swift in Sources */,

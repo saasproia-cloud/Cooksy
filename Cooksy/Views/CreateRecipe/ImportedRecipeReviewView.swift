@@ -15,6 +15,8 @@ struct ImportedRecipeReviewView: View {
     @State private var showsPlanSheet = false
     @State private var showsShareSheet = false
     @State private var showsStepByStep = false
+    @State private var showsBookPicker = false
+    @State private var showsCreateBookSheet = false
 
     init(
         store: RecipeStore,
@@ -58,6 +60,8 @@ struct ImportedRecipeReviewView: View {
                             sourceRow(title: sourceButtonTitle, url: sourceURL)
                         }
 
+                        bookPickerRow
+
                         tabSelector
 
                         selectedTabContent
@@ -87,6 +91,29 @@ struct ImportedRecipeReviewView: View {
         }
         .sheet(isPresented: $showsShareSheet) {
             RecipeImportActivityShareSheet(activityItems: [viewModel.shareText()])
+        }
+        .sheet(isPresented: $showsBookPicker) {
+            ImportBookPickerSheet(
+                books: viewModel.books,
+                selectedBookID: viewModel.selectedBookID,
+                onSelect: { bookID in
+                    viewModel.selectedBookID = bookID
+                    showsBookPicker = false
+                },
+                onCreateNew: {
+                    showsBookPicker = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        showsCreateBookSheet = true
+                    }
+                }
+            )
+        }
+        .sheet(isPresented: $showsCreateBookSheet) {
+            CreateRecipeBookSheet { title in
+                if let book = store.createBook(title: title) {
+                    viewModel.selectedBookID = book.id
+                }
+            }
         }
         .fullScreenCover(isPresented: $showsEditor) {
             CreateRecipeView(store: store, seed: viewModel.seed, preferredBookID: viewModel.selectedBookID) {
@@ -440,6 +467,59 @@ struct ImportedRecipeReviewView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Book Picker Row
+
+    private var bookPickerRow: some View {
+        Button(action: { showsBookPicker = true }) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CooksyTheme.accentWarm.opacity(0.12))
+                    .frame(width: 38, height: 38)
+                    .overlay {
+                        Image(systemName: "books.vertical.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(CooksyTheme.accentWarm)
+                    }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ajouter à")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+
+                    Text(selectedBookDisplayTitle)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var selectedBookDisplayTitle: String {
+        if let selectedID = viewModel.selectedBookID,
+           let book = viewModel.books.first(where: { $0.id == selectedID }) {
+            return book.kind == .uncategorized ? "Toutes les recettes" : book.title
+        }
+        return "Toutes les recettes"
     }
 
     // MARK: - Tab Selector
@@ -959,25 +1039,66 @@ private struct ImportBookPickerSheet: View {
     let books: [RecipeBook]
     let selectedBookID: RecipeBook.ID?
     let onSelect: (RecipeBook.ID) -> Void
+    let onCreateNew: () -> Void
+
+    private var sortedBooks: [RecipeBook] {
+        let uncategorized = books.filter { $0.kind == .uncategorized }
+        let collections = books
+            .filter { $0.kind == .collection }
+            .sorted { $0.createdAt < $1.createdAt }
+        return uncategorized + collections
+    }
 
     var body: some View {
         NavigationStack {
-            List(books) { book in
-                Button(action: { onSelect(book.id) }) {
-                    HStack {
-                        Text(book.kind == .uncategorized ? "Non catégorisé" : book.title)
-                            .foregroundStyle(CooksyTheme.primaryText)
-                        Spacer()
-                        if selectedBookID == book.id {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(CooksyTheme.ctaOrange)
+            List {
+                Section {
+                    ForEach(sortedBooks) { book in
+                        Button(action: { onSelect(book.id) }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: book.kind == .uncategorized ? "books.vertical.fill" : "book.closed.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(CooksyTheme.ctaOrange)
+                                    .frame(width: 22)
+
+                                Text(book.kind == .uncategorized ? "Toutes les recettes" : book.title)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(CooksyTheme.primaryText)
+
+                                Spacer()
+
+                                if selectedBookID == book.id {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(CooksyTheme.ctaOrange)
+                                }
+                            }
+                            .padding(.vertical, 4)
                         }
+                    }
+                }
+
+                Section {
+                    Button(action: onCreateNew) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(CooksyTheme.ctaOrange)
+                                .frame(width: 22)
+
+                            Text("Nouveau livre")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.ctaOrange)
+
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
             }
             .scrollContentBackground(.hidden)
             .background(CooksyTheme.background)
-            .navigationTitle("Livre")
+            .navigationTitle("Ajouter à")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium])

@@ -213,29 +213,37 @@ final class RecipeStore: ObservableObject {
         books = snapshot.books
         mealPlanEntries = snapshot.mealPlanEntries
         migrateMealPlanEntriesIfNeeded()
+        migrateUncategorizedBookTitleIfNeeded()
     }
 
     private func seedLibrary() {
         let uncategorizedBookID = UUID()
 
         recipes = []
+        // Start with just the "Toutes les recettes" book. Users create
+        // their own collections from here — we don't seed fake ones.
         books = [
             RecipeBook(
                 id: uncategorizedBookID,
-                title: "Non classees",
+                title: "Toutes les recettes",
                 kind: .uncategorized,
                 previewStyle: .featured,
-                recipeIDs: []
-            ),
-            RecipeBook(
-                title: "Diner",
-                kind: .collection,
-                previewStyle: .neutral,
                 recipeIDs: []
             )
         ]
         mealPlanEntries = []
 
+        save()
+    }
+
+    /// Renames the legacy "Non classees" book to the new "Toutes les recettes"
+    /// label without creating a second uncategorized row. Runs once per
+    /// cold-start for existing users and is a no-op for fresh installs.
+    private func migrateUncategorizedBookTitleIfNeeded() {
+        guard let index = books.firstIndex(where: { $0.kind == .uncategorized }) else { return }
+        let legacyTitles: Set<String> = ["Non classees", "Non classées"]
+        guard legacyTitles.contains(books[index].title) else { return }
+        books[index].title = "Toutes les recettes"
         save()
     }
 

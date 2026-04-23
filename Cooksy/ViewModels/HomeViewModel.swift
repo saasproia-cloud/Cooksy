@@ -94,7 +94,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     var trendingTodayItems: [TrendingRecipe] {
-        rotatedScenarios(prefixCount: 3)
+        rotatedScenarios(prefixCount: 5)
             .enumerated()
             .map { index, scenario in
                 TrendingRecipe(

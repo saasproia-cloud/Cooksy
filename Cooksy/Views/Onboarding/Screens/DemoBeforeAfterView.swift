@@ -8,6 +8,7 @@ struct DemoBeforeAfterView: View {
     let onContinue: () -> Void
 
     @State private var stage: DemoStage = .linkShown
+    @State private var animationTask: Task<Void, Never>?
 
     var body: some View {
         OnboardingChrome(
@@ -30,48 +31,58 @@ struct DemoBeforeAfterView: View {
 
                 DemoRecipeCard(stage: stage)
                     .frame(maxWidth: .infinity)
-
-                Button(action: replay) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Rejouer la magie")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    .padding(.horizontal, 16)
-                    .frame(height: 36)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(CooksyTheme.primaryAccentSoft.opacity(0.6))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(CooksyTheme.ctaOrange.opacity(0.4), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(CooksyTheme.pressScale())
             }
             .padding(.top, 4)
-            .onAppear { runDemo() }
+            .onAppear { startLoop() }
+            .onDisappear { stopLoop() }
         }
     }
 
-    private func runDemo() {
-        stage = .linkShown
-        Task {
-            try? await Task.sleep(for: .milliseconds(700))
-            withStage(.converting)
-            try? await Task.sleep(for: .milliseconds(800))
-            withStage(.showingTitle)
-            try? await Task.sleep(for: .milliseconds(500))
-            withStage(.showingIngredients)
-            try? await Task.sleep(for: .milliseconds(900))
-            withStage(.showingSteps)
-            try? await Task.sleep(for: .milliseconds(800))
-            withStage(.complete)
-            OnboardingHaptics.success()
+    /// Cancels any previous run then kicks off an infinite loop:
+    /// link → converting → title → ingredients → steps → complete → pause → reset → repeat.
+    private func startLoop() {
+        stopLoop()
+        animationTask = Task { @MainActor in
+            // Reset immediately in case we re-appeared mid-stage.
+            stage = .linkShown
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(700))
+                guard !Task.isCancelled else { return }
+                withStage(.converting)
+
+                try? await Task.sleep(for: .milliseconds(800))
+                guard !Task.isCancelled else { return }
+                withStage(.showingTitle)
+
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                OnboardingHaptics.selection()
+                withStage(.showingIngredients)
+
+                try? await Task.sleep(for: .milliseconds(900))
+                guard !Task.isCancelled else { return }
+                OnboardingHaptics.light()
+                withStage(.showingSteps)
+
+                try? await Task.sleep(for: .milliseconds(800))
+                guard !Task.isCancelled else { return }
+                OnboardingHaptics.success()
+                withStage(.complete)
+
+                // Hold on the finished recipe for a moment before resetting.
+                try? await Task.sleep(for: .milliseconds(2000))
+                guard !Task.isCancelled else { return }
+                withStage(.linkShown)
+
+                // Short breath before the next loop so the reset reads cleanly.
+                try? await Task.sleep(for: .milliseconds(500))
+            }
         }
+    }
+
+    private func stopLoop() {
+        animationTask?.cancel()
+        animationTask = nil
     }
 
     @MainActor
@@ -79,11 +90,6 @@ struct DemoBeforeAfterView: View {
         withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
             stage = newStage
         }
-    }
-
-    private func replay() {
-        OnboardingHaptics.light()
-        runDemo()
     }
 }
 
