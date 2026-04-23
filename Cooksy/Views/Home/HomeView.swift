@@ -364,13 +364,16 @@ private struct HomeTrendingRecipeRow: View {
                 .foregroundStyle(CooksyTheme.ctaOrangeDark)
                 .frame(width: 16)
 
-            HomeArtworkSurface(artwork: item.artwork, emojiSize: 18)
-                .frame(width: 50, height: 50)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
-                )
+            TrendingArtworkSurface(
+                style: TrendingArtworkStyle.forScenarioID(item.scenario.id),
+                symbolSize: 20
+            )
+            .frame(width: 50, height: 50)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+            )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)

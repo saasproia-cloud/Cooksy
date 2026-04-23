@@ -55,6 +55,7 @@ private struct RootRouter: View {
     let appDelegate: CooksyAppDelegate
 
     @EnvironmentObject private var sessionStore: SessionStore
+    @AppStorage("cooksy.hasSeenTutorial") private var hasSeenTutorial: Bool = false
 
     var body: some View {
         Group {
@@ -71,6 +72,10 @@ private struct RootRouter: View {
                 PaywallView()
                     .transition(.opacity)
 
+            case .tutorial:
+                PostPaywallTutorialView()
+                    .transition(.opacity)
+
             case .home:
                 RootTabView(sharedLinkInbox: sharedLinkInbox, appDelegate: appDelegate)
                     .transition(.opacity)
@@ -81,7 +86,8 @@ private struct RootRouter: View {
 
     /// Resolves the current routing decision from session state.
     /// Order matters: loading trumps everything; signed-out goes to onboarding;
-    /// once signed in we gate on onboarding completion and then on premium.
+    /// once signed in we gate on onboarding completion, then on premium, then
+    /// on the first-run tutorial (device-local flag).
     private var destination: Destination {
         switch sessionStore.phase {
         case .loading:
@@ -96,11 +102,12 @@ private struct RootRouter: View {
             guard let profile = sessionStore.profile else { return .splash }
             if profile.onboardingCompletedAt == nil { return .onboarding }
             if !profile.isPremium { return .paywall }
+            if !hasSeenTutorial { return .tutorial }
             return .home
         }
     }
 
     private enum Destination: Equatable {
-        case splash, onboarding, paywall, home
+        case splash, onboarding, paywall, tutorial, home
     }
 }

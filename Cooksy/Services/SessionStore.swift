@@ -54,7 +54,13 @@ final class SessionStore: ObservableObject {
         lastErrorMessage = nil
         phase = .loading
         do {
-            _ = try await client.auth.signUp(email: email, password: password)
+            let response = try await client.auth.signUp(email: email, password: password)
+            // If email confirmation is enabled on Supabase, the signUp response will
+            // not include a session — the user must click the email link to activate.
+            // We surface a clear message so they don't stare at a stuck spinner.
+            if response.session == nil {
+                lastErrorMessage = "Compte créé. Vérifie tes emails pour activer ton compte, puis connecte-toi."
+            }
             await refreshSession()
         } catch {
             logger.error("signUp failed: \(error.localizedDescription, privacy: .public)")

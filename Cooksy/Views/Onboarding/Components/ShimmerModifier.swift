@@ -7,7 +7,7 @@ struct ShimmerModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.overlay(
-            TimelineView(.animation) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 let phase = (t.truncatingRemainder(dividingBy: period)) / period // 0…1
                 shimmerOverlay(phase: phase)
