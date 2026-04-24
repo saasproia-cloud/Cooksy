@@ -27,6 +27,9 @@ struct ProfileSettingsView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
+                    sectionTitle("Mon profil")
+                    culinaryCard
+
                     sectionTitle("Préférences")
                     preferencesCard
 
@@ -58,6 +61,36 @@ struct ProfileSettingsView: View {
             .foregroundStyle(CooksyTheme.secondaryText)
             .padding(.horizontal, 4)
             .padding(.top, 6)
+    }
+
+    private var culinaryCard: some View {
+        ProfileSectionCard {
+            NavigationLink(destination: CulinaryPreferencesView()) {
+                HStack(spacing: 14) {
+                    rowIcon("sparkles.rectangle.stack")
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Préférences culinaires")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                        Text("Objectif, régime, cuisines, allergies…")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var preferencesCard: some View {

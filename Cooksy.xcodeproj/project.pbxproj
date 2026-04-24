@@ -112,6 +112,9 @@
 		F30000000000000000000135 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000035 /* SignUpView.swift */; };
 		F30000000000000000000136 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000036 /* LoginView.swift */; };
 		F30000000000000000000137 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000037 /* PaywallView.swift */; };
+		F30000000000000000000138 /* PostPaywallTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000038 /* PostPaywallTutorialView.swift */; };
+		F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* CulinaryPreferencesView.swift */; };
+		F40000000000000000000101 /* TrendingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001 /* TrendingArtwork.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -245,6 +248,9 @@
 		F30000000000000000000035 /* SignUpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		F30000000000000000000036 /* LoginView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		F30000000000000000000037 /* PaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		F30000000000000000000038 /* PostPaywallTutorialView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PostPaywallTutorialView.swift; sourceTree = "<group>"; };
+		F10000000000000000000004 /* CulinaryPreferencesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CulinaryPreferencesView.swift; sourceTree = "<group>"; };
+		F40000000000000000000001 /* TrendingArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingArtwork.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -303,6 +309,14 @@
 				F20000000000000000000002 /* SessionStore.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000201 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				F40000000000000000000001 /* TrendingArtwork.swift */,
+			);
+			path = Data;
 			sourceTree = "<group>";
 		};
 		1C89F74FBF3B841D636CF2AA /* DesignSystem */ = {
@@ -482,6 +496,7 @@
 				F10000000000000000000003 /* ProfileComponents.swift */,
 				F10000000000000000000002 /* ProfileSettingsView.swift */,
 				F10000000000000000000001 /* ProfileView.swift */,
+				F10000000000000000000004 /* CulinaryPreferencesView.swift */,
 			);
 			path = Profile;
 			sourceTree = "<group>";
@@ -495,6 +510,7 @@
 				08E17D6509BA719811AC7F6B /* Services */,
 				90F9645C3743FAF7EC347947 /* ViewModels */,
 				C6AF990E060790D549F2444E /* Views */,
+				F40000000000000000000201 /* Data */,
 				821D6C90EF4BC4C36A31028D /* Resources */,
 				4E0ABA5BB741822E66B28EC3 /* SplashVideo.mp4 */,
 			);
@@ -569,6 +585,7 @@
 				F30000000000000000000035 /* SignUpView.swift */,
 				F30000000000000000000036 /* LoginView.swift */,
 				F30000000000000000000037 /* PaywallView.swift */,
+				F30000000000000000000038 /* PostPaywallTutorialView.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -801,6 +818,9 @@
 				F30000000000000000000135 /* SignUpView.swift in Sources */,
 				F30000000000000000000136 /* LoginView.swift in Sources */,
 				F30000000000000000000137 /* PaywallView.swift in Sources */,
+				F30000000000000000000138 /* PostPaywallTutorialView.swift in Sources */,
+				F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */,
+				F40000000000000000000101 /* TrendingArtwork.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

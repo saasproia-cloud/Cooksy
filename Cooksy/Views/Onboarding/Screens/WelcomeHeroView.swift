@@ -23,7 +23,7 @@ struct WelcomeHeroView: View {
                     .frame(maxWidth: 220)
                     .scaleEffect(heroAppeared ? 1 : 0.9)
                     .opacity(heroAppeared ? 1 : 0)
-                    .animation(.spring(response: 0.7, dampingFraction: 0.72).delay(0.15), value: heroAppeared)
+                    .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.1), value: heroAppeared)
 
                 Spacer(minLength: 24)
 
@@ -34,18 +34,20 @@ struct WelcomeHeroView: View {
                         .multilineTextAlignment(.leading)
                         .lineLimit(nil)
                         .minimumScaleFactor(0.9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 22)
                 .padding(.bottom, 24)
                 .opacity(heroAppeared ? 1 : 0)
                 .offset(y: heroAppeared ? 0 : 12)
-                .animation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.35), value: heroAppeared)
+                .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.25), value: heroAppeared)
 
                 VStack(spacing: 14) {
                     Button(action: {
@@ -221,11 +223,10 @@ private struct FakePostView: View {
         ZStack {
             post.gradient
 
-            // Circular plate silhouette
+            // Circular plate silhouette (no blur — cheaper on GPU)
             Circle()
-                .fill(Color.white.opacity(0.15))
+                .fill(Color.white.opacity(0.14))
                 .frame(width: 160, height: 160)
-                .blur(radius: 8)
 
             VStack(alignment: .leading) {
                 Spacer()
