@@ -44,7 +44,27 @@ final class SessionStore: ObservableObject {
     }
 
     func bootstrap() async {
+        // Keychain (where Supabase stores the session token) survives an app
+        // uninstall, which means a clean reinstall would silently skip the
+        // Welcome screen. Enforce the "signed out after 7 days of no
+        // activity" policy here, before reading the session. A quick
+        // reinstall within a week preserves the session untouched.
+        if SessionFreshnessGuard.shared.shouldPurgeStaleSession() {
+            logger.info("Purging stale Supabase session after uninstall/reinstall > 7d")
+            do {
+                try await client.auth.signOut()
+            } catch {
+                logger.error("signOut during freshness purge failed: \(error.localizedDescription, privacy: .public)")
+            }
+            SessionFreshnessGuard.shared.resetLocalProgress()
+        }
+
         await refreshSession()
+
+        if isSignedIn {
+            SessionFreshnessGuard.shared.markActive()
+        }
+
         listenToAuthChanges()
     }
 
@@ -129,6 +149,10 @@ final class SessionStore: ObservableObject {
             logger.error("signOut failed: \(error.localizedDescription, privacy: .public)")
             lastErrorMessage = error.localizedDescription
         }
+        // Explicit sign-out clears the freshness anchor too, so an uninstall
+        // afterwards doesn't leave a valid timestamp behind for the next
+        // fresh install to honour.
+        SessionFreshnessGuard.shared.resetLocalProgress()
         profile = nil
         phase = .signedOut
     }
@@ -190,6 +214,10 @@ final class SessionStore: ObservableObject {
         do {
             let session = try await client.auth.session
             phase = .signedIn(session.user)
+            // Any path that leaves us signed-in should slide the freshness
+            // window forward — not just the auth listener, which may fire
+            // asynchronously after the router has already reacted.
+            SessionFreshnessGuard.shared.markActive()
             await loadProfile(for: session.user.id)
         } catch {
             phase = .signedOut
@@ -212,6 +240,10 @@ final class SessionStore: ObservableObject {
         case .signedIn, .tokenRefreshed, .userUpdated, .initialSession:
             if let user = session?.user {
                 phase = .signedIn(user)
+                // Stamp the freshness timestamp on every successful auth event
+                // so the "last active" window keeps sliding forward while the
+                // user is actually using the app.
+                SessionFreshnessGuard.shared.markActive()
                 await loadProfile(for: user.id)
             } else {
                 phase = .signedOut

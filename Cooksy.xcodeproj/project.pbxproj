@@ -76,6 +76,7 @@
 		F10000000000000000000013 /* ProfileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ProfileComponents.swift */; };
 		F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SupabaseClientProvider.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
+		F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SessionFreshnessGuard.swift */; };
 		F30000000000000000000101 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* OnboardingFlow.swift */; };
 		F30000000000000000000102 /* OnboardingAnswers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* OnboardingAnswers.swift */; };
 		F30000000000000000000103 /* OnboardingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000003 /* OnboardingCoordinator.swift */; };
@@ -212,6 +213,7 @@
 		F10000000000000000000003 /* ProfileComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileComponents.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* SupabaseClientProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseClientProvider.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		F20000000000000000000003 /* SessionFreshnessGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionFreshnessGuard.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* OnboardingFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
 		F30000000000000000000002 /* OnboardingAnswers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingAnswers.swift; sourceTree = "<group>"; };
 		F30000000000000000000003 /* OnboardingCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingCoordinator.swift; sourceTree = "<group>"; };
@@ -307,6 +309,7 @@
 				DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */,
 				F20000000000000000000001 /* SupabaseClientProvider.swift */,
 				F20000000000000000000002 /* SessionStore.swift */,
+				F20000000000000000000003 /* SessionFreshnessGuard.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -782,6 +785,7 @@
 				F10000000000000000000011 /* ProfileView.swift in Sources */,
 				F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */,
 				F20000000000000000000012 /* SessionStore.swift in Sources */,
+				F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */,
 				F30000000000000000000101 /* OnboardingFlow.swift in Sources */,
 				F30000000000000000000102 /* OnboardingAnswers.swift in Sources */,
 				F30000000000000000000103 /* OnboardingCoordinator.swift in Sources */,
