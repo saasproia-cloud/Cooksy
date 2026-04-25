@@ -28,19 +28,25 @@ struct WelcomeHeroView: View {
                 Spacer(minLength: 24)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    // Hardcoded `\n` guarantees the line break after "vidéo".
-                    // Combined with `fixedSize(horizontal: false, vertical: true)`
-                    // this makes SwiftUI treat the block as natural-height text that
-                    // can wrap further if needed, but never try to collapse onto a
-                    // single line (which was producing horizontal overflow on
-                    // iPhone 17 Pro with minimumScaleFactor in the v2 attempt).
-                    Text("Transforme n'importe quelle vidéo\nen recette parfaite.")
-                        .font(.system(size: 24, weight: .bold, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // Title is rendered as 3 separate Text views inside a
+                    // VStack instead of a single multi-line Text. This is the
+                    // bulletproof approach: each line is short enough to fit
+                    // on every iPhone width (even SE @ 320pt usable), so the
+                    // SwiftUI text engine has zero opportunity to overflow.
+                    // Earlier attempts with `\n` + fixedSize(.vertical) still
+                    // produced horizontal clipping on iPhone 17 Pro, so we
+                    // stop relying on the wrap engine entirely.
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Transforme")
+                        Text("n'importe quelle vidéo")
+                        Text("en recette parfaite.")
+                    }
+                    .font(.system(size: 26, weight: .bold, design: .serif))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
                         .font(.system(size: 15, weight: .medium, design: .rounded))
