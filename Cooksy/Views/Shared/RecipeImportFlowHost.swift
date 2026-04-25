@@ -150,17 +150,19 @@ private struct RecipeImportFlowHost: ViewModifier {
                     RecipeImportFailureView(
                         store: recipeStore,
                         seed: failureAssessment.seed,
-                        message: failureAssessment.userFacingFailureMessage,
                         preferredBookID: preferredBookID,
-                        onRetry: retryLastImport,
-                        onCancel: {
-                            importFailureAssessment = nil
-                            importFailureRetrySource = nil
-                        },
-                        onManualSaved: {
-                            importFailureAssessment = nil
-                            importFailureRetrySource = nil
-                        }
+                        context: OopsContext.from(
+                            seed: failureAssessment.seed,
+                            onRetry: retryLastImport,
+                            onCancel: {
+                                importFailureAssessment = nil
+                                importFailureRetrySource = nil
+                            },
+                            onCreateManually: {
+                                importFailureAssessment = nil
+                                importFailureRetrySource = nil
+                            }
+                        )
                     )
                 }
             }

@@ -1,6 +1,7 @@
 import SwiftUI
 import OSLog
 import AVKit
+import AVFoundation
 
 private enum AppTab: Hashable {
     case home
@@ -148,19 +149,22 @@ struct RootTabView: View {
                 RecipeImportFailureView(
                     store: recipeStore,
                     seed: failureAssessment.seed,
-                    message: failureAssessment.userFacingFailureMessage,
-                    onRetry: {
-                        sharedImportFailureAssessment = nil
-                        Task {
-                            await processPendingSharedImportIfNeeded(force: true)
+                    preferredBookID: nil,
+                    context: OopsContext.from(
+                        seed: failureAssessment.seed,
+                        onRetry: {
+                            sharedImportFailureAssessment = nil
+                            Task {
+                                await processPendingSharedImportIfNeeded(force: true)
+                            }
+                        },
+                        onCancel: {
+                            dismissSharedImportFailure()
+                        },
+                        onCreateManually: {
+                            dismissSharedImportFailure()
                         }
-                    },
-                    onCancel: {
-                        dismissSharedImportFailure()
-                    },
-                    onManualSaved: {
-                        dismissSharedImportFailure()
-                    }
+                    )
                 )
             }
         }
@@ -609,6 +613,19 @@ private struct VideoSplashOverlay: View {
 
         let avPlayer = AVPlayer(url: url)
         avPlayer.actionAtItemEnd = .none
+
+        // Prevent iOS from pausing Spotify / Apple Music / podcasts while
+        // the splash plays. Category `.ambient` + `.mixWithOthers` means our
+        // audio (if any) mixes silently with other apps instead of taking
+        // the monopoly — the default `.soloAmbient` behaviour would duck
+        // whatever the user was already listening to.
+        // The mp4 itself has its audio track stripped, but we stay defensive
+        // in case a future replacement of SplashVideo.mp4 re-introduces one.
+        try? AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true, options: [])
+
+        avPlayer.isMuted = true
+        avPlayer.volume = 0
 
         // Listen for video end
         NotificationCenter.default.addObserver(

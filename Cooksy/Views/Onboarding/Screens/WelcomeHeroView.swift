@@ -28,12 +28,18 @@ struct WelcomeHeroView: View {
                 Spacer(minLength: 24)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Transforme n'importe quelle vidéo en recette parfaite.")
-                        .font(.system(size: 26, weight: .bold, design: .serif))
+                    // Hardcoded `\n` guarantees the line break after "vidéo".
+                    // Combined with `fixedSize(horizontal: false, vertical: true)`
+                    // this makes SwiftUI treat the block as natural-height text that
+                    // can wrap further if needed, but never try to collapse onto a
+                    // single line (which was producing horizontal overflow on
+                    // iPhone 17 Pro with minimumScaleFactor in the v2 attempt).
+                    Text("Transforme n'importe quelle vidéo\nen recette parfaite.")
+                        .font(.system(size: 24, weight: .bold, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)
                         .multilineTextAlignment(.leading)
                         .lineLimit(nil)
-                        .minimumScaleFactor(0.9)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
