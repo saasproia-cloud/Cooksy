@@ -55,8 +55,12 @@
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict>
+		<key>UIImageName</key>
+		<string>LaunchSplash</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<false/>
 		<key>UIColorName</key>
-		<string>SplashBackground</string>
+		<string>AccentColor</string>
 	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

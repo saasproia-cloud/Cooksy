@@ -28,24 +28,23 @@ struct WelcomeHeroView: View {
                 Spacer(minLength: 24)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    // Title is rendered as 3 separate Text views inside a
-                    // VStack instead of a single multi-line Text. This is the
-                    // bulletproof approach: each line is short enough to fit
-                    // on every iPhone width (even SE @ 320pt usable), so the
-                    // SwiftUI text engine has zero opportunity to overflow.
-                    // Earlier attempts with `\n` + fixedSize(.vertical) still
-                    // produced horizontal clipping on iPhone 17 Pro, so we
-                    // stop relying on the wrap engine entirely.
+                    // Title is split into 3 hard-coded short lines inside a
+                    // VStack. Each line is short enough (max 22 chars at 22pt
+                    // serif bold ≈ 264pt) to fit comfortably even on iPhone
+                    // SE (320pt usable). We don't trust SwiftUI's text wrap
+                    // engine at all — earlier attempts with `\n`, fixedSize
+                    // and minimumScaleFactor all produced horizontal clipping
+                    // on iPhone 17 Pro. Hard-coded short lines = no overflow.
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Transforme")
                         Text("n'importe quelle vidéo")
                         Text("en recette parfaite.")
                     }
-                    .font(.system(size: 26, weight: .bold, design: .serif))
+                    .font(.system(size: 22, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .multilineTextAlignment(.leading)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
