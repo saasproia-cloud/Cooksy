@@ -28,24 +28,21 @@ struct WelcomeHeroView: View {
                 Spacer(minLength: 24)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    // Title is split into 3 hard-coded short lines inside a
-                    // VStack. Each line is short enough (max 22 chars at 22pt
-                    // serif bold ≈ 264pt) to fit comfortably even on iPhone
-                    // SE (320pt usable). We don't trust SwiftUI's text wrap
-                    // engine at all — earlier attempts with `\n`, fixedSize
-                    // and minimumScaleFactor all produced horizontal clipping
-                    // on iPhone 17 Pro. Hard-coded short lines = no overflow.
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Transforme")
-                        Text("n'importe quelle vidéo")
-                        Text("en recette parfaite.")
-                    }
-                    .font(.system(size: 22, weight: .bold, design: .serif))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Single Text with the original wording. Natural wrap at
+                    // 22pt serif bold leaves "Transforme n'importe quelle
+                    // vidéo en recette parfaite." (52 chars) ~520pt wide,
+                    // which SwiftUI wraps cleanly to 2 lines within the
+                    // ~349pt available on iPhone 17 Pro (393pt - 44pt
+                    // padding). minimumScaleFactor(0.7) is the final safety
+                    // net if a future device width is even narrower.
+                    Text("Transforme n'importe quelle vidéo en recette parfaite.")
+                        .font(.system(size: 22, weight: .bold, design: .serif))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
+                        .minimumScaleFactor(0.7)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
                         .font(.system(size: 15, weight: .medium, design: .rounded))
@@ -97,6 +94,11 @@ struct WelcomeHeroView: View {
                 .opacity(heroAppeared ? 1 : 0)
                 .animation(.easeOut(duration: 0.5).delay(0.55), value: heroAppeared)
             }
+            // Lock the outer VStack to the ZStack's full width. Without this
+            // the VStack can size to its tightest child and ZStack's default
+            // centre alignment causes children with `.frame(maxWidth:.infinity)`
+            // to bleed past both screen edges on iPhone 17 Pro.
+            .frame(maxWidth: .infinity)
         }
         .onAppear { heroAppeared = true }
     }
