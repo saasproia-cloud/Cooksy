@@ -12,7 +12,6 @@ struct WelcomeHeroView: View {
 
     var body: some View {
         ZStack {
-            // Subtle ambient background with slow gradient drift
             AnimatedAmbientBackground()
                 .ignoresSafeArea()
 
@@ -28,13 +27,6 @@ struct WelcomeHeroView: View {
                 Spacer(minLength: 24)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    // Single Text with the original wording. Natural wrap at
-                    // 22pt serif bold leaves "Transforme n'importe quelle
-                    // vidéo en recette parfaite." (52 chars) ~520pt wide,
-                    // which SwiftUI wraps cleanly to 2 lines within the
-                    // ~349pt available on iPhone 17 Pro (393pt - 44pt
-                    // padding). minimumScaleFactor(0.7) is the final safety
-                    // net if a future device width is even narrower.
                     Text("Transforme n'importe quelle vidéo en recette parfaite.")
                         .font(.system(size: 22, weight: .bold, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)

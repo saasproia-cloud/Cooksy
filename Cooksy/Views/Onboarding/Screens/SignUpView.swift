@@ -10,17 +10,25 @@ struct SignUpView: View {
     let onBack: () -> Void
     let onGoToLogin: () -> Void
 
+    @State private var firstName: String = ""
+    @State private var lastName: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var isSubmitting: Bool = false
     @FocusState private var focusedField: Field?
 
-    private enum Field { case email, password }
+    private enum Field { case firstName, lastName, email, password }
 
     var body: some View {
         ZStack {
+            // Background lives in its own layer with a contentShape so the
+            // dismiss-keyboard tap only fires on empty area — without this on
+            // the root ZStack, the very first tap on a field/button is eaten
+            // by the gesture and the user has to tap twice.
             CooksyTheme.ambientGradient
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = nil }
 
             VStack(spacing: 0) {
                 topBar
@@ -46,7 +54,21 @@ struct SignUpView: View {
                     .padding(.bottom, 22)
             }
         }
-        .onTapGesture { focusedField = nil }
+        .alert(
+            "Erreur d'authentification",
+            isPresented: Binding(
+                get: { sessionStore.lastErrorMessage != nil },
+                set: { if !$0 { sessionStore.lastErrorMessage = nil } }
+            ),
+            actions: {
+                Button("OK", role: .cancel) {
+                    sessionStore.lastErrorMessage = nil
+                }
+            },
+            message: {
+                Text(sessionStore.lastErrorMessage ?? "")
+            }
+        )
     }
 
     // MARK: - Top bar
@@ -113,6 +135,30 @@ struct SignUpView: View {
     private var emailForm: some View {
         VStack(spacing: 12) {
             field(
+                placeholder: "Prénom",
+                systemImage: "person.fill",
+                text: $firstName,
+                isSecure: false,
+                keyboard: .default,
+                textContent: .givenName,
+                autocap: .words,
+                field: .firstName,
+                submitLabel: .next
+            )
+
+            field(
+                placeholder: "Nom (optionnel)",
+                systemImage: "person.text.rectangle.fill",
+                text: $lastName,
+                isSecure: false,
+                keyboard: .default,
+                textContent: .familyName,
+                autocap: .words,
+                field: .lastName,
+                submitLabel: .next
+            )
+
+            field(
                 placeholder: "Adresse e-mail",
                 systemImage: "envelope.fill",
                 text: $email,
@@ -135,14 +181,6 @@ struct SignUpView: View {
                 field: .password,
                 submitLabel: .go
             )
-
-            if let error = sessionStore.lastErrorMessage {
-                Text(error)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 2)
-            }
 
             emailCTA
                 .padding(.top, 4)
@@ -182,6 +220,8 @@ struct SignUpView: View {
             .focused($focusedField, equals: field)
             .onSubmit {
                 switch field {
+                case .firstName: focusedField = .lastName
+                case .lastName: focusedField = .email
                 case .email: focusedField = .password
                 case .password: submit()
                 }
@@ -232,7 +272,11 @@ struct SignUpView: View {
     }
 
     private var canSubmit: Bool {
-        email.contains("@") && email.contains(".") && password.count >= 6
+        let trimmedFirstName = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmedFirstName.isEmpty
+            && email.contains("@")
+            && email.contains(".")
+            && password.count >= 6
     }
 
     private func submit() {
@@ -240,8 +284,14 @@ struct SignUpView: View {
         guard canSubmit else { return }
         isSubmitting = true
         sessionStore.lastErrorMessage = nil
+        let trimmedLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
-            await sessionStore.signUp(email: email, password: password)
+            await sessionStore.signUp(
+                email: email,
+                password: password,
+                firstName: firstName,
+                lastName: trimmedLast.isEmpty ? nil : trimmedLast
+            )
             await MainActor.run { isSubmitting = false }
         }
     }

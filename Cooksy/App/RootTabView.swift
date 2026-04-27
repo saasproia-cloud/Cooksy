@@ -1,7 +1,5 @@
 import SwiftUI
 import OSLog
-import AVKit
-import AVFoundation
 
 private enum AppTab: Hashable {
     case home
@@ -30,7 +28,6 @@ struct RootTabView: View {
     @State private var sharedImportErrorMessage = ""
     @State private var showsSharedImportError = false
     @State private var savedImportedRecipeRoute: SavedImportedRecipeRoute?
-    @State private var showsVideoSplash = true
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -79,7 +76,7 @@ struct RootTabView: View {
                 .tag(AppTab.more)
             }
 
-            if !isProcessingSharedImport && !showsVideoSplash {
+            if !isProcessingSharedImport {
                 RootQuickImportButton {
                     showsQuickImportSheet = true
                 }
@@ -192,17 +189,6 @@ struct RootTabView: View {
         .sheet(item: $savedImportedRecipeRoute) { route in
             NavigationStack {
                 RecipeDetailView(store: recipeStore, recipeID: route.recipeID)
-            }
-        }
-        .overlay {
-            if showsVideoSplash {
-                VideoSplashOverlay {
-                    withAnimation(.easeOut(duration: 0.4)) {
-                        showsVideoSplash = false
-                    }
-                }
-                .transition(.opacity)
-                .zIndex(10)
             }
         }
     }
@@ -565,93 +551,3 @@ private struct RootSharedImportOverlay: View {
     }
 }
 
-// MARK: - Video Splash Overlay
-
-private struct VideoSplashOverlay: View {
-    let onFinished: () -> Void
-
-    @State private var player: AVPlayer?
-
-    var body: some View {
-        ZStack {
-            Color.black
-                .ignoresSafeArea()
-
-            if let player {
-                VideoPlayerView(player: player)
-                    .ignoresSafeArea()
-            }
-        }
-        .onAppear {
-            setupPlayer()
-        }
-        .onDisappear {
-            player?.pause()
-            player = nil
-        }
-        .allowsHitTesting(true)
-    }
-
-    private func setupPlayer() {
-        // Looks for a file named "SplashVideo" in the app bundle
-        // Supports .mp4, .mov, .m4v formats
-        let supportedExtensions = ["mp4", "mov", "m4v"]
-        var videoURL: URL?
-
-        for ext in supportedExtensions {
-            if let url = Bundle.main.url(forResource: "SplashVideo", withExtension: ext) {
-                videoURL = url
-                break
-            }
-        }
-
-        guard let url = videoURL else {
-            // No video found → skip splash immediately
-            onFinished()
-            return
-        }
-
-        let avPlayer = AVPlayer(url: url)
-        avPlayer.actionAtItemEnd = .none
-
-        // Prevent iOS from pausing Spotify / Apple Music / podcasts while
-        // the splash plays. Category `.ambient` + `.mixWithOthers` means our
-        // audio (if any) mixes silently with other apps instead of taking
-        // the monopoly — the default `.soloAmbient` behaviour would duck
-        // whatever the user was already listening to.
-        // The mp4 itself has its audio track stripped, but we stay defensive
-        // in case a future replacement of SplashVideo.mp4 re-introduces one.
-        try? AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
-        try? AVAudioSession.sharedInstance().setActive(true, options: [])
-
-        avPlayer.isMuted = true
-        avPlayer.volume = 0
-
-        // Listen for video end
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: avPlayer.currentItem,
-            queue: .main
-        ) { _ in
-            onFinished()
-        }
-
-        self.player = avPlayer
-        avPlayer.play()
-    }
-}
-
-private struct VideoPlayerView: UIViewControllerRepresentable {
-    let player: AVPlayer
-
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.showsPlaybackControls = false
-        controller.videoGravity = .resizeAspectFill
-        controller.view.backgroundColor = .black
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {}
-}

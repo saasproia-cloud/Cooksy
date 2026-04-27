@@ -41,6 +41,7 @@
 		7F51341EEDA0EFB4D770E679 /* RecipeEditorSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */; };
 		849D18B4B61099D1E30E0EE1 /* TrendingRecipePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */; };
 		873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14827D31D5DF8504B453F5E0 /* RootTabView.swift */; };
+		B71F4D9A2F12345678901234 /* VideoSplashOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */; };
 		8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */; };
 		883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E295B4D72656690C64670ED8 /* RecipeBook.swift */; };
 		8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */; };
@@ -152,6 +153,7 @@
 /* Begin PBXFileReference section */
 		04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CooksyShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		14827D31D5DF8504B453F5E0 /* RootTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoSplashOverlay.swift; sourceTree = "<group>"; };
 		14BDF91DC0D5EE665EBA20B3 /* AppConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		1C2D52E5A11B4E2292A91C10 /* CreateRecipeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateRecipeView.swift; sourceTree = "<group>"; };
 		1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeEditorSeed.swift; sourceTree = "<group>"; };
@@ -349,6 +351,7 @@
 				32EFE4892EC339B197010542 /* AppAppearance.swift */,
 				C031CB0EB64DA601375638B9 /* CooksyApp.swift */,
 				14827D31D5DF8504B453F5E0 /* RootTabView.swift */,
+				B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */,
 				14BDF91DC0D5EE665EBA20B3 /* AppConfiguration.swift */,
 			);
 			path = App;
@@ -735,6 +738,7 @@
 				F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */,
 				5F56D2BDF9485747B0161ADC /* CooksyApp.swift in Sources */,
 				873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */,
+				B71F4D9A2F12345678901234 /* VideoSplashOverlay.swift in Sources */,
 				24368CBE04042DFA3B6F8C31 /* CooksyTheme.swift in Sources */,
 				77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */,
 				0DEA03C6F3737AD192298935 /* RecipeBook.swift in Sources */,

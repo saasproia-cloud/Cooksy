@@ -14,6 +14,10 @@ struct SignInWithAppleButtonView: View {
     @State private var currentNonce: String?
 
     var body: some View {
+        // ASAuthorizationAppleIDButton has an internal `width <= 375pt` constraint.
+        // On iPhone 15 Pro Max / 16 Plus the parent VStack proposes ~382pt
+        // which conflicts. Cap our frame at 375pt so iOS doesn't have to break
+        // its own constraint at runtime (the warning we saw in the Xcode logs).
         SignInWithAppleButton(
             .signUp,
             onRequest: { request in
@@ -27,6 +31,7 @@ struct SignInWithAppleButtonView: View {
             }
         )
         .signInWithAppleButtonStyle(.black)
+        .frame(maxWidth: 375)
         .frame(height: 52)
         .clipShape(Capsule(style: .continuous))
     }

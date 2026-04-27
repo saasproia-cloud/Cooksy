@@ -20,6 +20,8 @@ struct LoginView: View {
         ZStack {
             CooksyTheme.ambientGradient
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = nil }
 
             VStack(spacing: 0) {
                 topBar
@@ -44,7 +46,21 @@ struct LoginView: View {
                     .padding(.bottom, 22)
             }
         }
-        .onTapGesture { focusedField = nil }
+        .alert(
+            "Erreur d'authentification",
+            isPresented: Binding(
+                get: { sessionStore.lastErrorMessage != nil },
+                set: { if !$0 { sessionStore.lastErrorMessage = nil } }
+            ),
+            actions: {
+                Button("OK", role: .cancel) {
+                    sessionStore.lastErrorMessage = nil
+                }
+            },
+            message: {
+                Text(sessionStore.lastErrorMessage ?? "")
+            }
+        )
     }
 
     // MARK: - Top bar

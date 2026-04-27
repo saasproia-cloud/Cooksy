@@ -57,6 +57,12 @@ private struct RootRouter: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @AppStorage("cooksy.hasSeenTutorial") private var hasSeenTutorial: Bool = false
 
+    /// True until the launch video (`SplashVideo.mp4` / `Cooksy-2.mp4`) has
+    /// played to completion. While true, the video sits on top of whatever
+    /// destination the router has resolved underneath, so the same splash
+    /// plays whether the user lands on onboarding, paywall, tutorial, or home.
+    @State private var showsLaunchSplash = true
+
     var body: some View {
         Group {
             switch destination {
@@ -89,6 +95,17 @@ private struct RootRouter: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: destination)
+        .overlay {
+            if showsLaunchSplash {
+                VideoSplashOverlay {
+                    withAnimation(.easeOut(duration: 0.4)) {
+                        showsLaunchSplash = false
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(10)
+            }
+        }
     }
 
     /// Resolves the current routing decision from session state.

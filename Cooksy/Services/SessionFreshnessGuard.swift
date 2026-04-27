@@ -2,25 +2,19 @@ import Foundation
 import OSLog
 import Security
 
-/// Enforces the "reinstall within one week keeps you signed in" policy.
+/// Enforces the "uninstall ⇒ Welcome" policy.
 ///
 /// iOS Keychain entries persist across uninstalls by default, so the Supabase
 /// session token also survives a reinstall — meaning the user would silently
-/// skip Welcome and land deep in the app. We neutralise that by:
+/// skip Welcome and land deep in the app. We neutralise that by tracking a
+/// `hasLaunched` flag in **UserDefaults** (which IS wiped on uninstall). On
+/// every cold start, if the flag is missing, we treat the install as fresh
+/// and purge the cached Supabase session + local onboarding progress, so the
+/// user always restarts from Welcome with the onboarding questions.
 ///
-///   1. Writing a `lastActiveAt` timestamp into the **Keychain** on every
-///      successful auth event / foreground. The Keychain value also survives
-///      uninstalls — it's our only reliable "last time the user opened this
-///      install" anchor.
-///   2. Tracking a `hasLaunched` flag in **UserDefaults**. UserDefaults IS
-///      wiped on uninstall, so the absence of this flag tells us "the app was
-///      freshly installed on this device".
-///
-/// At bootstrap, if `hasLaunched` is missing AND the keychain timestamp is
-/// older than `staleAfter` (default: 7 days), we purge the Supabase session
-/// and any local onboarding progress so the user lands on the Welcome screen.
-/// If the timestamp is younger than 7 days, we preserve the session — a user
-/// who reinstalls quickly shouldn't lose their context.
+/// We still keep a Keychain `lastActiveAt` timestamp via `markActive(_:)` for
+/// future analytics / lifecycle work, but it no longer gates the purge — every
+/// fresh install resets the user.
 ///
 /// Thread-safety: the guard only reads/writes during `bootstrap()` and on
 /// auth events — all on `@MainActor` via SessionStore, which is sufficient
@@ -28,11 +22,6 @@ import Security
 @MainActor
 final class SessionFreshnessGuard {
     static let shared = SessionFreshnessGuard()
-
-    // MARK: - Tunables
-
-    /// After this much inactivity, a fresh install signs the user out.
-    static let staleAfter: TimeInterval = 7 * 24 * 60 * 60  // 7 days
 
     // MARK: - Storage keys
 
@@ -55,6 +44,12 @@ final class SessionFreshnessGuard {
     /// Returns `true` when we decided the stored session is stale and the
     /// caller should sign out + purge local state. Returns `false` when the
     /// session can be preserved as-is.
+    ///
+    /// Policy: ANY fresh install (UserDefaults `hasLaunched` flag missing)
+    /// purges the cached Supabase session and resets onboarding progress.
+    /// The previous 7-day grace window has been removed so uninstall ⇒
+    /// reinstall always lands on Welcome with the onboarding questions,
+    /// regardless of how recently the user was active.
     func shouldPurgeStaleSession() -> Bool {
         let isFreshInstall = !defaults.bool(forKey: hasLaunchedKey)
 
@@ -64,31 +59,12 @@ final class SessionFreshnessGuard {
             return false
         }
 
-        // Fresh install. The Keychain may still hold a session token from a
-        // previous install of this app on this device. Decide based on how
-        // old the last activity is.
-        let lastActive = readLastActive()
-
-        // Flip the launched flag immediately so subsequent calls during this
-        // process (and future cold starts) don't re-enter this branch.
+        // Flip the launched flag immediately so subsequent cold starts of
+        // this install don't re-enter this branch.
         defaults.set(true, forKey: hasLaunchedKey)
 
-        guard let lastActive else {
-            // No prior timestamp. Either this is the very first install ever
-            // on this device, or the previous install never authenticated.
-            // Purge conservatively — we want Welcome, not a silent session.
-            logger.info("Fresh install with no prior activity timestamp — purging stale session")
-            return true
-        }
-
-        let age = Date().timeIntervalSince(lastActive)
-        if age > Self.staleAfter {
-            logger.info("Fresh install, last activity \(Int(age), privacy: .public)s ago (> 7d) — purging stale session")
-            return true
-        }
-
-        logger.info("Fresh install within 7d grace (last activity \(Int(age), privacy: .public)s ago) — keeping session")
-        return false
+        logger.info("Fresh install detected — purging any cached Supabase session and onboarding state")
+        return true
     }
 
     /// Called after the session has been purged so the router falls back to
