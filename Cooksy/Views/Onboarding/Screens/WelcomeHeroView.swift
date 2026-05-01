@@ -26,24 +26,29 @@ struct WelcomeHeroView: View {
 
                 Spacer(minLength: 24)
 
+                // Width is pinned to UIScreen.main.bounds.width minus the desired
+                // 22pt padding on each side. SwiftUI's layout was repeatedly
+                // ignoring `.padding(.horizontal)` on this particular VStack
+                // (we confirmed with a debug Rectangle that even an explicit
+                // padded shape was rendering edge-to-edge), so we bypass the
+                // padding chain entirely with an absolute frame width.
+                let textWidth = max(UIScreen.main.bounds.width - 44, 0)
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Transforme n'importe quelle vidéo en recette parfaite.")
                         .font(.system(size: 22, weight: .bold, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(nil)
-                        .minimumScaleFactor(0.7)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(4)
+                        .minimumScaleFactor(0.6)
 
                     Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
                         .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(5)
+                        .minimumScaleFactor(0.7)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 22)
+                .frame(width: textWidth, alignment: .leading)
                 .padding(.bottom, 24)
                 .opacity(heroAppeared ? 1 : 0)
                 .offset(y: heroAppeared ? 0 : 12)

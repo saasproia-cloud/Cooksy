@@ -213,6 +213,11 @@ struct LoginView: View {
                     lineWidth: focusedField == field ? 1.5 : 1
                 )
         )
+        // Whole capsule is the tap target — see SignUpView for context.
+        .contentShape(Capsule(style: .continuous))
+        .onTapGesture {
+            focusedField = field
+        }
     }
 
     private var emailCTA: some View {

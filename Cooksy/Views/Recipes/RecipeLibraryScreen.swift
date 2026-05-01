@@ -314,10 +314,19 @@ struct RecipeLibraryScreen: View {
 private struct LibraryFeaturedRecipeCard: View {
     let recipe: Recipe
 
+    /// Locked card height — applied to BOTH the artwork frame and the
+    /// outer ZStack so a tall portrait-orientation TikTok still can't
+    /// stretch the card past it. Without the second `.frame(height:)`
+    /// on the ZStack, the artwork would be 248pt but the ZStack would
+    /// resize itself based on the image's natural aspect ratio,
+    /// blowing the card up to ~1200pt and pushing the title overlay
+    /// into the middle of nowhere.
+    private static let cardHeight: CGFloat = 248
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             LibraryRecipeArtwork(recipe: recipe, cornerRadius: 24)
-                .frame(height: 248)
+                .frame(height: Self.cardHeight)
 
             LinearGradient(
                 colors: [
@@ -382,6 +391,12 @@ private struct LibraryFeaturedRecipeCard: View {
             }
             .padding(18)
         }
+        // Lock the outer card height too — the inner artwork already
+        // does this, but tall portrait imports can still stretch the
+        // ZStack via its other children if we don't re-clamp here.
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(CooksyTheme.stroke.opacity(0.5), lineWidth: 1)
@@ -396,7 +411,9 @@ private struct LibraryRecipeGridCard: View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .top) {
                 LibraryRecipeArtwork(recipe: recipe, cornerRadius: 18, contentAlignment: .top)
+                    .frame(maxWidth: .infinity)
                     .frame(height: 122)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 HStack {
                     if let sourceLabel = RecipePresentationFormatter.sourceLabel(for: recipe.sourceURL) {
@@ -491,13 +508,22 @@ private struct LibraryRecipeArtwork: View {
                 fallback
             }
         }
+        // Force the artwork to take the full proposed width and never
+        // exceed it, regardless of the image's intrinsic aspect ratio.
+        // Without this, a tall portrait import (9:16 TikTok still) can
+        // push the parent layout to its natural height — overflowing
+        // the rest of the card. Combined with the per-image .clipped()
+        // inside `croppedImage`, this makes the artwork render at the
+        // exact size the call site requested.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
     private func croppedImage(_ image: Image) -> some View {
         image
             .resizable()
-            .scaledToFill()
+            .aspectRatio(contentMode: .fill)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: contentAlignment)
             .clipped()
     }

@@ -63,6 +63,11 @@ final class RecipeStore: ObservableObject {
         recipes.insert(storedRecipe, at: 0)
         attach(recipeID: storedRecipe.id, to: destinationID)
         save()
+        // Counts toward the free-tier weekly quota. Premium users are
+        // exempted by ImportQuotaService itself.
+        Task { @MainActor in
+            ImportQuotaService.shared.incrementOnSuccess()
+        }
     }
 
     func updateRecipe(_ recipe: Recipe, movingTo destinationBookID: RecipeBook.ID? = nil) {

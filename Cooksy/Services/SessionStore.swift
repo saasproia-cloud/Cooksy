@@ -109,19 +109,34 @@ final class SessionStore: ObservableObject {
 
             // No session in the response → either email confirmation is ON
             // (Supabase sent a magic-link mail), or Supabase silently created
-            // the user but didn't return a session. Try a sign-in with the
-            // same credentials — if email confirmation is OFF this completes
-            // the sign-up flow seamlessly. If it's ON, the sign-in will fail
-            // with `email_not_confirmed` and we surface a clear message.
-            do {
-                _ = try await client.auth.signIn(email: email, password: password)
-                await persistDisplayName(displayName)
-                await refreshSession()
-            } catch {
-                logger.info("Auto sign-in after sign-up failed (likely email confirmation required): \(String(describing: error), privacy: .public)")
-                lastErrorMessage = "Compte créé. Vérifie tes emails pour activer ton compte, puis connecte-toi."
-                await refreshSession()
+            // the user but didn't return a session yet because the auth row
+            // creation hasn't fully committed. Retry sign-in with a short
+            // backoff to ride out the race; only declare "vérifie tes emails"
+            // after both retries fail.
+            let backoffsMs: [UInt64] = [600, 1_200]
+            var lastSignInError: Error?
+            for delay in backoffsMs {
+                try? await Task.sleep(nanoseconds: delay * 1_000_000)
+                do {
+                    _ = try await client.auth.signIn(email: email, password: password)
+                    await persistDisplayName(displayName)
+                    await refreshSession()
+                    return
+                } catch {
+                    lastSignInError = error
+                    logger.debug("Auto sign-in retry (delay \(delay, privacy: .public)ms) failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
+
+            logger.info("Auto sign-in after sign-up exhausted retries: \(String(describing: lastSignInError ?? NSError(domain: "Cooksy", code: -1)), privacy: .public)")
+            // If the error is the email-confirmation one, give the dedicated
+            // copy. Otherwise stay generic.
+            if let lastSignInError, String(describing: lastSignInError).contains("email_not_confirmed") {
+                lastErrorMessage = "Compte créé. Vérifie tes emails pour activer ton compte, puis connecte-toi."
+            } else {
+                lastErrorMessage = "Compte créé. Connecte-toi avec ton e-mail et ton mot de passe."
+            }
+            await refreshSession()
         } catch {
             let friendly = Self.friendlyAuthError(error)
             logger.error("signUp failed: \(String(describing: error), privacy: .public)")
@@ -250,6 +265,14 @@ final class SessionStore: ObservableObject {
         // afterwards doesn't leave a valid timestamp behind for the next
         // fresh install to honour.
         SessionFreshnessGuard.shared.resetLocalProgress()
+        // Drop the "returning user" hint so a NEW account signing up on
+        // this device doesn't skip the onboarding welcome screen. Same
+        // user signing back in will re-latch it on first authenticated
+        // route resolution.
+        UserDefaults.standard.removeObject(forKey: "cooksy.session.hasReachedAuthenticated")
+        // Reset the onboarding "answers saved" latch so the next signup
+        // / login from the OnboardingFlow can push its draft answers.
+        UserDefaults.standard.removeObject(forKey: "cooksy.onboarding.didSaveAnswers")
         profile = nil
         phase = .signedOut
     }
@@ -289,6 +312,7 @@ final class SessionStore: ObservableObject {
 
         // Optimistic local update so the router can react immediately.
         profile?.isPremium = premium
+        ImportQuotaService.shared.isPremium = premium
 
         do {
             _ = try await client
@@ -355,18 +379,34 @@ final class SessionStore: ObservableObject {
     }
 
     private func loadProfile(for userID: UUID) async {
-        do {
-            let loaded: CooksyProfile = try await client
-                .from("profiles")
-                .select()
-                .eq("id", value: userID)
-                .single()
-                .execute()
-                .value
-            profile = loaded
-        } catch {
-            logger.debug("Profile not yet available for user \(userID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            profile = nil
+        // Right after a fresh sign-up the `handle_new_user` Postgres trigger
+        // races with this SELECT. Retry a few times with a short exponential
+        // backoff so the router doesn't get stuck on `.bootstrap` waiting for
+        // the row to materialise.
+        let attemptDelaysMs: [UInt64] = [0, 300, 600, 1_200]
+        for (index, delay) in attemptDelaysMs.enumerated() {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay * 1_000_000)
+            }
+            do {
+                let loaded: CooksyProfile = try await client
+                    .from("profiles")
+                    .select()
+                    .eq("id", value: userID)
+                    .single()
+                    .execute()
+                    .value
+                profile = loaded
+                // Mirror premium state into the import quota service so the
+                // free-tier gate uses the live value without polling.
+                ImportQuotaService.shared.isPremium = loaded.isPremium
+                return
+            } catch {
+                if index == attemptDelaysMs.count - 1 {
+                    logger.debug("Profile still unavailable after \(attemptDelaysMs.count, privacy: .public) attempts for \(userID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    profile = nil
+                }
+            }
         }
     }
 }

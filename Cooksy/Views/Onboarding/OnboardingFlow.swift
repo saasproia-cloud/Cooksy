@@ -13,7 +13,13 @@ struct OnboardingFlow: View {
     @State private var showingLogin: Bool = false
 
     /// Prevents double-writing the answers if the view reappears after auth.
-    @State private var didSaveAnswers: Bool = false
+    /// Persisted in UserDefaults because the OnboardingFlow gets unmounted
+    /// briefly during the `.loading` window of OAuth sign-ins (Apple /
+    /// Google) — when it remounts, in-memory `@State` would reset and we'd
+    /// re-trigger the save unnecessarily, OR worse, the `.onChange`
+    /// listener would have missed the `.signedIn` transition entirely
+    /// because it happened while we were unmounted.
+    @AppStorage("cooksy.onboarding.didSaveAnswers") private var didSaveAnswers: Bool = false
 
     var body: some View {
         ZStack {
@@ -37,6 +43,15 @@ struct OnboardingFlow: View {
         }
         .onChange(of: sessionStore.phase) { _, newValue in
             handlePhaseChange(newValue)
+        }
+        // Cover the case where Apple/Google OAuth flips the phase to
+        // `.loading` then `.signedIn` while we were temporarily unmounted
+        // (the root router shows `.bootstrap` during `.loading`). On
+        // remount, the `.onChange` listener won't fire because the
+        // current phase is the initial value — so we replay the handler
+        // manually here to push the onboarding answers.
+        .onAppear {
+            handlePhaseChange(sessionStore.phase)
         }
     }
 

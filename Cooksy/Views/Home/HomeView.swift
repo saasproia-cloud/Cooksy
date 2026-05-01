@@ -9,6 +9,19 @@ struct HomeView: View {
     private let openProfileTab: () -> Void
 
     @StateObject private var viewModel: HomeViewModel
+    @StateObject private var quota = ImportQuotaService.shared
+    @StateObject private var offers = PremiumOffersService.shared
+    @EnvironmentObject private var sessionStore: SessionStore
+
+    @State private var showsGiftWheel: Bool = false
+    @State private var showsExclusiveOffer: Bool = false
+    @State private var showsPaywallFromBadge: Bool = false
+    @State private var showsQuotaInfo: Bool = false
+    /// True when the paywall is opened from the gift wheel's "Plus tard" —
+    /// drives a soft reminder banner that the user can still play to
+    /// unlock −25 %.
+    @State private var paywallShowsGiftReminder: Bool = false
+    @State private var pendingTrialFromExclusiveOffer: Bool? = nil
 
     init(
         store: RecipeStore,
@@ -49,28 +62,120 @@ struct HomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             viewModel.refreshPendingImport()
+            // Mirror live premium state into quota service.
+            quota.isPremium = sessionStore.profile?.isPremium ?? false
+        }
+        .fullScreenCover(isPresented: $showsGiftWheel) {
+            GiftWheelView(
+                onClose: { showsGiftWheel = false },
+                onClaim: { discount in
+                    // User won and tapped "Recevoir mon cadeau" — stamp
+                    // the discount on the offers service then route to
+                    // the exclusive offer page.
+                    offers.recordGiftWon(percent: discount)
+                    showsGiftWheel = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        showsExclusiveOffer = true
+                    }
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showsExclusiveOffer) {
+            ExclusiveOfferView(
+                discountPercent: offers.giftDiscountPercent ?? PremiumOffersService.defaultGiftDiscount,
+                expiresAt: offers.giftOfferExpiresAt,
+                onClose: { showsExclusiveOffer = false },
+                onSubscribe: { trialOn in
+                    pendingTrialFromExclusiveOffer = trialOn
+                    showsExclusiveOffer = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        showsPaywallFromBadge = true
+                    }
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showsPaywallFromBadge) {
+            NavigationStack {
+                PremiumPaywallView(
+                    allowsFreeModeDismiss: false,
+                    showsGiftReminder: paywallShowsGiftReminder,
+                    onDismissToFreeMode: { showsPaywallFromBadge = false },
+                    onOpenGiftFromReminder: {
+                        showsPaywallFromBadge = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            showsGiftWheel = true
+                        }
+                    }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: { showsPaywallFromBadge = false }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(CooksyTheme.elevatedSurface))
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showsQuotaInfo) {
+            WeeklyImportsSheet(
+                onUpgrade: {
+                    showsQuotaInfo = false
+                    paywallShowsGiftReminder = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showsPaywallFromBadge = true
+                    }
+                },
+                onDismiss: { showsQuotaInfo = false }
+            )
+            .presentationDetents([.height(420)])
+            .presentationDragIndicator(.hidden)
         }
     }
 
     private var topBar: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             Image("HeaderLogo")
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
 
             Spacer()
 
-            HomeCircleIconButton(systemName: "bell") {
-                openProfileTab()
-            }
+            // Lightning pill is always visible — `n/3` for free users,
+            // `∞` for premium. The gift pill is only shown to free
+            // users (premium has nothing more to win on the discount
+            // loop). Premium users also keep the bell + avatar.
+            FreePlanHomeBadges(
+                onTapQuota: { showsQuotaInfo = true },
+                onTapGift: {
+                    // If the discount is already won and still active,
+                    // jump straight to the exclusive offer page (the
+                    // wheel was a one-shot flow, not meant to be
+                    // re-spun). Otherwise present the wheel.
+                    if offers.giftHasBeenWon && offers.giftOfferIsActive {
+                        showsExclusiveOffer = true
+                    } else {
+                        showsGiftWheel = true
+                    }
+                }
+            )
 
-            Button(action: openProfileTab) {
-                HomeAvatarBadge(text: viewModel.profileBadgeText)
+            if sessionStore.profile?.isPremium ?? false {
+                HomeCircleIconButton(systemName: "bell") {
+                    openProfileTab()
+                }
+
+                Button(action: openProfileTab) {
+                    HomeAvatarBadge(text: viewModel.profileBadgeText)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
     }
@@ -638,7 +743,9 @@ private struct HomeArtworkSurface: View {
                    let uiImage = UIImage(data: imageData) {
                     Image(uiImage: uiImage)
                         .resizable()
-                        .scaledToFill()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 } else {
                     RecipeThumbnail(recipe: recipe)
                 }
@@ -668,6 +775,11 @@ private struct HomeArtworkSurface: View {
                 }
             }
         }
+        // Always honour the size the parent proposes — without this,
+        // a freshly-imported recipe whose 1024×1024 image hasn't been
+        // through `.frame(...)` yet would push its surrounding card
+        // out of bounds.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
     }
 }
@@ -985,7 +1097,8 @@ private struct BookPreviewStrip: View {
         HStack(spacing: 4) {
             ForEach(Array(recipes.prefix(3).enumerated()), id: \.offset) { _, recipe in
                 RecipeThumbnail(recipe: recipe)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
             if recipes.isEmpty {
@@ -1033,14 +1146,18 @@ private struct RecipeThumbnail: View {
                 if heroImageURL.isFileURL, let uiImage = UIImage(contentsOfFile: heroImageURL.path) {
                     Image(uiImage: uiImage)
                         .resizable()
-                        .scaledToFill()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 } else {
                     AsyncImage(url: heroImageURL) { phase in
                         switch phase {
                         case .success(let image):
                             image
                                 .resizable()
-                                .scaledToFill()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .clipped()
                         default:
                             fallback
                         }
@@ -1050,6 +1167,11 @@ private struct RecipeThumbnail: View {
                 fallback
             }
         }
+        // Lock the thumbnail to whatever the parent proposes — the
+        // library / home cards always pass an explicit size, but a
+        // large 1024×1024 import would otherwise blow up any parent
+        // that doesn't.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
     }
 

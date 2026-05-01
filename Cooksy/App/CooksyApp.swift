@@ -43,6 +43,14 @@ struct CooksyApp: App {
                 .preferredColorScheme(.light)
         }
     }
+
+    /// Returns `true` if the local Supabase session looks like it
+    /// belongs to a returning user (we've persisted at least one
+    /// authenticated bootstrap previously). Cheap UserDefaults read —
+    /// safe to call from view-builders.
+    fileprivate static var hasPersistedReturningUserHint: Bool {
+        UserDefaults.standard.bool(forKey: "cooksy.session.hasReachedAuthenticated")
+    }
 }
 
 /// Top-level route switch that decides whether to show the splash, the full
@@ -56,6 +64,20 @@ private struct RootRouter: View {
 
     @EnvironmentObject private var sessionStore: SessionStore
     @AppStorage("cooksy.hasSeenTutorial") private var hasSeenTutorial: Bool = false
+    /// Latched the first time we successfully route a signed-in user to
+    /// a post-onboarding destination (paywall / tutorial / home). On
+    /// subsequent app launches it tells the router "this user has
+    /// already cleared onboarding before — don't flash the welcome
+    /// screen while we wait for the profile row to come back from
+    /// Supabase." Without this latch, returning users see a brief
+    /// welcome flicker every cold start.
+    @AppStorage("cooksy.session.hasReachedAuthenticated") private var hasReachedAuthenticated: Bool = false
+    /// Observe the offers service so the router re-renders when the user
+    /// taps the paywall close button — `chooseFreeMode()` flips
+    /// `userChoseFreeMode` to true, which the destination resolver reads
+    /// to route to `.home` instead of `.paywall`. Without this observer
+    /// the value would change but the router wouldn't notice.
+    @StateObject private var offers = PremiumOffersService.shared
 
     /// True until the launch video (`SplashVideo.mp4` / `Cooksy-2.mp4`) has
     /// played to completion. While true, the video sits on top of whatever
@@ -82,7 +104,7 @@ private struct RootRouter: View {
                     .transition(.opacity)
 
             case .paywall:
-                PaywallView()
+                PremiumPaywallView()
                     .transition(.opacity)
 
             case .tutorial:
@@ -121,14 +143,36 @@ private struct RootRouter: View {
             return .onboarding
 
         case .signedIn:
-            // Profile row may still be loading — stay on the bootstrap
-            // background rather than flashing through paywall if we don't
-            // know the state yet.
-            guard let profile = sessionStore.profile else { return .bootstrap }
+            // Profile row may still be loading from Supabase right
+            // after a cold start. For returning users we KNOW they've
+            // cleared onboarding before (the latched
+            // `hasReachedAuthenticated` flag tells us so) — so we keep
+            // them on the silent `.bootstrap` screen instead of
+            // flashing the welcome flow while we wait. For brand-new
+            // signups the latch is still false → we fall back to
+            // `.onboarding` so the OnboardingFlow can react to the
+            // phase change and push the draft answers.
+            guard let profile = sessionStore.profile else {
+                return hasReachedAuthenticated ? .bootstrap : .onboarding
+            }
             if profile.onboardingCompletedAt == nil { return .onboarding }
-            if !profile.isPremium { return .paywall }
-            if !hasSeenTutorial { return .tutorial }
-            return .home
+            // Users who explicitly closed the paywall (X button) get into
+            // the home tab in free mode, with the gift + quota badge visible
+            // there. They can upgrade any time from the badge.
+            let resolved: Destination
+            if !profile.isPremium {
+                resolved = offers.userChoseFreeMode ? .home : .paywall
+            } else if !hasSeenTutorial {
+                resolved = .tutorial
+            } else {
+                resolved = .home
+            }
+            // Latch on every successful authenticated resolution so a
+            // future cold start skips the welcome flicker.
+            if !hasReachedAuthenticated {
+                DispatchQueue.main.async { hasReachedAuthenticated = true }
+            }
+            return resolved
         }
     }
 

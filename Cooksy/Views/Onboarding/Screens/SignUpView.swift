@@ -240,6 +240,14 @@ struct SignUpView: View {
                     lineWidth: focusedField == field ? 1.5 : 1
                 )
         )
+        // Make the WHOLE capsule the tap target. Without this, tapping
+        // outside the visible placeholder text (e.g. the icon, padding, or
+        // empty area to the right) does nothing — the user has to land
+        // exactly on the placeholder string, which is a known SwiftUI trap.
+        .contentShape(Capsule(style: .continuous))
+        .onTapGesture {
+            focusedField = field
+        }
     }
 
     private var emailCTA: some View {

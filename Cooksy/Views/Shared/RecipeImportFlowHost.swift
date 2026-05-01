@@ -25,6 +25,7 @@ private enum ImportRetrySource {
 
 private struct RecipeImportFlowHost: ViewModifier {
     @EnvironmentObject private var recipeStore: RecipeStore
+    @StateObject private var quota = ImportQuotaService.shared
 
     @Binding var isPresented: Bool
     let preferredBookID: RecipeBook.ID?
@@ -41,10 +42,64 @@ private struct RecipeImportFlowHost: ViewModifier {
     @State private var importReviewAssessment: RecipeImportAssessment?
     @State private var importFailureAssessment: RecipeImportAssessment?
     @State private var importFailureRetrySource: ImportRetrySource?
+    @State private var showsQuotaReachedSheet = false
+    @State private var showsPaywallFromQuota = false
+
+    /// Intercepts attempts to open the import sheet: if the free user has
+    /// hit their weekly quota, surface `QuotaReachedSheet` instead of the
+    /// normal import options.
+    private var gatedIsPresented: Binding<Bool> {
+        Binding(
+            get: { isPresented && quota.canImport },
+            set: { newValue in
+                if newValue && !quota.canImport {
+                    showsQuotaReachedSheet = true
+                    isPresented = false
+                } else {
+                    isPresented = newValue
+                }
+            }
+        )
+    }
 
     func body(content: Content) -> some View {
         content
-            .sheet(isPresented: $isPresented) {
+            .onChange(of: isPresented) { _, newValue in
+                if newValue && !quota.canImport {
+                    showsQuotaReachedSheet = true
+                    isPresented = false
+                }
+            }
+            .sheet(isPresented: $showsQuotaReachedSheet) {
+                QuotaReachedSheet(
+                    onUpgrade: {
+                        showsQuotaReachedSheet = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            showsPaywallFromQuota = true
+                        }
+                    },
+                    onDismiss: {
+                        showsQuotaReachedSheet = false
+                    }
+                )
+            }
+            .fullScreenCover(isPresented: $showsPaywallFromQuota) {
+                NavigationStack {
+                    PremiumPaywallView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(action: { showsPaywallFromQuota = false }) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(CooksyTheme.primaryText)
+                                        .frame(width: 32, height: 32)
+                                        .background(Circle().fill(CooksyTheme.elevatedSurface))
+                                }
+                            }
+                        }
+                }
+            }
+            .sheet(isPresented: gatedIsPresented) {
                 QuickImportSheetView(
                     onCreateFromScratch: {
                         createRecipeSeed = nil

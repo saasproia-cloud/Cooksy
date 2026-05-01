@@ -59,9 +59,7 @@ struct OopsContext {
                     // Dismiss the error so the user lands back in a clean state
                     // when they come back to the app after screenshoting.
                     onCancel()
-                },
-                secondaryLabel: "Créer manuellement",
-                secondaryAction: onCreateManually
+                }
             )
 
         case "import_too_slow":
@@ -127,97 +125,39 @@ struct RecipeImportFailureView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Mockup is on strict white — skip the ambient gradient used
-            // elsewhere so the fruit row's flat tones read clean.
-            Color.white
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            ZStack(alignment: .top) {
+                Color.white
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Top-left chef hat
-                HStack {
-                    OopsChefHat()
-                        .frame(width: 54, height: 54)
-                        .padding(.leading, 24)
-                        .padding(.top, 12)
-                    Spacer()
+                // Full-screen mockup image — pixel-perfect match to the design.
+                Image("OopsErrorScreen")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: proxy.size.width)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                // Invisible tappable area positioned over the orange CTA
+                // inside the image. Coordinates are derived from the original
+                // 2245×3179 mockup: the button sits at y≈1995–2225 (≈62.8%
+                // → ≈70% of the canvas) and spans ≈12% to ≈88% horizontally.
+                Button(action: {
+                    OnboardingHaptics.medium()
+                    context.primaryAction()
+                }) {
+                    Color.clear
+                        .contentShape(Rectangle())
                 }
-                .opacity(didAppear ? 1 : 0)
-                .offset(y: didAppear ? 0 : -10)
-                .animation(.spring(response: 0.5, dampingFraction: 0.82).delay(0.05), value: didAppear)
-
-                // Calligraphy OOPS title. SnellRoundhand-Bold is a system font
-                // on iOS, so we can use `.custom` without bundling a ttf.
-                Text("OOPS...")
-                    .font(.custom("SnellRoundhand-Bold", size: 120))
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    .padding(.top, 24)
-                    .opacity(didAppear ? 1 : 0)
-                    .scaleEffect(didAppear ? 1 : 0.85)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.12), value: didAppear)
-
-                Spacer(minLength: 24)
-
-                Text(context.message)
-                    .font(.system(size: 17, weight: .regular, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 40)
-                    .opacity(didAppear ? 1 : 0)
-                    .offset(y: didAppear ? 0 : 8)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.86).delay(0.2), value: didAppear)
-
-                Spacer(minLength: 32)
-
-                VStack(spacing: 14) {
-                    primaryButton(
-                        title: context.primaryLabel,
-                        action: {
-                            OnboardingHaptics.medium()
-                            context.primaryAction()
-                            // If the primary action didn't swap out the view
-                            // (e.g. "Créer manuellement" doesn't open anything
-                            // of its own), we dismiss so the user gets back
-                            // to a known state.
-                            if context.primaryLabel == "Créer manuellement" {
-                                showsCreateRecipe = true
-                            }
-                        }
-                    )
-
-                    if let secondaryLabel = context.secondaryLabel,
-                       let secondaryAction = context.secondaryAction {
-                        Button(action: {
-                            OnboardingHaptics.selection()
-                            secondaryAction()
-                            if secondaryLabel == "Créer manuellement" {
-                                showsCreateRecipe = true
-                            }
-                        }) {
-                            Text(secondaryLabel)
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                                .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 30)
-                .opacity(didAppear ? 1 : 0)
-                .offset(y: didAppear ? 0 : 12)
-                .animation(.spring(response: 0.5, dampingFraction: 0.82).delay(0.28), value: didAppear)
-
-                Spacer(minLength: 36)
-
-                OopsFruitRow()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
-                    .opacity(didAppear ? 1 : 0)
-                    .offset(y: didAppear ? 0 : 16)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.35), value: didAppear)
+                .buttonStyle(CooksyTheme.pressScale())
+                .frame(
+                    width: proxy.size.width * 0.76,
+                    height: proxy.size.width * (230.0 / 2245.0) * 1.4
+                )
+                .position(
+                    x: proxy.size.width / 2,
+                    y: imageHeight(in: proxy) * (2110.0 / 3179.0)
+                )
             }
-            .padding(.bottom, 0)
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
@@ -237,95 +177,12 @@ struct RecipeImportFailureView: View {
         }
     }
 
-    private func primaryButton(
-        title: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(CooksyTheme.ctaOrange)
-                )
-        }
-        .buttonStyle(CooksyTheme.pressScale())
-    }
-}
-
-// MARK: - Chef hat
-
-/// Tiny decorative chef hat drawn with SwiftUI paths, matching the orange
-/// line-art style in the mockup. Using a Path keeps us asset-free while the
-/// bitmap asset catches up.
-private struct OopsChefHat: View {
-    var body: some View {
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = proxy.size.height
-            let stroke = max(2.5, w * 0.055)
-
-            ZStack {
-                // Three puffy top blobs (the iconic chef toque)
-                Path { path in
-                    // Left blob
-                    path.addEllipse(in: CGRect(
-                        x: w * 0.06, y: h * 0.10,
-                        width: w * 0.42, height: h * 0.45
-                    ))
-                    // Right blob
-                    path.addEllipse(in: CGRect(
-                        x: w * 0.52, y: h * 0.10,
-                        width: w * 0.42, height: h * 0.45
-                    ))
-                    // Top centre blob (sits above the other two)
-                    path.addEllipse(in: CGRect(
-                        x: w * 0.28, y: h * 0.00,
-                        width: w * 0.44, height: h * 0.42
-                    ))
-                }
-                .stroke(CooksyTheme.ctaOrangeDark, lineWidth: stroke)
-
-                // The band of the hat (rounded rectangle base)
-                RoundedRectangle(cornerRadius: w * 0.08, style: .continuous)
-                    .stroke(CooksyTheme.ctaOrangeDark, lineWidth: stroke)
-                    .frame(width: w * 0.78, height: h * 0.32)
-                    .offset(y: h * 0.30)
-            }
-        }
-    }
-}
-
-// MARK: - Fruit row
-
-/// Colourful row of fruits across the bottom. Uses SF Symbols (iOS 17+
-/// fruit glyphs) when available, with emoji as the cross-version fallback.
-/// A single HStack keeps spacing predictable on every screen width.
-private struct OopsFruitRow: View {
-    // Emoji fallback — rendered by Apple's native emoji font so they come out
-    // as colourful flat glyphs on every iPhone. If the user later drops a
-    // PNG asset named `OopsFruitRow`, we swap to it transparently.
-    private let fruits: [String] = ["🍎", "🍐", "🥕", "🍓", "🥑", "🍆"]
-
-    var body: some View {
-        Group {
-            if UIImage(named: "OopsFruitRow") != nil {
-                Image("OopsFruitRow")
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                HStack(spacing: 12) {
-                    ForEach(fruits, id: \.self) { fruit in
-                        Text(fruit)
-                            .font(.system(size: 52))
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
+    /// Computed height of the image when scaled to fit the screen width,
+    /// keeping the original 2245×3179 aspect ratio. Used to position the
+    /// invisible button overlay relative to the rendered image.
+    private func imageHeight(in proxy: GeometryProxy) -> CGFloat {
+        let aspect: CGFloat = 3179.0 / 2245.0
+        return min(proxy.size.height, proxy.size.width * aspect)
     }
 }
 

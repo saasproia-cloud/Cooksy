@@ -42,6 +42,19 @@
 		849D18B4B61099D1E30E0EE1 /* TrendingRecipePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */; };
 		873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14827D31D5DF8504B453F5E0 /* RootTabView.swift */; };
 		B71F4D9A2F12345678901234 /* VideoSplashOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */; };
+		C71F0001000000000000A001 /* ImportQuotaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0001000000000000B001 /* ImportQuotaService.swift */; };
+		C71F0002000000000000A001 /* PremiumOffersService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0002000000000000B001 /* PremiumOffersService.swift */; };
+		C71F0003000000000000A001 /* PaywallPlanModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0003000000000000B001 /* PaywallPlanModel.swift */; };
+		C71F0004000000000000A001 /* IngredientConfetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0004000000000000B001 /* IngredientConfetti.swift */; };
+		C71F0005000000000000A001 /* PremiumPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0005000000000000B001 /* PremiumPaywallView.swift */; };
+		C71F0006000000000000A001 /* WelcomeOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0006000000000000B001 /* WelcomeOfferSheet.swift */; };
+		C71F0007000000000000A001 /* QuotaReachedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0007000000000000B001 /* QuotaReachedSheet.swift */; };
+		C71F0008000000000000A001 /* LockedFeatureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0008000000000000B001 /* LockedFeatureOverlay.swift */; };
+		C71F0009000000000000A001 /* GiftBoxMiniGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */; };
+		C71F000A000000000000A001 /* FreePlanHomeBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000A000000000000B001 /* FreePlanHomeBadges.swift */; };
+		C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000B000000000000B001 /* WeeklyImportsSheet.swift */; };
+		C71F000C000000000000A001 /* GiftWheelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000C000000000000B001 /* GiftWheelView.swift */; };
+		C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000D000000000000B001 /* ExclusiveOfferView.swift */; };
 		8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */; };
 		883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E295B4D72656690C64670ED8 /* RecipeBook.swift */; };
 		8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */; };
@@ -154,6 +167,19 @@
 		04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CooksyShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		14827D31D5DF8504B453F5E0 /* RootTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoSplashOverlay.swift; sourceTree = "<group>"; };
+		C71F0001000000000000B001 /* ImportQuotaService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportQuotaService.swift; sourceTree = "<group>"; };
+		C71F0002000000000000B001 /* PremiumOffersService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumOffersService.swift; sourceTree = "<group>"; };
+		C71F0003000000000000B001 /* PaywallPlanModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallPlanModel.swift; sourceTree = "<group>"; };
+		C71F0004000000000000B001 /* IngredientConfetti.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientConfetti.swift; sourceTree = "<group>"; };
+		C71F0005000000000000B001 /* PremiumPaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumPaywallView.swift; sourceTree = "<group>"; };
+		C71F0006000000000000B001 /* WelcomeOfferSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeOfferSheet.swift; sourceTree = "<group>"; };
+		C71F0007000000000000B001 /* QuotaReachedSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuotaReachedSheet.swift; sourceTree = "<group>"; };
+		C71F0008000000000000B001 /* LockedFeatureOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LockedFeatureOverlay.swift; sourceTree = "<group>"; };
+		C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftBoxMiniGameView.swift; sourceTree = "<group>"; };
+		C71F000A000000000000B001 /* FreePlanHomeBadges.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FreePlanHomeBadges.swift; sourceTree = "<group>"; };
+		C71F000B000000000000B001 /* WeeklyImportsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyImportsSheet.swift; sourceTree = "<group>"; };
+		C71F000C000000000000B001 /* GiftWheelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftWheelView.swift; sourceTree = "<group>"; };
+		C71F000D000000000000B001 /* ExclusiveOfferView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExclusiveOfferView.swift; sourceTree = "<group>"; };
 		14BDF91DC0D5EE665EBA20B3 /* AppConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		1C2D52E5A11B4E2292A91C10 /* CreateRecipeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateRecipeView.swift; sourceTree = "<group>"; };
 		1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeEditorSeed.swift; sourceTree = "<group>"; };
@@ -312,6 +338,8 @@
 				F20000000000000000000001 /* SupabaseClientProvider.swift */,
 				F20000000000000000000002 /* SessionStore.swift */,
 				F20000000000000000000003 /* SessionFreshnessGuard.swift */,
+				C71F0001000000000000B001 /* ImportQuotaService.swift */,
+				C71F0002000000000000B001 /* PremiumOffersService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -489,11 +517,30 @@
 				F30000000000000000000201 /* Onboarding */,
 				A1C0F2021A11111111111111 /* Plan */,
 				81C38A0D1D456AD4675C53AB /* Placeholders */,
+				C71F0010000000000000C001 /* Premium */,
 				F10000000000000000000021 /* Profile */,
 				8E1A0A25123456789ABCDE01 /* Recipes */,
 				37DB3216E05B7D23CA205548 /* Shared */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		C71F0010000000000000C001 /* Premium */ = {
+			isa = PBXGroup;
+			children = (
+				C71F0003000000000000B001 /* PaywallPlanModel.swift */,
+				C71F0005000000000000B001 /* PremiumPaywallView.swift */,
+				C71F0006000000000000B001 /* WelcomeOfferSheet.swift */,
+				C71F0007000000000000B001 /* QuotaReachedSheet.swift */,
+				C71F0008000000000000B001 /* LockedFeatureOverlay.swift */,
+				C71F0004000000000000B001 /* IngredientConfetti.swift */,
+				C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */,
+				C71F000A000000000000B001 /* FreePlanHomeBadges.swift */,
+				C71F000B000000000000B001 /* WeeklyImportsSheet.swift */,
+				C71F000C000000000000B001 /* GiftWheelView.swift */,
+				C71F000D000000000000B001 /* ExclusiveOfferView.swift */,
+			);
+			path = Premium;
 			sourceTree = "<group>";
 		};
 		F10000000000000000000021 /* Profile */ = {
@@ -739,6 +786,19 @@
 				5F56D2BDF9485747B0161ADC /* CooksyApp.swift in Sources */,
 				873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */,
 				B71F4D9A2F12345678901234 /* VideoSplashOverlay.swift in Sources */,
+				C71F0001000000000000A001 /* ImportQuotaService.swift in Sources */,
+				C71F0002000000000000A001 /* PremiumOffersService.swift in Sources */,
+				C71F0003000000000000A001 /* PaywallPlanModel.swift in Sources */,
+				C71F0004000000000000A001 /* IngredientConfetti.swift in Sources */,
+				C71F0005000000000000A001 /* PremiumPaywallView.swift in Sources */,
+				C71F0006000000000000A001 /* WelcomeOfferSheet.swift in Sources */,
+				C71F0007000000000000A001 /* QuotaReachedSheet.swift in Sources */,
+				C71F0008000000000000A001 /* LockedFeatureOverlay.swift in Sources */,
+				C71F0009000000000000A001 /* GiftBoxMiniGameView.swift in Sources */,
+				C71F000A000000000000A001 /* FreePlanHomeBadges.swift in Sources */,
+				C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */,
+				C71F000C000000000000A001 /* GiftWheelView.swift in Sources */,
+				C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */,
 				24368CBE04042DFA3B6F8C31 /* CooksyTheme.swift in Sources */,
 				77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */,
 				0DEA03C6F3737AD192298935 /* RecipeBook.swift in Sources */,

@@ -59,6 +59,28 @@ enum CooksyTheme {
         endPoint: .trailing
     )
 
+    // Premium paywall tokens
+    static let heroDark = Color(hex: 0x1F120B)
+    static let heroDarkSoft = Color(hex: 0x35201A)
+    static let heroDarkGradient = LinearGradient(
+        colors: [
+            Color(hex: 0x1F120B),
+            Color(hex: 0x3D1F12),
+            Color(hex: 0x6B2814)
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    static let goldShimmer = LinearGradient(
+        colors: [
+            Color(hex: 0xF5B14E),
+            Color(hex: 0xFFE0A0),
+            Color(hex: 0xF5B14E)
+        ],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+
     static let heroRadius: CGFloat = 26
     static let cardRadius: CGFloat = 22
 
