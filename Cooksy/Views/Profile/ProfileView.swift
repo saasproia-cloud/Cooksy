@@ -1,10 +1,22 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @State private var toastMessage: String?
+    @EnvironmentObject private var sessionStore: SessionStore
+    @Environment(\.openURL) private var openURL
 
-    private let displayName = "Invité"
-    private let avatarInitial = "I"
+    @State private var toastMessage: String?
+    @State private var showsEditProfile = false
+    @State private var showsPaywall = false
+
+    private var displayName: String {
+        let raw = sessionStore.profile?.displayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return raw.isEmpty ? "Chef" : raw
+    }
+
+    private var avatarInitial: String {
+        displayName.first.map { String($0).uppercased() } ?? "C"
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -16,12 +28,17 @@ struct ProfileView: View {
                     ProfileHeaderCard(
                         displayName: displayName,
                         avatarInitial: avatarInitial,
-                        onEditTap: { showToast("Bientôt disponible") }
+                        avatarURL: sessionStore.profile?.avatarURL,
+                        isPremium: sessionStore.isPremium,
+                        onEditTap: { showsEditProfile = true },
+                        onCrownTapWhenLocked: { showsPaywall = true }
                     )
 
-                    ProfilePremiumBanner(
-                        action: { showToast("Bientôt disponible") }
-                    )
+                    if sessionStore.isPremium {
+                        PremiumActiveCard(onManage: openSubscriptionsURL)
+                    } else {
+                        ProfilePremiumBanner(action: { showsPaywall = true })
+                    }
 
                     sectionTitle("Découverte")
                     discoverySection
@@ -47,6 +64,35 @@ struct ProfileView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showsEditProfile) {
+            EditProfileView()
+                .environmentObject(sessionStore)
+        }
+        .fullScreenCover(isPresented: $showsPaywall) {
+            NavigationStack {
+                PremiumPaywallView(
+                    allowsFreeModeDismiss: false,
+                    onDismissToFreeMode: { showsPaywall = false }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: { showsPaywall = false }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(CooksyTheme.elevatedSurface))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func openSubscriptionsURL() {
+        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+            openURL(url)
+        }
     }
 
     private func sectionTitle(_ text: String) -> some View {

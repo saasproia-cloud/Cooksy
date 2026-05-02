@@ -519,39 +519,29 @@ private struct PaywallTrialComparator: View {
                     HStack(spacing: 10) {
                         Image(systemName: "sparkles")
                             .foregroundStyle(CooksyTheme.primaryAccent)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Essai gratuit 7 jours")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                            Text("Rappel 24 h avant le 1ʳᵉ prélèvement")
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                        }
+                        Text("Essai gratuit 7 jours")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
                     }
                 }
                 .tint(CooksyTheme.primaryAccent)
 
                 Divider().background(CooksyTheme.stroke)
 
-                // Headline price line — the monthly equivalent is the
-                // hero number; the annual total sits beside it for
-                // context. This is the only "money" the user has to
-                // process at a glance.
+                // Single headline price line: monthly equivalent in
+                // hero size + the full annual price as strikethrough
+                // comparison. No more sub-text — the toggle alone
+                // tells the user what flow they're in.
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(monthlyPrice)
                         .font(.system(size: 28, weight: .bold, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)
-                    Text("au lieu de \(monthlyOfMonthlyPlan)")
+                    Text("au lieu de \(yearlyFullPrice)")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .strikethrough()
                     Spacer(minLength: 0)
                 }
-
-                Text(subline)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(16)
             .background(
@@ -578,21 +568,11 @@ private struct PaywallTrialComparator: View {
             ?? plan.formattedPrice(discountPercent: discountPercent)
     }
 
-    /// "7,99 €/mois" — what the standalone monthly plan costs, used
-    /// as the strikethrough comparison so the user *sees* the gap.
-    private var monthlyOfMonthlyPlan: String {
-        PremiumPlan.monthly.formattedPrice() + PremiumPlan.monthly.unitLabel
-    }
-
-    /// Single sentence under the price that explains the billing
-    /// timeline. Different copy when the trial is on vs off.
-    private var subline: String {
-        let total = plan.formattedPrice(discountPercent: discountPercent) + plan.unitLabel
-        if trialEnabled {
-            return "0 € aujourd'hui, puis \(total) à J+7. Annulable en 2 taps avant la fin de l'essai."
-        } else {
-            return "Facturé \(total) aujourd'hui — soit \(monthlyPrice) sur l'année."
-        }
+    /// "39,99 €/an" — the full undiscounted annual price, used as the
+    /// strikethrough so the user sees how much they save by picking
+    /// the annual plan vs paying full price.
+    private var yearlyFullPrice: String {
+        PremiumPlan.yearly.formattedPrice() + PremiumPlan.yearly.unitLabel
     }
 }
 

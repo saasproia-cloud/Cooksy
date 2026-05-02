@@ -34,6 +34,11 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var pendingImport: SharedImportDraft?
     @Published private(set) var dayRefreshDate: Date = .now
 
+    /// Pushed by HomeView whenever the SessionStore profile changes. Drives
+    /// the personalised greeting + avatar initial. `nil` means "unknown" —
+    /// the VM falls back to a generic "Chef".
+    @Published var liveDisplayName: String?
+
     private let sharedLinkInbox: SharedLinkInbox
     private let calendar: Calendar
     private var cancellables = Set<AnyCancellable>()
@@ -58,23 +63,41 @@ final class HomeViewModel: ObservableObject {
         scheduleMidnightRefresh()
     }
 
+    /// Called from HomeView's `.onChange(of: sessionStore.profile?.displayName)`
+    /// so the greeting reacts when the profile loads or the user edits their
+    /// name. Trimming/normalisation lives here so the View stays declarative.
+    func setDisplayName(_ name: String?) {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let next: String? = trimmed.isEmpty ? nil : trimmed
+        if liveDisplayName != next {
+            liveDisplayName = next
+        }
+    }
+
+    /// Resolved display name for the current user. Falls back to "Chef" when
+    /// the session profile hasn't loaded yet or has no name set, so the home
+    /// header never renders an empty greeting.
+    private var resolvedDisplayName: String {
+        liveDisplayName?.isEmpty == false ? liveDisplayName! : "Chef"
+    }
+
     var greetingLine: String {
         switch calendar.component(.hour, from: dayRefreshDate) {
         case 5..<12:
-            return "Good morning"
+            return "Bonjour"
         case 12..<18:
-            return "Good afternoon"
+            return "Bon après-midi"
         default:
-            return "Good evening"
+            return "Bonsoir"
         }
     }
 
     var homeHeadline: String {
-        "What are we cooking today, Alex?"
+        "Qu'est-ce qu'on cuisine aujourd'hui, \(resolvedDisplayName) ?"
     }
 
     var profileBadgeText: String {
-        "A"
+        resolvedDisplayName.first.map { String($0).uppercased() } ?? "C"
     }
 
     var importGuideTitle: String {
@@ -82,7 +105,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     var importGuideSubtitle: String {
-        "TikTok - Instagram - Any link"
+        "5 étapes pour importer depuis TikTok, Instagram…"
     }
 
     var hasRecentImports: Bool {

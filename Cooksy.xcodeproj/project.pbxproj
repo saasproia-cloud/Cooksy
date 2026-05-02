@@ -129,6 +129,13 @@
 		F30000000000000000000137 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000037 /* PaywallView.swift */; };
 		F30000000000000000000138 /* PostPaywallTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000038 /* PostPaywallTutorialView.swift */; };
 		F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* CulinaryPreferencesView.swift */; };
+		F10000000000000000000015 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* EditProfileView.swift */; };
+		F10000000000000000000016 /* PremiumActiveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* PremiumActiveCard.swift */; };
+		F10000000000000000000017 /* PremiumCrownBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* PremiumCrownBadge.swift */; };
+		F100000000000000000000B1 /* LegalDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A1 /* LegalDocumentView.swift */; };
+		F100000000000000000000B2 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A2 /* PrivacyPolicyView.swift */; };
+		F100000000000000000000B3 /* TermsOfServiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A3 /* TermsOfServiceView.swift */; };
+		F00000000000000000000B01 /* ImportGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000A01 /* ImportGuideView.swift */; };
 		F40000000000000000000101 /* TrendingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001 /* TrendingArtwork.swift */; };
 /* End PBXBuildFile section */
 
@@ -280,6 +287,13 @@
 		F30000000000000000000037 /* PaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		F30000000000000000000038 /* PostPaywallTutorialView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PostPaywallTutorialView.swift; sourceTree = "<group>"; };
 		F10000000000000000000004 /* CulinaryPreferencesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CulinaryPreferencesView.swift; sourceTree = "<group>"; };
+		F10000000000000000000005 /* EditProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
+		F10000000000000000000006 /* PremiumActiveCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumActiveCard.swift; sourceTree = "<group>"; };
+		F10000000000000000000007 /* PremiumCrownBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumCrownBadge.swift; sourceTree = "<group>"; };
+		F100000000000000000000A1 /* LegalDocumentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LegalDocumentView.swift; sourceTree = "<group>"; };
+		F100000000000000000000A2 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
+		F100000000000000000000A3 /* TermsOfServiceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TermsOfServiceView.swift; sourceTree = "<group>"; };
+		F00000000000000000000A01 /* ImportGuideView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideView.swift; sourceTree = "<group>"; };
 		F40000000000000000000001 /* TrendingArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingArtwork.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -550,8 +564,22 @@
 				F10000000000000000000002 /* ProfileSettingsView.swift */,
 				F10000000000000000000001 /* ProfileView.swift */,
 				F10000000000000000000004 /* CulinaryPreferencesView.swift */,
+				F10000000000000000000005 /* EditProfileView.swift */,
+				F10000000000000000000006 /* PremiumActiveCard.swift */,
+				F10000000000000000000007 /* PremiumCrownBadge.swift */,
+				F100000000000000000000A0 /* Legal */,
 			);
 			path = Profile;
+			sourceTree = "<group>";
+		};
+		F100000000000000000000A0 /* Legal */ = {
+			isa = PBXGroup;
+			children = (
+				F100000000000000000000A1 /* LegalDocumentView.swift */,
+				F100000000000000000000A2 /* PrivacyPolicyView.swift */,
+				F100000000000000000000A3 /* TermsOfServiceView.swift */,
+			);
+			path = Legal;
 			sourceTree = "<group>";
 		};
 		DBF22409252D66CE309B8A32 /* Cooksy */ = {
@@ -576,6 +604,7 @@
 				7BDDF7C2C56E41828A086F4B /* CreateRecipeBookSheet.swift */,
 				F994BB5264D63C2BB2AB20A4 /* HomeView.swift */,
 				CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */,
+				F00000000000000000000A01 /* ImportGuideView.swift */,
 				646B541A44F24D2497BEF4A7 /* RecipeBookDetailView.swift */,
 				509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */,
 				C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */,
@@ -888,6 +917,13 @@
 				F30000000000000000000137 /* PaywallView.swift in Sources */,
 				F30000000000000000000138 /* PostPaywallTutorialView.swift in Sources */,
 				F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */,
+				F10000000000000000000015 /* EditProfileView.swift in Sources */,
+				F10000000000000000000016 /* PremiumActiveCard.swift in Sources */,
+				F10000000000000000000017 /* PremiumCrownBadge.swift in Sources */,
+				F100000000000000000000B1 /* LegalDocumentView.swift in Sources */,
+				F100000000000000000000B2 /* PrivacyPolicyView.swift in Sources */,
+				F100000000000000000000B3 /* TermsOfServiceView.swift in Sources */,
+				F00000000000000000000B01 /* ImportGuideView.swift in Sources */,
 				F40000000000000000000101 /* TrendingArtwork.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

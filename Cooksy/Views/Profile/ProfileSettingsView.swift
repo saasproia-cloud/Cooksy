@@ -120,29 +120,53 @@ struct ProfileSettingsView: View {
                 .frame(height: 1)
                 .padding(.leading, 66)
 
-            settingsReadOnlyRow(
-                systemImage: "globe",
-                title: "Langue",
-                value: "Français",
-                isLast: true
-            )
+            languageRow
+        }
+    }
+
+    private var languageRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 14) {
+                rowIcon("globe")
+
+                Text("Langue")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+
+                Spacer(minLength: 0)
+
+                Text("Français")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            Text("Cooksy est disponible uniquement en français pour le moment.")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText.opacity(0.85))
+                .padding(.leading, 66)
+                .padding(.trailing, 16)
+                .padding(.bottom, 12)
         }
     }
 
     private var legalCard: some View {
         ProfileSectionCard {
-            ProfileRow(
+            ProfileNavigationRow(
                 systemImage: "lock.shield",
-                title: "Politique de confidentialité",
-                action: { showToast("Bientôt disponible") }
-            )
+                title: "Politique de confidentialité"
+            ) {
+                PrivacyPolicyView()
+            }
 
-            ProfileRow(
+            ProfileNavigationRow(
                 systemImage: "doc.text",
                 title: "Conditions d'utilisation",
-                isLast: true,
-                action: { showToast("Bientôt disponible") }
-            )
+                isLast: true
+            ) {
+                TermsOfServiceView()
+            }
         }
     }
 

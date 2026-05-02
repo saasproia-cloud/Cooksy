@@ -17,6 +17,8 @@ struct HomeView: View {
     @State private var showsExclusiveOffer: Bool = false
     @State private var showsPaywallFromBadge: Bool = false
     @State private var showsQuotaInfo: Bool = false
+    @State private var showsImportGuide: Bool = false
+    @AppStorage("cooksy.hasSeenImportGuide") private var hasSeenImportGuide: Bool = false
     /// True when the paywall is opened from the gift wheel's "Plus tard" —
     /// drives a soft reminder banner that the user can still play to
     /// unlock −25 %.
@@ -64,6 +66,28 @@ struct HomeView: View {
             viewModel.refreshPendingImport()
             // Mirror live premium state into quota service.
             quota.isPremium = sessionStore.profile?.isPremium ?? false
+            // Hydrate the greeting with the current display name (and react
+            // to later updates from EditProfileView via the .onChange below).
+            viewModel.setDisplayName(sessionStore.profile?.displayName)
+
+            // Auto-present the import guide on the very first home appearance.
+            // After dismissal, `hasSeenImportGuide` flips to true so we never
+            // pop it up again — but the user can always re-open it via the
+            // "Guide d'importation…" card on this screen.
+            if !hasSeenImportGuide {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showsImportGuide = true
+                }
+            }
+        }
+        .onChange(of: sessionStore.profile?.displayName) { _, newValue in
+            viewModel.setDisplayName(newValue)
+        }
+        .sheet(isPresented: $showsImportGuide) {
+            ImportGuideView(onClose: {
+                hasSeenImportGuide = true
+                showsImportGuide = false
+            })
         }
         .fullScreenCover(isPresented: $showsGiftWheel) {
             GiftWheelView(
@@ -173,6 +197,14 @@ struct HomeView: View {
 
                 Button(action: openProfileTab) {
                     HomeAvatarBadge(text: viewModel.profileBadgeText)
+                        .overlay(alignment: .topTrailing) {
+                            // Premium crown — celebratory gold variant.
+                            PremiumCrownBadge(
+                                isPremium: true,
+                                size: 16
+                            )
+                            .offset(x: 4, y: -4)
+                        }
                 }
                 .buttonStyle(.plain)
             }
@@ -197,12 +229,15 @@ struct HomeView: View {
                 .tracking(-0.8)
                 .foregroundStyle(CooksyTheme.primaryText)
                 .lineSpacing(-2)
+                .lineLimit(3)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.78)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var importGuideCard: some View {
-        Button(action: openImportSheet) {
+        Button(action: { showsImportGuide = true }) {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(Color(hex: 0xFFF2E4))

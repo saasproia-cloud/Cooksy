@@ -217,8 +217,31 @@ final class SessionStore: ObservableObject {
 
     /// Sign in using an Apple identity token obtained from `ASAuthorizationAppleIDCredential`.
     /// The `nonce` must be the *raw* nonce used to generate the hashed nonce passed to Apple.
-    func signInWithApple(idToken: String, nonce: String) async {
+    /// `fullName` is provided by Apple **only on the very first sign-in** for a given Apple ID;
+    /// when present and the profile row has no display name yet, we persist it so the user
+    /// sees their actual name everywhere instead of a generic placeholder.
+    func signInWithApple(idToken: String, nonce: String, fullName: PersonNameComponents? = nil) async {
         await signInWithIdToken(provider: .apple, idToken: idToken, nonce: nonce)
+        await persistAppleFullNameIfNeeded(fullName)
+    }
+
+    /// First-sign-in only: Apple hands us the user's name once. If we already
+    /// have a non-empty display name on the profile row, we leave it untouched
+    /// (the user may have customised it). Otherwise we format the components
+    /// with `PersonNameComponentsFormatter` and write it to Supabase.
+    private func persistAppleFullNameIfNeeded(_ fullName: PersonNameComponents?) async {
+        guard let fullName, let user = currentUser else { return }
+        let existing = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard existing.isEmpty else { return }
+
+        let formatter = PersonNameComponentsFormatter()
+        formatter.style = .default
+        let formatted = formatter.string(from: fullName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !formatted.isEmpty else { return }
+
+        await persistDisplayName(formatted)
+        await loadProfile(for: user.id)
     }
 
     /// Sign in using a Google ID token (from GoogleSignIn-iOS).
@@ -302,6 +325,74 @@ final class SessionStore: ObservableObject {
         } catch {
             logger.error("saveOnboardingAnswers failed: \(error.localizedDescription, privacy: .public)")
             lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    /// Updates the user's display name and/or avatar URL in one round-trip.
+    /// Pass `nil` for a field to leave it untouched. Refreshes `self.profile`
+    /// on success so the UI reflects the change immediately.
+    func updateProfile(displayName: String? = nil, avatarURL: URL? = nil) async throws {
+        guard let user = currentUser else {
+            throw NSError(
+                domain: "Cooksy.SessionStore",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Session utilisateur introuvable."]
+            )
+        }
+
+        let payload = ProfileUpdatePayload(
+            displayName: displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+            avatarURL: avatarURL?.absoluteString
+        )
+
+        do {
+            _ = try await client
+                .from("profiles")
+                .update(payload)
+                .eq("id", value: user.id)
+                .execute()
+            await loadProfile(for: user.id)
+        } catch {
+            logger.error("updateProfile failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
+    /// Uploads JPEG data to the `avatars` Supabase Storage bucket and returns
+    /// the public URL. Path convention `<uid>/avatar-<ms-timestamp>.jpg`
+    /// matches the `recipe-images` RLS pattern (folder = uid).
+    func uploadAvatar(_ data: Data) async throws -> URL {
+        guard let user = currentUser else {
+            throw NSError(
+                domain: "Cooksy.SessionStore",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Session utilisateur introuvable."]
+            )
+        }
+
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let path = "\(user.id.uuidString.lowercased())/avatar-\(timestamp).jpg"
+
+        do {
+            _ = try await client.storage
+                .from("avatars")
+                .upload(
+                    path,
+                    data: data,
+                    options: FileOptions(
+                        cacheControl: "3600",
+                        contentType: "image/jpeg",
+                        upsert: true
+                    )
+                )
+
+            let publicURL = try client.storage
+                .from("avatars")
+                .getPublicURL(path: path)
+            return publicURL
+        } catch {
+            logger.error("uploadAvatar failed: \(error.localizedDescription, privacy: .public)")
+            throw error
         }
     }
 
@@ -486,5 +577,23 @@ private struct DisplayNameUpdatePayload: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case displayName = "display_name"
+    }
+}
+
+/// Partial profile update — fields left as `nil` are omitted from the payload
+/// (`encodeIfPresent`) so the existing Supabase row keeps its current value.
+private struct ProfileUpdatePayload: Encodable {
+    let displayName: String?
+    let avatarURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(avatarURL, forKey: .avatarURL)
     }
 }

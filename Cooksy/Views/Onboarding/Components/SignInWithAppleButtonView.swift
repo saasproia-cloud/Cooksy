@@ -51,7 +51,17 @@ struct SignInWithAppleButtonView: View {
                 sessionStore.lastErrorMessage = "Connexion Apple indisponible."
                 return
             }
-            Task { await sessionStore.signInWithApple(idToken: idToken, nonce: nonce) }
+            // Apple only sends `fullName` on the *very first* sign-in for a
+            // given Apple ID; subsequent sign-ins return nil. SessionStore
+            // persists it only if the profile row has no display name yet.
+            let fullName = credential.fullName
+            Task {
+                await sessionStore.signInWithApple(
+                    idToken: idToken,
+                    nonce: nonce,
+                    fullName: fullName
+                )
+            }
 
         case .failure(let error):
             // User-cancel is fine; other errors surface via SessionStore.

@@ -5,7 +5,10 @@ import SwiftUI
 struct ProfileHeaderCard: View {
     let displayName: String
     let avatarInitial: String
+    var avatarURL: URL? = nil
+    var isPremium: Bool = false
     let onEditTap: () -> Void
+    var onCrownTapWhenLocked: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 16) {
@@ -19,9 +22,34 @@ struct ProfileHeaderCard: View {
                     )
                     .shadow(color: CooksyTheme.ctaOrange.opacity(0.25), radius: 12, y: 6)
 
-                Text(avatarInitial)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                if let avatarURL {
+                    AsyncImage(url: avatarURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        default:
+                            Text(avatarInitial)
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .frame(width: 72, height: 72)
+                    .clipShape(Circle())
+                } else {
+                    Text(avatarInitial)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                PremiumCrownBadge(
+                    isPremium: isPremium,
+                    size: 24,
+                    onTapWhenLocked: onCrownTapWhenLocked
+                )
+                .offset(x: 4, y: -4)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -29,6 +57,8 @@ struct ProfileHeaderCard: View {
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.85)
 
                 Button(action: onEditTap) {
                     Text("Modifier le profil")
@@ -129,6 +159,55 @@ struct ProfileRow: View {
     var body: some View {
         VStack(spacing: 0) {
             Button(action: action) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(CooksyTheme.blush.opacity(0.55))
+                            .frame(width: 36, height: 36)
+
+                        Image(systemName: systemImage)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    }
+
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !isLast {
+                Rectangle()
+                    .fill(CooksyTheme.dividerSubtle)
+                    .frame(height: 1)
+                    .padding(.leading, 66)
+            }
+        }
+    }
+}
+
+// MARK: - Row that pushes a destination view (NavigationLink variant)
+
+struct ProfileNavigationRow<Destination: View>: View {
+    let systemImage: String
+    let title: String
+    var isLast: Bool = false
+    @ViewBuilder let destination: () -> Destination
+
+    var body: some View {
+        VStack(spacing: 0) {
+            NavigationLink(destination: destination()) {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
