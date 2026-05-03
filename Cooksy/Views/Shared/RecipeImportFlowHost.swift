@@ -42,6 +42,7 @@ private struct RecipeImportFlowHost: ViewModifier {
     @State private var importReviewAssessment: RecipeImportAssessment?
     @State private var importFailureAssessment: RecipeImportAssessment?
     @State private var importFailureRetrySource: ImportRetrySource?
+    @State private var lastPastedText: String = ""
     @State private var showsQuotaReachedSheet = false
     @State private var showsPaywallFromQuota = false
 
@@ -166,7 +167,8 @@ private struct RecipeImportFlowHost: ViewModifier {
                 }
             }
             .fullScreenCover(isPresented: $showsPasteTextImport) {
-                PasteTextImportView { assessment in
+                PasteTextImportView(initialText: lastPastedText) { text, assessment in
+                    lastPastedText = text
                     showsPasteTextImport = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         presentImportedAssessment(assessment, retrySource: .pasteText)
@@ -206,8 +208,10 @@ private struct RecipeImportFlowHost: ViewModifier {
                         store: recipeStore,
                         seed: failureAssessment.seed,
                         preferredBookID: preferredBookID,
+                        source: failureSource(for: importFailureRetrySource),
                         context: OopsContext.from(
                             seed: failureAssessment.seed,
+                            source: failureSource(for: importFailureRetrySource),
                             onRetry: retryLastImport,
                             onCancel: {
                                 importFailureAssessment = nil
@@ -276,6 +280,15 @@ private struct RecipeImportFlowHost: ViewModifier {
             importFailureAssessment = assessment
         } else {
             importReviewAssessment = assessment
+        }
+    }
+
+    private func failureSource(for retrySource: ImportRetrySource?) -> RecipeImportSourceKind {
+        switch retrySource {
+        case .pasteText: return .text
+        case .photo: return .photo
+        case .browser: return .url
+        case nil: return .url
         }
     }
 

@@ -5,14 +5,25 @@ import SwiftUI
 struct PasteTextImportView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let onImport: (RecipeImportAssessment) -> Void
+    let initialText: String
+    let onImport: (String, RecipeImportAssessment) -> Void
 
-    @State private var recipeText = ""
+    @State private var recipeText: String
     @State private var showsAdvice = true
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
     @State private var selectedImage: UIImage?
     @State private var isImporting = false
+    @FocusState private var isEditorFocused: Bool
+
+    init(
+        initialText: String = "",
+        onImport: @escaping (String, RecipeImportAssessment) -> Void
+    ) {
+        self.initialText = initialText
+        self.onImport = onImport
+        _recipeText = State(initialValue: initialText)
+    }
 
     var body: some View {
         ZStack {
@@ -40,6 +51,17 @@ struct PasteTextImportView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Terminé") {
+                    isEditorFocused = false
+                }
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
         .task(id: selectedPhotoItem) {
             guard let selectedPhotoItem else { return }
             if let data = try? await selectedPhotoItem.loadTransferable(type: Data.self) {
@@ -142,6 +164,7 @@ struct PasteTextImportView: View {
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
                 .padding(.horizontal, 20)
+                .focused($isEditorFocused)
 
             if recipeText.isEmpty {
                 Text("Tapez ou collez la recette complète")
@@ -172,7 +195,7 @@ struct PasteTextImportView: View {
 
             await MainActor.run {
                 isImporting = false
-                onImport(assessment)
+                onImport(recipeText, assessment)
             }
         }
     }

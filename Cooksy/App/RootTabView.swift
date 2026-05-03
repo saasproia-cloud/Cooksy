@@ -444,24 +444,55 @@ private struct SavedImportedRecipeRoute: Identifiable {
 private struct RootQuickImportButton: View {
     let action: () -> Void
 
+    @State private var isPressed = false
+
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            OnboardingHaptics.medium()
+            action()
+        }) {
             ZStack {
+                // Soft ambient halo
+                Circle()
+                    .fill(CooksyTheme.ctaOrange.opacity(0.18))
+                    .frame(width: 78, height: 78)
+                    .blur(radius: 6)
+
+                // Main pill
                 Circle()
                     .fill(CooksyTheme.accentGradient)
-                    .frame(width: 62, height: 62)
+                    .frame(width: 64, height: 64)
                     .overlay(
                         Circle()
-                            .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.7),
+                                        Color.white.opacity(0.0)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1
+                            )
                     )
+                    .shadow(color: CooksyTheme.ctaOrange.opacity(0.45), radius: 22, y: 12)
+                    .shadow(color: Color.black.opacity(0.10), radius: 4, y: 1)
 
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
             }
-            .shadow(color: CooksyTheme.ctaOrange.opacity(0.3), radius: 18, y: 10)
+            .scaleEffect(isPressed ? 0.92 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isPressed)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in isPressed = true }
+                .onEnded { _ in isPressed = false }
+        )
         .accessibilityLabel("Importer une recette")
     }
 }

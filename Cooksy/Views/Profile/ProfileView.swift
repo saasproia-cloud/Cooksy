@@ -1,12 +1,16 @@
+import StoreKit
 import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject private var sessionStore: SessionStore
+    @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.openURL) private var openURL
+    @Environment(\.requestReview) private var requestReview
 
     @State private var toastMessage: String?
     @State private var showsEditProfile = false
     @State private var showsPaywall = false
+    @State private var showsImportGuide = false
 
     private var displayName: String {
         let raw = sessionStore.profile?.displayName?
@@ -68,6 +72,9 @@ struct ProfileView: View {
             EditProfileView()
                 .environmentObject(sessionStore)
         }
+        .sheet(isPresented: $showsImportGuide) {
+            ImportGuideView(onClose: { showsImportGuide = false })
+        }
         .fullScreenCover(isPresented: $showsPaywall) {
             NavigationStack {
                 PremiumPaywallView(
@@ -106,48 +113,68 @@ struct ProfileView: View {
 
     private var discoverySection: some View {
         ProfileSectionCard {
-            ProfileRow(
+            ProfileNavigationRow(
                 systemImage: "chart.line.uptrend.xyaxis",
-                title: "Recettes tendance",
-                action: { showToast("Bientôt disponible") }
-            )
+                title: "Recettes tendance"
+            ) {
+                TrendingRecipesView(store: recipeStore)
+            }
 
             ProfileRow(
-                systemImage: "square.and.arrow.up.on.square",
-                title: "Ajouter le raccourci Cooksy",
-                action: { showToast("Bientôt disponible") }
+                systemImage: "star.fill",
+                title: "Noter Cooksy",
+                action: { requestReview() }
             )
 
+            // "Lire nos guides d'importation" — opens the same multi-page
+            // tutorial users see at first launch, but on demand from here.
             ProfileRow(
                 systemImage: "book.closed",
                 title: "Lire nos guides d'importation",
-                action: { showToast("Bientôt disponible") }
+                action: { showsImportGuide = true }
             )
 
-            ProfileRow(
+            ProfileNavigationRow(
                 systemImage: "desktopcomputer",
                 title: "Utiliser Cooksy sur le bureau",
-                isLast: true,
-                action: { showToast("Bientôt disponible") }
-            )
+                isLast: true
+            ) {
+                DesktopAccessView()
+                    .environmentObject(sessionStore)
+            }
         }
     }
 
     private var communitySection: some View {
         ProfileSectionCard {
-            ProfileRow(
+            // Native iOS share sheet — invites a friend with a pre-written
+            // pitch and a placeholder App Store link (replace with your
+            // real App Store URL once published).
+            ShareLinkProfileRow(
                 systemImage: "person.badge.plus",
                 title: "Inviter des amis",
-                action: { showToast("Bientôt disponible") }
+                shareText: inviteText
             )
 
-            ProfileRow(
+            ProfileNavigationRow(
                 systemImage: "questionmark.circle",
                 title: "Aide",
-                isLast: true,
-                action: { showToast("Bientôt disponible") }
-            )
+                isLast: true
+            ) {
+                HelpView()
+            }
         }
+    }
+
+    /// Pitch shown when the user shares Cooksy via the iOS share sheet.
+    private var inviteText: String {
+        """
+        Découvre Cooksy 🍳 — l'app qui transforme n'importe quelle vidéo cuisine TikTok ou Instagram en vraie recette structurée (ingrédients précis, étapes claires).
+
+        Plus besoin de re-scroller la vidéo pendant que tu cuisines !
+
+        https://apps.apple.com/app/cooksy
+        """
     }
 
     private var settingsSection: some View {

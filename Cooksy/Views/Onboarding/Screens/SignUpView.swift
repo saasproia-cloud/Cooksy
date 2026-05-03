@@ -1,34 +1,27 @@
 import SwiftUI
 
-/// D1 — Account creation. Three providers (Apple, Google, email+password) in
-/// the recommended preference order. Once the user authenticates, the parent
-/// OnboardingFlow detects the sign-in transition and pushes onboarding answers
-/// to Supabase before routing toward the paywall.
+/// D1 — Account creation. Apple + Google only. Once the user authenticates,
+/// the parent OnboardingFlow detects the sign-in transition and pushes
+/// onboarding answers to Supabase before routing toward the paywall.
+///
+/// Email sign-up was removed, so the layout is rebalanced around three
+/// blocks — a hero badge, a short benefit list, and a social-proof bar —
+/// to keep the screen feeling intentional rather than empty.
 struct SignUpView: View {
     @ObservedObject var coordinator: OnboardingCoordinator
     @EnvironmentObject private var sessionStore: SessionStore
     let onBack: () -> Void
     let onGoToLogin: () -> Void
 
-    @State private var firstName: String = ""
-    @State private var lastName: String = ""
-    @State private var email: String = ""
-    @State private var password: String = ""
-    @State private var isSubmitting: Bool = false
-    @FocusState private var focusedField: Field?
-
-    private enum Field { case firstName, lastName, email, password }
+    @State private var appeared = false
 
     var body: some View {
         ZStack {
-            // Background lives in its own layer with a contentShape so the
-            // dismiss-keyboard tap only fires on empty area — without this on
-            // the root ZStack, the very first tap on a field/button is eaten
-            // by the gesture and the user has to tap twice.
             CooksyTheme.ambientGradient
                 .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture { focusedField = nil }
+
+            backgroundGlow
+                .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 topBar
@@ -36,16 +29,40 @@ struct SignUpView: View {
                     .padding(.top, 12)
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
+                    VStack(spacing: 22) {
+                        heroBadge
+                            .padding(.top, 4)
+                            .opacity(appeared ? 1 : 0)
+                            .scaleEffect(appeared ? 1 : 0.9)
+                            .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.05), value: appeared)
+
                         header
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 10)
+                            .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.15), value: appeared)
+
+                        benefits
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 14)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.28), value: appeared)
+
                         providers
-                        separator
-                        emailForm
+                            .padding(.top, 4)
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 16)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.4), value: appeared)
+
+                        socialProof
+                            .opacity(appeared ? 1 : 0)
+                            .animation(.easeOut(duration: 0.5).delay(0.55), value: appeared)
+
                         legalFooter
+                            .opacity(appeared ? 1 : 0)
+                            .animation(.easeOut(duration: 0.4).delay(0.65), value: appeared)
                     }
                     .padding(.horizontal, 24)
-                    .padding(.top, 8)
-                    .padding(.bottom, 32)
+                    .padding(.top, 6)
+                    .padding(.bottom, 24)
                 }
 
                 Spacer(minLength: 0)
@@ -69,6 +86,46 @@ struct SignUpView: View {
                 Text(sessionStore.lastErrorMessage ?? "")
             }
         )
+        .onAppear { appeared = true }
+    }
+
+    // MARK: - Background glow
+
+    private var backgroundGlow: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            CooksyTheme.primaryAccentSoft.opacity(0.55),
+                            CooksyTheme.primaryAccentSoft.opacity(0)
+                        ],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: 240
+                    )
+                )
+                .frame(width: 460, height: 460)
+                .offset(x: -160, y: -260)
+                .blur(radius: 18)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            CooksyTheme.warmCard.opacity(0.5),
+                            CooksyTheme.warmCard.opacity(0)
+                        ],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: 240
+                    )
+                )
+                .frame(width: 460, height: 460)
+                .offset(x: 160, y: 220)
+                .blur(radius: 22)
+        }
+        .ignoresSafeArea()
     }
 
     // MARK: - Top bar
@@ -89,219 +146,189 @@ struct SignUpView: View {
             .buttonStyle(.plain)
 
             Spacer()
+
+            quickBadge
         }
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Crée ton compte\nCooksy")
-                .font(.system(size: 30, weight: .bold, design: .serif))
+    private var quickBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(CooksyTheme.primaryAccent)
+            Text("Inscription en 2 sec.")
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("On sauvegarde ton profil et tes recettes en sécurité. Synchronisé sur tous tes appareils.")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Providers (Apple / Google)
-
-    private var providers: some View {
-        VStack(spacing: 10) {
-            SignInWithAppleButtonView()
-            GoogleSignInButtonView()
-        }
-    }
-
-    private var separator: some View {
-        HStack(spacing: 12) {
-            Rectangle().fill(CooksyTheme.dividerSubtle).frame(height: 1)
-            Text("ou")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-                .tracking(1)
-                .textCase(.uppercase)
-            Rectangle().fill(CooksyTheme.dividerSubtle).frame(height: 1)
-        }
-    }
-
-    // MARK: - Email / password form
-
-    private var emailForm: some View {
-        VStack(spacing: 12) {
-            field(
-                placeholder: "Prénom",
-                systemImage: "person.fill",
-                text: $firstName,
-                isSecure: false,
-                keyboard: .default,
-                textContent: .givenName,
-                autocap: .words,
-                field: .firstName,
-                submitLabel: .next
-            )
-
-            field(
-                placeholder: "Nom (optionnel)",
-                systemImage: "person.text.rectangle.fill",
-                text: $lastName,
-                isSecure: false,
-                keyboard: .default,
-                textContent: .familyName,
-                autocap: .words,
-                field: .lastName,
-                submitLabel: .next
-            )
-
-            field(
-                placeholder: "Adresse e-mail",
-                systemImage: "envelope.fill",
-                text: $email,
-                isSecure: false,
-                keyboard: .emailAddress,
-                textContent: .emailAddress,
-                autocap: .never,
-                field: .email,
-                submitLabel: .next
-            )
-
-            field(
-                placeholder: "Mot de passe",
-                systemImage: "lock.fill",
-                text: $password,
-                isSecure: true,
-                keyboard: .default,
-                textContent: .newPassword,
-                autocap: .never,
-                field: .password,
-                submitLabel: .go
-            )
-
-            emailCTA
-                .padding(.top, 4)
-        }
-    }
-
-    private func field(
-        placeholder: String,
-        systemImage: String,
-        text: Binding<String>,
-        isSecure: Bool,
-        keyboard: UIKeyboardType,
-        textContent: UITextContentType?,
-        autocap: TextInputAutocapitalization,
-        field: Field,
-        submitLabel: SubmitLabel
-    ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(CooksyTheme.secondaryText)
-                .frame(width: 22)
-
-            Group {
-                if isSecure {
-                    SecureField(placeholder, text: text)
-                } else {
-                    TextField(placeholder, text: text)
-                }
-            }
-            .font(.system(size: 15, weight: .medium, design: .rounded))
-            .foregroundStyle(CooksyTheme.primaryText)
-            .keyboardType(keyboard)
-            .textContentType(textContent)
-            .textInputAutocapitalization(autocap)
-            .submitLabel(submitLabel)
-            .focused($focusedField, equals: field)
-            .onSubmit {
-                switch field {
-                case .firstName: focusedField = .lastName
-                case .lastName: focusedField = .email
-                case .email: focusedField = .password
-                case .password: submit()
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 52)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
             Capsule(style: .continuous)
                 .fill(CooksyTheme.elevatedSurface)
         )
         .overlay(
             Capsule(style: .continuous)
-                .stroke(
-                    focusedField == field ? CooksyTheme.ctaOrange : CooksyTheme.stroke,
-                    lineWidth: focusedField == field ? 1.5 : 1
-                )
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
         )
-        // Make the WHOLE capsule the tap target. Without this, tapping
-        // outside the visible placeholder text (e.g. the icon, padding, or
-        // empty area to the right) does nothing — the user has to land
-        // exactly on the placeholder string, which is a known SwiftUI trap.
-        .contentShape(Capsule(style: .continuous))
-        .onTapGesture {
-            focusedField = field
+        .shadow(color: CooksyTheme.softShadow, radius: 6, y: 3)
+    }
+
+    // MARK: - Hero badge
+
+    private var heroBadge: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            CooksyTheme.primaryAccentSoft.opacity(0.7),
+                            CooksyTheme.primaryAccentSoft.opacity(0)
+                        ],
+                        center: .center,
+                        startRadius: 6,
+                        endRadius: 90
+                    )
+                )
+                .frame(width: 180, height: 180)
+                .blur(radius: 4)
+
+            Circle()
+                .fill(CooksyTheme.elevatedSurface)
+                .frame(width: 84, height: 84)
+                .overlay(
+                    Circle()
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                )
+                .shadow(color: CooksyTheme.softShadow, radius: 14, y: 8)
+
+            Circle()
+                .fill(CooksyTheme.accentGradient)
+                .frame(width: 60, height: 60)
+                .shadow(color: CooksyTheme.primaryAccent.opacity(0.35), radius: 14, y: 8)
+
+            Image(systemName: "fork.knife")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(.white)
+
+            // tiny floating sparkles
+            Image(systemName: "sparkle")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(CooksyTheme.primaryAccentGlow)
+                .offset(x: 48, y: -38)
+            Image(systemName: "sparkle")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(CooksyTheme.primaryAccentGlow.opacity(0.8))
+                .offset(x: -52, y: 36)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(spacing: 8) {
+            Text("Crée ton compte\nen 2 secondes")
+                .font(.system(size: 28, weight: .bold, design: .serif))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+
+            Text("Sauvegarde ton profil et tes recettes en sécurité — synchronisés sur tous tes appareils.")
+                .font(.system(size: 14.5, weight: .medium, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 6)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Benefits
+
+    private var benefits: some View {
+        VStack(spacing: 10) {
+            SignUpBenefitRow(
+                icon: "icloud.fill",
+                title: "Recettes synchronisées",
+                subtitle: "Disponibles sur tous tes appareils, partout."
+            )
+            SignUpBenefitRow(
+                icon: "lock.shield.fill",
+                title: "100 % privé",
+                subtitle: "Aucune publicité, tes données ne sont jamais revendues."
+            )
+            SignUpBenefitRow(
+                icon: "arrow.uturn.backward.circle.fill",
+                title: "Tu ne perds rien",
+                subtitle: "Récupère tout, même en changeant de téléphone."
+            )
         }
     }
 
-    private var emailCTA: some View {
-        Button(action: submit) {
-            HStack(spacing: 8) {
-                if isSubmitting {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(.white)
-                }
-                Text(isSubmitting ? "Création…" : "Créer mon compte")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+    // MARK: - Providers (Apple / Google)
+
+    private var providers: some View {
+        VStack(spacing: 12) {
+            SignInWithAppleButtonView()
+            GoogleSignInButtonView()
+        }
+    }
+
+    // MARK: - Social proof
+
+    private var socialProof: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: -8) {
+                avatarBubble(initial: "L", colors: [CooksyTheme.primaryAccent, CooksyTheme.primaryAccentGlow])
+                avatarBubble(initial: "M", colors: [CooksyTheme.secondaryAccent, CooksyTheme.secondaryAccentStrong])
+                avatarBubble(initial: "T", colors: [CooksyTheme.primaryAccentStrong, CooksyTheme.primaryAccent])
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(CooksyTheme.accentGradient)
-                    .opacity(canSubmit ? 1 : 0.4)
-            )
-            .shadow(
-                color: canSubmit ? CooksyTheme.primaryAccent.opacity(0.3) : .clear,
-                radius: 14, y: 6
-            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 3) {
+                    ForEach(0..<5, id: \.self) { _ in
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(CooksyTheme.primaryAccentGlow)
+                    }
+                    Text("4.9")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .padding(.leading, 2)
+                }
+                Text("Rejoint par 12 000+ cuisiniers")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+            }
+
+            Spacer(minLength: 0)
         }
-        .buttonStyle(CooksyTheme.pressScale())
-        .disabled(!canSubmit || isSubmitting)
-        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: canSubmit)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface.opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(CooksyTheme.stroke.opacity(0.7), lineWidth: 1)
+        )
     }
 
-    private var canSubmit: Bool {
-        let trimmedFirstName = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmedFirstName.isEmpty
-            && email.contains("@")
-            && email.contains(".")
-            && password.count >= 6
-    }
-
-    private func submit() {
-        focusedField = nil
-        guard canSubmit else { return }
-        isSubmitting = true
-        sessionStore.lastErrorMessage = nil
-        let trimmedLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task {
-            await sessionStore.signUp(
-                email: email,
-                password: password,
-                firstName: firstName,
-                lastName: trimmedLast.isEmpty ? nil : trimmedLast
-            )
-            await MainActor.run { isSubmitting = false }
+    private func avatarBubble(initial: String, colors: [Color]) -> some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 28, height: 28)
+            Text(initial)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
         }
+        .overlay(
+            Circle().stroke(CooksyTheme.elevatedSurface, lineWidth: 2)
+        )
     }
 
     // MARK: - Legal + footer link
@@ -330,5 +357,49 @@ struct SignUpView: View {
             .font(.system(size: 13, weight: .semibold, design: .rounded))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Benefit row
+
+private struct SignUpBenefitRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(CooksyTheme.primaryAccentSoft.opacity(0.65))
+                    .frame(width: 34, height: 34)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface.opacity(0.7))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(CooksyTheme.stroke.opacity(0.55), lineWidth: 1)
+        )
     }
 }

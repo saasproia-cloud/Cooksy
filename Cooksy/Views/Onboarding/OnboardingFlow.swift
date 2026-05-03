@@ -66,6 +66,11 @@ struct OnboardingFlow: View {
                 onExistingAccount: { showingLogin = true }
             )
 
+        case .appReview:
+            AppReviewView(
+                onContinue: { coordinator.next() }
+            )
+
         case .demo:
             DemoBeforeAfterView(
                 onBack: { coordinator.back() },
@@ -136,6 +141,41 @@ struct OnboardingFlow: View {
 
         case .cuisines:
             CuisinesGridView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .spiceLevel:
+            SpiceLevelView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .equipment:
+            EquipmentView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .budget:
+            BudgetView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .mealMoments:
+            MealMomentsView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .shopping:
+            ShoppingView(
                 coordinator: coordinator,
                 onBack: { coordinator.back() },
                 onContinue: { coordinator.next() }

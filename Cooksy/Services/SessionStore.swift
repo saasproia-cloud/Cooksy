@@ -68,151 +68,6 @@ final class SessionStore: ObservableObject {
         listenToAuthChanges()
     }
 
-    // MARK: - Email / password
-
-    func signUp(email: String, password: String, firstName: String, lastName: String?) async {
-        lastErrorMessage = nil
-        phase = .loading
-        do {
-            // Pass the human-readable name(s) as auth metadata so the
-            // `handle_new_user` trigger / our own profile update can pick them
-            // up. Supabase stores these in `auth.users.raw_user_meta_data`.
-            let trimmedFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedLast = lastName?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName: String = {
-                if let trimmedLast, !trimmedLast.isEmpty {
-                    return "\(trimmedFirst) \(trimmedLast)"
-                }
-                return trimmedFirst
-            }()
-
-            let metadata: [String: AnyJSON] = [
-                "first_name": .string(trimmedFirst),
-                "last_name": .string(trimmedLast ?? ""),
-                "display_name": .string(displayName)
-            ]
-
-            let response = try await client.auth.signUp(
-                email: email,
-                password: password,
-                data: metadata
-            )
-
-            if response.session != nil {
-                // Got a session immediately — email confirmation is OFF on
-                // Supabase, the user is fully signed in. Persist the display
-                // name on the profile row so it shows up in the app.
-                await persistDisplayName(displayName)
-                await refreshSession()
-                return
-            }
-
-            // No session in the response → either email confirmation is ON
-            // (Supabase sent a magic-link mail), or Supabase silently created
-            // the user but didn't return a session yet because the auth row
-            // creation hasn't fully committed. Retry sign-in with a short
-            // backoff to ride out the race; only declare "vérifie tes emails"
-            // after both retries fail.
-            let backoffsMs: [UInt64] = [600, 1_200]
-            var lastSignInError: Error?
-            for delay in backoffsMs {
-                try? await Task.sleep(nanoseconds: delay * 1_000_000)
-                do {
-                    _ = try await client.auth.signIn(email: email, password: password)
-                    await persistDisplayName(displayName)
-                    await refreshSession()
-                    return
-                } catch {
-                    lastSignInError = error
-                    logger.debug("Auto sign-in retry (delay \(delay, privacy: .public)ms) failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-
-            logger.info("Auto sign-in after sign-up exhausted retries: \(String(describing: lastSignInError ?? NSError(domain: "Cooksy", code: -1)), privacy: .public)")
-            // If the error is the email-confirmation one, give the dedicated
-            // copy. Otherwise stay generic.
-            if let lastSignInError, String(describing: lastSignInError).contains("email_not_confirmed") {
-                lastErrorMessage = "Compte créé. Vérifie tes emails pour activer ton compte, puis connecte-toi."
-            } else {
-                lastErrorMessage = "Compte créé. Connecte-toi avec ton e-mail et ton mot de passe."
-            }
-            await refreshSession()
-        } catch {
-            let friendly = Self.friendlyAuthError(error)
-            logger.error("signUp failed: \(String(describing: error), privacy: .public)")
-            lastErrorMessage = friendly
-            await refreshSession()
-        }
-    }
-
-    func signIn(email: String, password: String) async {
-        lastErrorMessage = nil
-        phase = .loading
-        do {
-            _ = try await client.auth.signIn(email: email, password: password)
-            await refreshSession()
-        } catch {
-            let friendly = Self.friendlyAuthError(error)
-            logger.error("signIn failed: \(String(describing: error), privacy: .public)")
-            lastErrorMessage = friendly
-            await refreshSession()
-        }
-    }
-
-    /// After a successful sign-up we patch the freshly-created profile row
-    /// with the display name the user typed. The `handle_new_user` Postgres
-    /// trigger creates the row with default fields, but does not see our
-    /// auth metadata, so we update it here.
-    private func persistDisplayName(_ name: String) async {
-        guard !name.isEmpty else { return }
-        do {
-            let session = try await client.auth.session
-            _ = try await client
-                .from("profiles")
-                .update(DisplayNameUpdatePayload(displayName: name))
-                .eq("id", value: session.user.id)
-                .execute()
-        } catch {
-            logger.debug("persistDisplayName failed (non-fatal): \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Translates the Supabase auth `errorCode` (when present) into a
-    /// French message the user can act on, instead of dumping a 60-line
-    /// HTTP response into the alert.
-    private static func friendlyAuthError(_ error: Error) -> String {
-        let raw = String(describing: error)
-        // The `errorCode: Auth.ErrorCode(rawValue: "user_already_exists")`
-        // bit in the dump is the most reliable signal. Match it textually.
-        if raw.contains("user_already_exists") {
-            return "Un compte existe déjà avec cette adresse e-mail. Connecte-toi."
-        }
-        if raw.contains("invalid_credentials") || raw.contains("Invalid login") {
-            return "E-mail ou mot de passe incorrect."
-        }
-        if raw.contains("email_not_confirmed") {
-            return "Ton e-mail n'a pas encore été confirmé. Vérifie ta boîte de réception."
-        }
-        if raw.contains("weak_password") {
-            return "Mot de passe trop faible. Utilise au moins 6 caractères avec un mélange de lettres et chiffres."
-        }
-        if raw.contains("over_email_send_rate_limit") || raw.contains("rate limit") {
-            return "Trop de tentatives. Patiente quelques minutes avant de réessayer."
-        }
-        if raw.contains("validation_failed") || raw.contains("invalid_email") {
-            return "Adresse e-mail invalide."
-        }
-        if raw.contains("signup_disabled") {
-            return "Les inscriptions sont temporairement désactivées."
-        }
-        if raw.contains("network") || raw.contains("offline") {
-            return "Pas de connexion internet. Vérifie ton réseau."
-        }
-        // Fallback — show the localizedDescription which is usually short
-        // enough for an alert.
-        return error.localizedDescription
-    }
-
     // MARK: - OpenID Connect (Apple / Google)
 
     /// Sign in using an Apple identity token obtained from `ASAuthorizationAppleIDCredential`.
@@ -240,7 +95,15 @@ final class SessionStore: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !formatted.isEmpty else { return }
 
-        await persistDisplayName(formatted)
+        do {
+            _ = try await client
+                .from("profiles")
+                .update(DisplayNameUpdatePayload(displayName: formatted))
+                .eq("id", value: user.id)
+                .execute()
+        } catch {
+            logger.debug("persistAppleFullName failed (non-fatal): \(error.localizedDescription, privacy: .public)")
+        }
         await loadProfile(for: user.id)
     }
 

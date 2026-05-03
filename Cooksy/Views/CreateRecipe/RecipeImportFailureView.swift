@@ -33,12 +33,25 @@ struct OopsContext {
     /// factory decides which of them the primary CTA should trigger.
     static func from(
         seed: RecipeEditorSeed,
+        source: RecipeImportSourceKind = .url,
         onRetry: @escaping () -> Void,
         onCancel: @escaping () -> Void,
         onCreateManually: @escaping () -> Void
     ) -> OopsContext {
         let reason = seed.importDebug?.failureReason
         let sourceURL = seed.sourceURL
+
+        // Pasted text has its own dedicated copy: the original "screenshot the
+        // video" advice is meaningless when the user typed/pasted raw text.
+        if source == .text {
+            return OopsContext(
+                message: "On n'a pas pu reconstruire de recette à partir de ce texte.\n\nPour un meilleur résultat :\n• Sépare bien les ingrédients (avec quantités) des instructions.\n• Mets le titre du plat en haut.\n• Une étape de cuisson par ligne.\n• Évite de coller un article ou des commentaires.",
+                primaryLabel: "Réessayer le texte",
+                primaryAction: onRetry,
+                secondaryLabel: "Créer à la main",
+                secondaryAction: onCreateManually
+            )
+        }
 
         switch reason {
         case "not_food",
@@ -107,6 +120,7 @@ struct RecipeImportFailureView: View {
     let store: RecipeStore
     let seed: RecipeEditorSeed
     let preferredBookID: RecipeBook.ID?
+    let source: RecipeImportSourceKind
     let context: OopsContext
 
     @State private var showsCreateRecipe = false
@@ -116,31 +130,54 @@ struct RecipeImportFailureView: View {
         store: RecipeStore,
         seed: RecipeEditorSeed,
         preferredBookID: RecipeBook.ID? = nil,
+        source: RecipeImportSourceKind = .url,
         context: OopsContext
     ) {
         self.store = store
         self.seed = seed
         self.preferredBookID = preferredBookID
+        self.source = source
         self.context = context
     }
 
     var body: some View {
+        Group {
+            if source == .text {
+                pasteTextFailureBody
+            } else {
+                mockupFailureBody
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            if !didAppear {
+                didAppear = true
+            }
+        }
+        .fullScreenCover(isPresented: $showsCreateRecipe) {
+            CreateRecipeView(
+                store: store,
+                seed: seed,
+                preferredBookID: preferredBookID
+            ) {
+                showsCreateRecipe = false
+                dismiss()
+            }
+        }
+    }
+
+    private var mockupFailureBody: some View {
         GeometryReader { proxy in
             ZStack(alignment: .top) {
                 Color.white
                     .ignoresSafeArea()
 
-                // Full-screen mockup image — pixel-perfect match to the design.
                 Image("OopsErrorScreen")
                     .resizable()
                     .scaledToFit()
                     .frame(width: proxy.size.width)
                     .frame(maxHeight: .infinity, alignment: .top)
 
-                // Invisible tappable area positioned over the orange CTA
-                // inside the image. Coordinates are derived from the original
-                // 2245×3179 mockup: the button sits at y≈1995–2225 (≈62.8%
-                // → ≈70% of the canvas) and spans ≈12% to ≈88% horizontally.
                 Button(action: {
                     OnboardingHaptics.medium()
                     context.primaryAction()
@@ -159,20 +196,114 @@ struct RecipeImportFailureView: View {
                 )
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            if !didAppear {
-                didAppear = true
-            }
-        }
-        .fullScreenCover(isPresented: $showsCreateRecipe) {
-            CreateRecipeView(
-                store: store,
-                seed: seed,
-                preferredBookID: preferredBookID
-            ) {
-                showsCreateRecipe = false
-                dismiss()
+    }
+
+    private var pasteTextFailureBody: some View {
+        ZStack {
+            CooksyTheme.background
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(CooksyTheme.elevatedSurface))
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+                Spacer(minLength: 24)
+
+                VStack(spacing: 24) {
+                    ZStack {
+                        Circle()
+                            .fill(CooksyTheme.ctaOrange.opacity(0.14))
+                            .frame(width: 96, height: 96)
+                        Image(systemName: "text.alignleft")
+                            .font(.system(size: 38, weight: .medium))
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    }
+
+                    VStack(spacing: 14) {
+                        Text("Aucune recette détectée")
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                            .multilineTextAlignment(.center)
+
+                        Text(context.message)
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
+                    }
+                    .padding(.horizontal, 24)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 28)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(CooksyTheme.elevatedSurface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                )
+                .padding(.horizontal, 20)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button(action: {
+                        OnboardingHaptics.medium()
+                        context.primaryAction()
+                    }) {
+                        Text(context.primaryLabel)
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(CooksyTheme.accentGradient)
+                            )
+                            .shadow(color: CooksyTheme.ctaOrange.opacity(0.35), radius: 16, y: 8)
+                    }
+                    .buttonStyle(CooksyTheme.pressScale())
+
+                    if let secondaryLabel = context.secondaryLabel,
+                       let secondaryAction = context.secondaryAction {
+                        Button(action: {
+                            OnboardingHaptics.selection()
+                            secondaryAction()
+                        }) {
+                            Text(secondaryLabel)
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(CooksyTheme.elevatedSurface)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
             }
         }
     }

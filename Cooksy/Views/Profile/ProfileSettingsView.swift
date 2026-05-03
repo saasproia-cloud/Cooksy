@@ -18,7 +18,11 @@ struct ProfileSettingsView: View {
     @AppStorage("cooksy.settings.notificationsEnabled") private var notificationsEnabled: Bool = true
     @AppStorage("cooksy.settings.units") private var unitsRaw: String = Units.metric.rawValue
 
+    @EnvironmentObject private var sessionStore: SessionStore
+
     @State private var toastMessage: String?
+    @State private var showsSignOutConfirm = false
+    @State private var isSigningOut = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -38,6 +42,9 @@ struct ProfileSettingsView: View {
 
                     sectionTitle("À propos")
                     aboutCard
+
+                    sectionTitle("Compte")
+                    accountCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -52,6 +59,22 @@ struct ProfileSettingsView: View {
         }
         .navigationTitle("Paramètres")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "Se déconnecter de Cooksy ?",
+            isPresented: $showsSignOutConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Se déconnecter", role: .destructive) {
+                Task {
+                    isSigningOut = true
+                    await sessionStore.signOut()
+                    isSigningOut = false
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Tu pourras te reconnecter à tout moment avec le même compte.")
+        }
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -178,6 +201,40 @@ struct ProfileSettingsView: View {
                 value: aboutVersionString,
                 isLast: true
             )
+        }
+    }
+
+    private var accountCard: some View {
+        ProfileSectionCard {
+            Button(action: { showsSignOutConfirm = true }) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.red.opacity(0.12))
+                            .frame(width: 36, height: 36)
+
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.red)
+                    }
+
+                    Text("Se déconnecter")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.red)
+
+                    Spacer(minLength: 0)
+
+                    if isSigningOut {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isSigningOut)
         }
     }
 

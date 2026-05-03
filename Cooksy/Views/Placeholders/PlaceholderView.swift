@@ -66,25 +66,29 @@ struct QuickImportSheetView: View {
             kind: .createFromScratch,
             title: "Depuis\nzéro",
             systemImage: "pencil",
-            accentColor: CooksyTheme.ctaOrange
+            accentColor: CooksyTheme.ctaOrange,
+            isLocked: false
         ),
         QuickImportOption(
             kind: .browser,
             title: "Site\nweb",
             systemImage: "safari",
-            accentColor: CooksyTheme.ctaOrange
+            accentColor: CooksyTheme.ctaOrange,
+            isLocked: true
         ),
         QuickImportOption(
             kind: .camera,
             title: "Appareil\nphoto",
             systemImage: "camera",
-            accentColor: CooksyTheme.ctaOrange
+            accentColor: CooksyTheme.ctaOrange,
+            isLocked: true
         ),
         QuickImportOption(
             kind: .pasteText,
             title: "Texte\ncollé",
             systemImage: "text.alignleft",
-            accentColor: CooksyTheme.ctaOrange
+            accentColor: CooksyTheme.ctaOrange,
+            isLocked: false
         )
     ]
 
@@ -148,6 +152,7 @@ private struct QuickImportOption: Identifiable {
     let title: String
     let systemImage: String
     let accentColor: Color
+    let isLocked: Bool
 }
 
 private struct QuickImportOptionCard: View {
@@ -156,34 +161,64 @@ private struct QuickImportOptionCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 16) {
-                Image(systemName: option.systemImage)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(option.accentColor)
-                    .frame(width: 48, height: 48)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.white.opacity(0.45))
-                    )
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 14) {
+                    if option.isLocked {
+                        Text("BIENTÔT")
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .tracking(1.6)
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(CooksyTheme.ctaOrangeDark.opacity(0.12))
+                            )
+                    }
 
-                Text(option.title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(option.accentColor)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.9)
+                    Image(systemName: option.systemImage)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(option.accentColor)
+                        .frame(width: 48, height: 48)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(.white.opacity(0.45))
+                        )
+
+                    Text(option.title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(option.accentColor)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.9)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 146)
+                .opacity(option.isLocked ? 0.55 : 1.0)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(CooksyTheme.warmCard)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                )
+
+                if option.isLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            Circle()
+                                .fill(Color.white)
+                                .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                        )
+                        .padding(10)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 146)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(CooksyTheme.warmCard)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
+        .disabled(option.isLocked)
+        .allowsHitTesting(!option.isLocked)
     }
 }

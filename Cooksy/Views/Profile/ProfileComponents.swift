@@ -246,6 +246,55 @@ struct ProfileNavigationRow<Destination: View>: View {
     }
 }
 
+// MARK: - Row that triggers a system ShareLink
+
+struct ShareLinkProfileRow: View {
+    let systemImage: String
+    let title: String
+    var isLast: Bool = false
+    let shareText: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ShareLink(item: shareText) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(CooksyTheme.blush.opacity(0.55))
+                            .frame(width: 36, height: 36)
+
+                        Image(systemName: systemImage)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                    }
+
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !isLast {
+                Rectangle()
+                    .fill(CooksyTheme.dividerSubtle)
+                    .frame(height: 1)
+                    .padding(.leading, 66)
+            }
+        }
+    }
+}
+
 // MARK: - Footer version
 
 struct ProfileFooterVersion: View {

@@ -7,6 +7,7 @@ import SwiftUI
 /// CooksyApp level based on `profile.isPremium`.
 enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
     case welcome = 0        // A1
+    case appReview          // A1.5 — soft App Store rating prompt
     case demo               // A2
     case valueProof         // A3
     case primaryGoal        // B1
@@ -18,6 +19,11 @@ enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
     case allergies          // B7
     case servings           // B8
     case cuisines           // B9
+    case spiceLevel         // B11
+    case equipment          // B12
+    case budget             // B13
+    case mealMoments        // B14
+    case shopping           // B15
     case challenges         // B10
     case buildingProfile    // C1
     case personalizedPreview // C2
@@ -37,19 +43,25 @@ enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
         case .allergies:      return 7
         case .servings:       return 8
         case .cuisines:       return 9
-        case .challenges:     return 10
+        case .spiceLevel:     return 10
+        case .equipment:      return 11
+        case .budget:         return 12
+        case .mealMoments:    return 13
+        case .shopping:       return 14
+        case .challenges:     return 15
         default:              return nil
         }
     }
 
     /// Total number of question screens — used to size the progress bar.
-    static let totalQuestions = 10
+    static let totalQuestions = 15
 
     /// Whether the "Passer" (skip) button should be shown on this screen.
     /// Plan rules: no skip on Q1 (goal), Q3 (level), Q6 (diet), Q7 (allergies).
     var allowsSkip: Bool {
         switch self {
-        case .sources, .timeSlider, .frequency, .servings, .cuisines, .challenges:
+        case .sources, .timeSlider, .frequency, .servings, .cuisines,
+             .equipment, .budget, .mealMoments, .shopping, .challenges:
             return true
         default:
             return false
@@ -59,7 +71,7 @@ enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
     /// Whether the back chevron is shown (off on the first screen and during the auto-loading transition).
     var allowsBack: Bool {
         switch self {
-        case .welcome, .buildingProfile:
+        case .welcome, .appReview, .buildingProfile:
             return false
         default:
             return true
@@ -146,7 +158,7 @@ final class OnboardingCoordinator: ObservableObject {
     /// Whether the user has given enough input on the current step for the CTA to be enabled.
     func canAdvance(from step: OnboardingStep) -> Bool {
         switch step {
-        case .welcome, .demo, .valueProof, .buildingProfile, .personalizedPreview, .signUp:
+        case .welcome, .appReview, .demo, .valueProof, .buildingProfile, .personalizedPreview, .signUp:
             return true
         case .primaryGoal:
             return answers.primaryGoal != nil
@@ -164,6 +176,16 @@ final class OnboardingCoordinator: ObservableObject {
             return answers.typicalServings != nil
         case .cuisines:
             return !answers.cuisines.isEmpty
+        case .spiceLevel:
+            return answers.spiceLevel != nil
+        case .equipment:
+            return true // optional, can skip
+        case .budget:
+            return true // optional, can skip
+        case .mealMoments:
+            return true // optional, can skip
+        case .shopping:
+            return true // optional, can skip
         case .challenges:
             return true // optional
         }
@@ -214,6 +236,28 @@ final class OnboardingCoordinator: ObservableObject {
 
     func toggleChallenge(_ challenge: OnboardingChallenge) {
         toggleMember(challenge, in: \.challenges)
+    }
+
+    func selectSpiceLevel(_ level: OnboardingSpiceLevel) {
+        answers.spiceLevel = level
+        persistDraft()
+    }
+
+    func toggleEquipment(_ equipment: OnboardingEquipment) {
+        toggleMember(equipment, in: \.equipment)
+    }
+
+    func selectBudget(_ budget: OnboardingBudget) {
+        answers.budget = budget
+        persistDraft()
+    }
+
+    func toggleMealMoment(_ moment: OnboardingMealMoment) {
+        toggleMember(moment, in: \.mealMoments)
+    }
+
+    func toggleShopping(_ shopping: OnboardingShopping) {
+        toggleMember(shopping, in: \.shoppingPlaces)
     }
 
     // MARK: - Internals

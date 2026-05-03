@@ -65,7 +65,11 @@ struct StepByStepCookingView: View {
                                         )
                                 }
 
-                                Text(StepIngredientHighlighter.highlighted(currentStep.detail, ingredientRefs: currentStep.ingredientRefs))
+                                Text(StepIngredientHighlighter.highlighted(
+                                    currentStep.detail,
+                                    ingredientRefs: currentStep.ingredientRefs,
+                                    fontSize: 26
+                                ))
                                     .font(.system(size: 26, weight: .regular, design: .serif))
                                     .foregroundStyle(CooksyTheme.primaryText)
                                     .lineSpacing(5)

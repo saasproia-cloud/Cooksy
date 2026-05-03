@@ -196,7 +196,10 @@ struct HomeView: View {
                 }
 
                 Button(action: openProfileTab) {
-                    HomeAvatarBadge(text: viewModel.profileBadgeText)
+                    HomeAvatarBadge(
+                        text: viewModel.profileBadgeText,
+                        avatarURL: sessionStore.profile?.avatarURL
+                    )
                         .overlay(alignment: .topTrailing) {
                             // Premium crown — celebratory gold variant.
                             PremiumCrownBadge(
@@ -420,27 +423,51 @@ private struct HomeCircleIconButton: View {
 
 private struct HomeAvatarBadge: View {
     let text: String
+    let avatarURL: URL?
+
+    init(text: String, avatarURL: URL? = nil) {
+        self.text = text
+        self.avatarURL = avatarURL
+    }
 
     var body: some View {
-        Circle()
-            .fill(
-                LinearGradient(
-                    colors: [Color(hex: 0xD9B596), Color(hex: 0xB77850)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0xD9B596), Color(hex: 0xB77850)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
-            )
-            .frame(width: 34, height: 34)
-            .overlay {
+
+            if let avatarURL {
+                AsyncImage(url: avatarURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Text(text)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .clipShape(Circle())
+            } else {
                 Text(text)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
             }
-            .overlay(
-                Circle()
-                    .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+        }
+        .frame(width: 34, height: 34)
+        .clipShape(Circle())
+        .overlay(
+            Circle()
+                .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+        )
+        .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
     }
 }
 

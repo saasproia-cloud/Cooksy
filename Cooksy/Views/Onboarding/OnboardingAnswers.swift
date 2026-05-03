@@ -250,6 +250,187 @@ enum OnboardingCuisine: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum OnboardingSpiceLevel: String, Codable, CaseIterable, Identifiable {
+    case mild
+    case medium
+    case spicy
+    case fiery
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .mild:   return "Doux"
+        case .medium: return "Modéré"
+        case .spicy:  return "Épicé"
+        case .fiery:  return "Très épicé"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .mild:   return "Pas de piment, merci"
+        case .medium: return "Un peu de relief, sans excès"
+        case .spicy:  return "J'aime quand ça pique"
+        case .fiery:  return "Plus c'est fort, mieux c'est"
+        }
+    }
+
+    /// Number of filled chili icons out of 4.
+    var filledDots: Int {
+        switch self {
+        case .mild:   return 1
+        case .medium: return 2
+        case .spicy:  return 3
+        case .fiery:  return 4
+        }
+    }
+}
+
+enum OnboardingEquipment: String, Codable, CaseIterable, Identifiable {
+    case oven
+    case microwave
+    case airFryer
+    case blender
+    case foodProcessor
+    case inductionStove
+    case slowCooker
+    case steamer
+    case grill
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .oven:           return "Four"
+        case .microwave:      return "Micro-ondes"
+        case .airFryer:       return "Air fryer"
+        case .blender:        return "Blender"
+        case .foodProcessor:  return "Robot"
+        case .inductionStove: return "Induction"
+        case .slowCooker:     return "Cocotte / mijoteuse"
+        case .steamer:        return "Cuit-vapeur"
+        case .grill:          return "Plancha / grill"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .oven:           return "oven"
+        case .microwave:      return "microwave"
+        case .airFryer:       return "wind"
+        case .blender:        return "drop.triangle.fill"
+        case .foodProcessor:  return "fan.fill"
+        case .inductionStove: return "flame.circle"
+        case .slowCooker:     return "cooktop"
+        case .steamer:        return "humidifier.fill"
+        case .grill:          return "flame"
+        }
+    }
+}
+
+enum OnboardingBudget: String, Codable, CaseIterable, Identifiable {
+    case budget
+    case balanced
+    case premium
+    case unlimited
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .budget:    return "Petit budget"
+        case .balanced:  return "Équilibré"
+        case .premium:   return "Confort"
+        case .unlimited: return "Sans limite"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .budget:    return "Je fais attention à chaque euro"
+        case .balanced:  return "Bon rapport qualité-prix"
+        case .premium:   return "Je m'autorise des bons produits"
+        case .unlimited: return "Le budget n'est pas le sujet"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .budget:    return "eurosign.circle"
+        case .balanced:  return "scalemass"
+        case .premium:   return "sparkles"
+        case .unlimited: return "crown.fill"
+        }
+    }
+}
+
+enum OnboardingMealMoment: String, Codable, CaseIterable, Identifiable {
+    case breakfast
+    case lunch
+    case dinner
+    case snack
+    case aperitif
+    case dessert
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .breakfast: return "Petit-déj"
+        case .lunch:     return "Déjeuner"
+        case .dinner:    return "Dîner"
+        case .snack:     return "Snack / goûter"
+        case .aperitif:  return "Apéro"
+        case .dessert:   return "Dessert"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .breakfast: return "sun.haze.fill"
+        case .lunch:     return "sun.max.fill"
+        case .dinner:    return "moon.stars.fill"
+        case .snack:     return "popcorn.fill"
+        case .aperitif:  return "wineglass.fill"
+        case .dessert:   return "birthday.cake.fill"
+        }
+    }
+}
+
+enum OnboardingShopping: String, Codable, CaseIterable, Identifiable {
+    case supermarket
+    case market
+    case organic
+    case drive
+    case localProducer
+    case asianGrocery
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .supermarket:   return "Supermarché"
+        case .market:        return "Marché"
+        case .organic:       return "Bio"
+        case .drive:         return "Drive / livraison"
+        case .localProducer: return "Producteur local"
+        case .asianGrocery:  return "Épicerie du monde"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .supermarket:   return "cart.fill"
+        case .market:        return "basket.fill"
+        case .organic:       return "leaf.fill"
+        case .drive:         return "shippingbox.fill"
+        case .localProducer: return "tractor"
+        case .asianGrocery:  return "globe.asia.australia.fill"
+        }
+    }
+}
+
 enum OnboardingChallenge: String, Codable, CaseIterable, Identifiable {
     case time
     case ingredients
@@ -287,6 +468,11 @@ struct OnboardingAnswers: Codable, Equatable {
     var allergies: Set<OnboardingAllergy>
     var typicalServings: OnboardingServings?
     var cuisines: Set<OnboardingCuisine>
+    var spiceLevel: OnboardingSpiceLevel?
+    var equipment: Set<OnboardingEquipment>
+    var budget: OnboardingBudget?
+    var mealMoments: Set<OnboardingMealMoment>
+    var shoppingPlaces: Set<OnboardingShopping>
     var challenges: Set<OnboardingChallenge>
 
     static let empty = OnboardingAnswers(
@@ -299,8 +485,75 @@ struct OnboardingAnswers: Codable, Equatable {
         allergies: [],
         typicalServings: nil,
         cuisines: [],
+        spiceLevel: nil,
+        equipment: [],
+        budget: nil,
+        mealMoments: [],
+        shoppingPlaces: [],
         challenges: []
     )
+
+    private enum CodingKeys: String, CodingKey {
+        case primaryGoal, sources, skillLevel, timeMinutesPerMeal,
+             cookingFrequencyPerWeek, diets, allergies, typicalServings,
+             cuisines, spiceLevel, equipment, budget, mealMoments,
+             shoppingPlaces, challenges
+    }
+
+    // Custom decoder so older drafts (without the new fields) still load —
+    // keeps existing in-progress onboardings from getting wiped on update.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        primaryGoal = try c.decodeIfPresent(OnboardingGoal.self, forKey: .primaryGoal)
+        sources = try c.decodeIfPresent(Set<OnboardingSource>.self, forKey: .sources) ?? []
+        skillLevel = try c.decodeIfPresent(OnboardingSkillLevel.self, forKey: .skillLevel)
+        timeMinutesPerMeal = try c.decodeIfPresent(Int.self, forKey: .timeMinutesPerMeal) ?? 30
+        cookingFrequencyPerWeek = try c.decodeIfPresent(Int.self, forKey: .cookingFrequencyPerWeek) ?? 4
+        diets = try c.decodeIfPresent(Set<OnboardingDiet>.self, forKey: .diets) ?? []
+        allergies = try c.decodeIfPresent(Set<OnboardingAllergy>.self, forKey: .allergies) ?? []
+        typicalServings = try c.decodeIfPresent(OnboardingServings.self, forKey: .typicalServings)
+        cuisines = try c.decodeIfPresent(Set<OnboardingCuisine>.self, forKey: .cuisines) ?? []
+        spiceLevel = try c.decodeIfPresent(OnboardingSpiceLevel.self, forKey: .spiceLevel)
+        equipment = try c.decodeIfPresent(Set<OnboardingEquipment>.self, forKey: .equipment) ?? []
+        budget = try c.decodeIfPresent(OnboardingBudget.self, forKey: .budget)
+        mealMoments = try c.decodeIfPresent(Set<OnboardingMealMoment>.self, forKey: .mealMoments) ?? []
+        shoppingPlaces = try c.decodeIfPresent(Set<OnboardingShopping>.self, forKey: .shoppingPlaces) ?? []
+        challenges = try c.decodeIfPresent(Set<OnboardingChallenge>.self, forKey: .challenges) ?? []
+    }
+
+    init(
+        primaryGoal: OnboardingGoal?,
+        sources: Set<OnboardingSource>,
+        skillLevel: OnboardingSkillLevel?,
+        timeMinutesPerMeal: Int,
+        cookingFrequencyPerWeek: Int,
+        diets: Set<OnboardingDiet>,
+        allergies: Set<OnboardingAllergy>,
+        typicalServings: OnboardingServings?,
+        cuisines: Set<OnboardingCuisine>,
+        spiceLevel: OnboardingSpiceLevel?,
+        equipment: Set<OnboardingEquipment>,
+        budget: OnboardingBudget?,
+        mealMoments: Set<OnboardingMealMoment>,
+        shoppingPlaces: Set<OnboardingShopping>,
+        challenges: Set<OnboardingChallenge>
+    ) {
+        self.primaryGoal = primaryGoal
+        self.sources = sources
+        self.skillLevel = skillLevel
+        self.timeMinutesPerMeal = timeMinutesPerMeal
+        self.cookingFrequencyPerWeek = cookingFrequencyPerWeek
+        self.diets = diets
+        self.allergies = allergies
+        self.typicalServings = typicalServings
+        self.cuisines = cuisines
+        self.spiceLevel = spiceLevel
+        self.equipment = equipment
+        self.budget = budget
+        self.mealMoments = mealMoments
+        self.shoppingPlaces = shoppingPlaces
+        self.challenges = challenges
+    }
 }
 
 // MARK: - Derived summary (used by PersonalizedPreviewView)
