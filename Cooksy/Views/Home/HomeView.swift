@@ -23,7 +23,6 @@ struct HomeView: View {
     /// drives a soft reminder banner that the user can still play to
     /// unlock −25 %.
     @State private var paywallShowsGiftReminder: Bool = false
-    @State private var pendingTrialFromExclusiveOffer: Bool? = nil
 
     init(
         store: RecipeStore,
@@ -105,17 +104,14 @@ struct HomeView: View {
             )
         }
         .fullScreenCover(isPresented: $showsExclusiveOffer) {
+            // ExclusiveOfferView handles the purchase inline now — the
+            // CTA there flips premium directly and dismisses the cover,
+            // so we no longer route to the paywall after winning the
+            // gift wheel.
             ExclusiveOfferView(
                 discountPercent: offers.giftDiscountPercent ?? PremiumOffersService.defaultGiftDiscount,
                 expiresAt: offers.giftOfferExpiresAt,
-                onClose: { showsExclusiveOffer = false },
-                onSubscribe: { trialOn in
-                    pendingTrialFromExclusiveOffer = trialOn
-                    showsExclusiveOffer = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        showsPaywallFromBadge = true
-                    }
-                }
+                onClose: { showsExclusiveOffer = false }
             )
         }
         .fullScreenCover(isPresented: $showsPaywallFromBadge) {
@@ -166,7 +162,7 @@ struct HomeView: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(width: 44, height: 44)
+                .frame(width: 54, height: 54)
                 .accessibilityHidden(true)
 
             Spacer()

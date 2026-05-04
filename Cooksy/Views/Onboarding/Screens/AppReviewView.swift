@@ -229,9 +229,10 @@ struct AppReviewView: View {
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(3)
+                    .lineLimit(4)
+                    .minimumScaleFactor(0.9)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
         .background(

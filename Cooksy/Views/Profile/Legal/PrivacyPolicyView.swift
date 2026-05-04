@@ -51,7 +51,7 @@ struct PrivacyPolicyView: View {
                     title: "5. Tes droits (RGPD)",
                     body: """
                     Tu peux à tout moment : accéder à tes données, les rectifier, les exporter, ou \
-                    demander leur suppression. Pour cela, écris-nous à saasproia@gmail.com en \
+                    demander leur suppression. Pour cela, écris-nous à azizelghazel@gmail.com en \
                     précisant l'adresse e-mail liée à ton compte. Nous répondons sous 30 jours.
                     """
                 ),
@@ -76,7 +76,7 @@ struct PrivacyPolicyView: View {
                 LegalSection(
                     title: "8. Responsable du traitement",
                     body: """
-                    Cooksy — contact saasproia@gmail.com. Pour toute réclamation, tu peux aussi \
+                    Cooksy — contact azizelghazel@gmail.com. Pour toute réclamation, tu peux aussi \
                     saisir la CNIL (cnil.fr) ou ton autorité locale de protection des données.
                     """
                 )

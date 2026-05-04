@@ -71,7 +71,7 @@ struct TermsOfServiceView: View {
                     body: """
                     Nous pouvons suspendre ou supprimer un compte qui violerait ces conditions. \
                     Tu peux supprimer ton compte à tout moment depuis l'application ou en nous \
-                    écrivant à saasproia@gmail.com.
+                    écrivant à azizelghazel@gmail.com.
                     """
                 ),
                 LegalSection(

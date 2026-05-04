@@ -11,7 +11,7 @@ struct FrequencyView: View {
         OnboardingChrome(
             title: "Tu cuisines combien\nde fois par semaine ?",
             subtitle: "On cale la quantité de recettes qu'on te propose dessus.",
-            canAdvance: true,
+            canAdvance: coordinator.canAdvance(from: .frequency),
             progress: progress(for: .frequency),
             showsBack: OnboardingStep.frequency.allowsBack,
             showsSkip: OnboardingStep.frequency.allowsSkip,
@@ -23,9 +23,9 @@ struct FrequencyView: View {
                 // Big number recap
                 VStack(spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("\(coordinator.answers.cookingFrequencyPerWeek)")
+                        Text(hasSelection ? "\(coordinator.answers.cookingFrequencyPerWeek)" : "—")
                             .font(.system(size: 68, weight: .bold, design: .serif))
-                            .foregroundStyle(CooksyTheme.primaryText)
+                            .foregroundStyle(hasSelection ? CooksyTheme.primaryText : CooksyTheme.secondaryText.opacity(0.6))
                             .contentTransition(.numericText())
                             .animation(.spring(response: 0.35, dampingFraction: 0.75),
                                        value: coordinator.answers.cookingFrequencyPerWeek)
@@ -77,9 +77,14 @@ struct FrequencyView: View {
         }
     }
 
+    private var hasSelection: Bool {
+        coordinator.answers.cookingFrequencyPerWeek > 0
+    }
+
     private var caption: String {
         switch coordinator.answers.cookingFrequencyPerWeek {
-        case ...2:  return "Le weekend warrior — tu assures sur les gros rendez-vous."
+        case 0:     return "Choisis ton rythme pour qu'on cale le tien."
+        case 1...2: return "Le weekend warrior — tu assures sur les gros rendez-vous."
         case 3...4: return "Un bon rythme régulier — on va te faciliter la semaine."
         case 5...6: return "La cuisine, c'est clairement ton truc."
         default:    return "Tu cuisines plus que tu respires — respect."

@@ -143,7 +143,7 @@ struct WeeklyImportsSheet: View {
                 Text("Merci d'être membre Cooksy Premium 💛")
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
-            } else {
+            } else if windowStarted {
                 (
                     Text("Réinitialisation \(resetCopy). ")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -152,8 +152,16 @@ struct WeeklyImportsSheet: View {
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(CooksyTheme.primaryText)
                 )
+            } else {
+                Text("Le compteur démarre à ta première importation.")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
             }
         }
+    }
+
+    private var windowStarted: Bool {
+        quota.secondsUntilReset > 0
     }
 
     private var resetCopy: String {

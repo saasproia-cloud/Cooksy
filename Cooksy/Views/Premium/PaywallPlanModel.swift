@@ -97,10 +97,15 @@ extension PremiumPlan {
     /// as `formattedPrice`. Returns `nil` for monthly (already monthly).
     /// Drives the "soit 2,49 €/mois" line under the CTA on the annual
     /// plan to make the savings feel concrete.
-    func monthlyEquivalentString(discountPercent: Int? = nil) -> String? {
+    ///
+    /// `withTrialDays` shaves the equivalent monthly down by the share of the
+    /// year covered for free, so the displayed price drops a few cents when
+    /// the user activates the trial — communicating the value of the offer.
+    func monthlyEquivalentString(discountPercent: Int? = nil, withTrialDays trialDays: Int = 0) -> String? {
         guard self == .yearly else { return nil }
         let total = discountedPrice(percent: discountPercent)
-        let perMonth = total / 12
+        let billedDays = max(365 - trialDays, 1)
+        let perMonth = (total * Decimal(billedDays)) / Decimal(365) / 12
         var rounded = Decimal()
         var raw = perMonth
         NSDecimalRound(&rounded, &raw, 2, .plain)

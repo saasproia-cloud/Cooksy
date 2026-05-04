@@ -37,7 +37,6 @@ struct PremiumPaywallView: View {
     @StateObject private var offers = PremiumOffersService.shared
 
     @State private var selectedPlan: PremiumPlan = .defaultPlan
-    @State private var trialEnabled: Bool = true
     @State private var isPurchasing: Bool = false
     @State private var showsGiftWheel: Bool = false
     @State private var showsExclusiveOffer: Bool = false
@@ -47,6 +46,11 @@ struct PremiumPaywallView: View {
     /// the X-button behaviour (1st tap = open the wheel, 2nd tap =
     /// actually leave to free mode).
     @State private var hasTriggeredExitIntent: Bool = false
+
+    /// Trial is no longer a user-toggleable choice — it's automatically
+    /// included with the annual plan and unavailable on monthly. The flag
+    /// is now derived from the selected plan instead of a `@State` toggle.
+    private var trialEnabled: Bool { selectedPlan.hasFreeTrial }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -88,13 +92,6 @@ struct PremiumPaywallView: View {
                         offerDiscount: activeDiscountPercent,
                         offerExpiresAt: activeOfferExpiresAt,
                         confettiTrigger: $confettiTrigger
-                    )
-                    .padding(.horizontal, 22)
-
-                    PaywallTrialComparator(
-                        plan: selectedPlan,
-                        trialEnabled: $trialEnabled,
-                        discountPercent: effectiveDiscount(for: selectedPlan)
                     )
                     .padding(.horizontal, 22)
 
@@ -141,18 +138,14 @@ struct PremiumPaywallView: View {
             )
         }
         .fullScreenCover(isPresented: $showsExclusiveOffer) {
+            // ExclusiveOfferView now executes its own purchase inline
+            // (with a loading state on its CTA) — the cover dismisses
+            // itself once premium is granted, so the paywall never has
+            // to flash back into view between "j'achète" and "premium".
             ExclusiveOfferView(
                 discountPercent: offers.giftDiscountPercent ?? PremiumOffersService.defaultGiftDiscount,
                 expiresAt: offers.giftOfferExpiresAt,
-                onClose: { showsExclusiveOffer = false },
-                onSubscribe: { trialOn in
-                    showsExclusiveOffer = false
-                    selectedPlan = .yearly
-                    trialEnabled = trialOn
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        handlePurchase()
-                    }
-                }
+                onClose: { showsExclusiveOffer = false }
             )
         }
     }
@@ -500,82 +493,6 @@ private struct PaywallPlanPicker: View {
     }
 }
 
-// MARK: - Trial comparator
-
-/// Compact "trial on/off" toggle that always shows the monthly
-/// breakdown (e.g. *2,49 €/mois facturés 29,99 €/an*) and reveals the
-/// "0 € maintenant, puis X €/an dans 7 jours" sub-line when the trial
-/// is on. Single-card layout — no more confusing two-column comparator.
-/// Hidden for the monthly plan since there's no trial there.
-private struct PaywallTrialComparator: View {
-    let plan: PremiumPlan
-    @Binding var trialEnabled: Bool
-    let discountPercent: Int?
-
-    var body: some View {
-        if plan.hasFreeTrial {
-            VStack(alignment: .leading, spacing: 14) {
-                Toggle(isOn: $trialEnabled.animation(.spring(response: 0.35))) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(CooksyTheme.primaryAccent)
-                        Text("Essai gratuit 7 jours")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                    }
-                }
-                .tint(CooksyTheme.primaryAccent)
-
-                Divider().background(CooksyTheme.stroke)
-
-                // Single headline price line: monthly equivalent in
-                // hero size + the full annual price as strikethrough
-                // comparison. No more sub-text — the toggle alone
-                // tells the user what flow they're in.
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(monthlyPrice)
-                        .font(.system(size: 28, weight: .bold, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                    Text("au lieu de \(yearlyFullPrice)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .strikethrough()
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(CooksyTheme.elevatedSurface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(
-                                trialEnabled
-                                ? CooksyTheme.primaryAccent.opacity(0.4)
-                                : CooksyTheme.stroke,
-                                lineWidth: trialEnabled ? 1.5 : 1
-                            )
-                    )
-            )
-        }
-    }
-
-    /// "2,49 €/mois" — the per-month equivalent of the annual price,
-    /// possibly with the gift discount applied. This is the number
-    /// that makes the deal feel small.
-    private var monthlyPrice: String {
-        plan.monthlyEquivalentString(discountPercent: discountPercent)
-            ?? plan.formattedPrice(discountPercent: discountPercent)
-    }
-
-    /// "39,99 €/an" — the full undiscounted annual price, used as the
-    /// strikethrough so the user sees how much they save by picking
-    /// the annual plan vs paying full price.
-    private var yearlyFullPrice: String {
-        PremiumPlan.yearly.formattedPrice() + PremiumPlan.yearly.unitLabel
-    }
-}
-
 // MARK: - Trust strip
 
 private struct PaywallTrustStrip: View {
@@ -730,47 +647,53 @@ private struct PaywallStickyCTA: View {
     }
 
     private var ctaCopy: String {
-        if selectedPlan.hasFreeTrial && trialEnabled {
-            return "Démarrer mes 7 jours gratuits"
+        // The orange button should communicate "small monthly cost"
+        // rather than the upfront annual total. For the yearly plan we
+        // display the per-month equivalent (≈ 2,49 €/mois) — both when
+        // the trial is on and off, since the trial is auto-included
+        // and the secondary line below the button explains the rest.
+        if let perMonth = selectedPlan.monthlyEquivalentString(discountPercent: effectiveDiscount) {
+            return "Continuer · \(perMonth)"
         }
         let priceText = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
         return "Continuer · \(priceText)\(selectedPlan.unitLabel)"
     }
 
     private var priceHighlightLine: Text? {
-        let strike = (effectiveDiscount != nil) ? selectedPlan.formattedPrice() : nil
-        let perMonth = selectedPlan.monthlyEquivalentString(discountPercent: effectiveDiscount)
-        guard strike != nil || perMonth != nil else { return nil }
-
-        var combined = Text("")
-        if let strike {
-            combined = combined
-                + Text(strike)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .strikethrough()
-                    .foregroundColor(CooksyTheme.secondaryText)
-        }
-        if strike != nil, perMonth != nil {
-            combined = combined
-                + Text("  ·  ")
+        // Annual: highlight the trial + the full annual price as a
+        // strikethrough so the user understands what they'll actually
+        // be billed. Monthly: nothing — the button copy already shows
+        // the full price.
+        if selectedPlan.hasFreeTrial && trialEnabled {
+            let billed = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
+            var line = Text("Essai 7 jours offert")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(CooksyTheme.primaryAccentStrong)
+            line = line
+                + Text("  ·  puis \(billed)\(selectedPlan.unitLabel)")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(CooksyTheme.secondaryText)
+            return line
         }
-        if let perMonth {
-            combined = combined
-                + Text("soit \(perMonth)")
+
+        if let strike = (effectiveDiscount != nil) ? selectedPlan.formattedPrice() : nil {
+            let billed = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
+            var line = Text(strike + selectedPlan.unitLabel)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .strikethrough()
+                .foregroundColor(CooksyTheme.secondaryText)
+            line = line
+                + Text("  ·  \(billed)\(selectedPlan.unitLabel)")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundColor(CooksyTheme.primaryAccentStrong)
+            return line
         }
-        return combined
+
+        return nil
     }
 
     private var legalCopy: String {
         var pieces: [String] = []
-        if selectedPlan.hasFreeTrial && trialEnabled {
-            let priceText = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
-            pieces.append("Puis \(priceText)\(selectedPlan.unitLabel) à J+7")
-        }
         if effectiveDiscount != nil, !selectedPlan.firstPeriodDisclaimer.isEmpty {
             pieces.append(selectedPlan.firstPeriodDisclaimer)
         }

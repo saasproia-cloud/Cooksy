@@ -147,6 +147,14 @@ struct AnimatedAmbientBackground: View {
                     .offset(x: 140 - drift * 40, y: 320 - drift * 60)
                     .blur(radius: 24)
             }
+            // Without this, the ZStack reports the natural size of the
+            // 540×540 blob circles to its parent. Any consumer placing
+            // this background inside another ZStack alongside a VStack
+            // with `.frame(maxWidth: .infinity)` ends up with the VStack
+            // bleeding past both screen edges. Pinning the background
+            // to its container fixes that at the source.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
     }
 }

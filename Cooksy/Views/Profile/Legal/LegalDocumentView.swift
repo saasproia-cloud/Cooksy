@@ -53,7 +53,7 @@ struct LegalDocumentView: View {
                         )
                     }
 
-                    Text("Une question ? Écris-nous à saasproia@gmail.com")
+                    Text("Une question ? Écris-nous à azizelghazel@gmail.com")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .frame(maxWidth: .infinity, alignment: .center)

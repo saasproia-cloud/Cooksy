@@ -166,8 +166,10 @@ final class OnboardingCoordinator: ObservableObject {
             return !answers.sources.isEmpty
         case .skillLevel:
             return answers.skillLevel != nil
-        case .timeSlider, .frequency:
-            return true // sliders always have a value
+        case .timeSlider:
+            return true // slider always has a value
+        case .frequency:
+            return answers.cookingFrequencyPerWeek > 0
         case .diet:
             return !answers.diets.isEmpty
         case .allergies:

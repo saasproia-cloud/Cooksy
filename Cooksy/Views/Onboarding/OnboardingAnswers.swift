@@ -480,7 +480,7 @@ struct OnboardingAnswers: Codable, Equatable {
         sources: [],
         skillLevel: nil,
         timeMinutesPerMeal: 30,
-        cookingFrequencyPerWeek: 4,
+        cookingFrequencyPerWeek: 0,
         diets: [],
         allergies: [],
         typicalServings: nil,
@@ -508,7 +508,7 @@ struct OnboardingAnswers: Codable, Equatable {
         sources = try c.decodeIfPresent(Set<OnboardingSource>.self, forKey: .sources) ?? []
         skillLevel = try c.decodeIfPresent(OnboardingSkillLevel.self, forKey: .skillLevel)
         timeMinutesPerMeal = try c.decodeIfPresent(Int.self, forKey: .timeMinutesPerMeal) ?? 30
-        cookingFrequencyPerWeek = try c.decodeIfPresent(Int.self, forKey: .cookingFrequencyPerWeek) ?? 4
+        cookingFrequencyPerWeek = try c.decodeIfPresent(Int.self, forKey: .cookingFrequencyPerWeek) ?? 0
         diets = try c.decodeIfPresent(Set<OnboardingDiet>.self, forKey: .diets) ?? []
         allergies = try c.decodeIfPresent(Set<OnboardingAllergy>.self, forKey: .allergies) ?? []
         typicalServings = try c.decodeIfPresent(OnboardingServings.self, forKey: .typicalServings)

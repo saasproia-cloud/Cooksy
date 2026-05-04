@@ -59,11 +59,8 @@ struct ProfileSettingsView: View {
         }
         .navigationTitle("Paramètres")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(
-            "Se déconnecter de Cooksy ?",
-            isPresented: $showsSignOutConfirm,
-            titleVisibility: .visible
-        ) {
+        .alert("Se déconnecter de Cooksy ?", isPresented: $showsSignOutConfirm) {
+            Button("Annuler", role: .cancel) {}
             Button("Se déconnecter", role: .destructive) {
                 Task {
                     isSigningOut = true
@@ -71,7 +68,6 @@ struct ProfileSettingsView: View {
                     isSigningOut = false
                 }
             }
-            Button("Annuler", role: .cancel) {}
         } message: {
             Text("Tu pourras te reconnecter à tout moment avec le même compte.")
         }

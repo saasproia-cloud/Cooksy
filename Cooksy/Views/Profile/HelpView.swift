@@ -40,7 +40,7 @@ struct HelpView: View {
         FAQItem(
             id: "delete-account",
             question: "Comment supprimer mon compte ?",
-            answer: "Écris-nous à saasproia@gmail.com en précisant l'adresse e-mail liée à ton compte. Nous supprimons toutes tes données dans un délai de 30 jours, conformément au RGPD."
+            answer: "Écris-nous à azizelghazel@gmail.com en précisant l'adresse e-mail liée à ton compte. Nous supprimons toutes tes données dans un délai de 30 jours, conformément au RGPD."
         ),
         FAQItem(
             id: "languages",
@@ -186,7 +186,7 @@ struct HelpView: View {
         let body = "Bonjour,\n\nJe rencontre la situation suivante :\n\n\n\n— Mon iPhone : \(UIDevice.current.model)\n— Version iOS : \(UIDevice.current.systemVersion)\n"
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let mailto = "mailto:saasproia@gmail.com?subject=\(encodedSubject)&body=\(encodedBody)"
+        let mailto = "mailto:azizelghazel@gmail.com?subject=\(encodedSubject)&body=\(encodedBody)"
 
         if let url = URL(string: mailto) {
             UIApplication.shared.open(url)
