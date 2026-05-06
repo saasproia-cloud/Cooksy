@@ -59,6 +59,7 @@ struct AppReviewView: View {
                 Spacer(minLength: 14)
 
                 copyBlock
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 28)
                     .padding(.bottom, 14)
                     .opacity(appeared ? 1 : 0)
@@ -66,6 +67,7 @@ struct AppReviewView: View {
                     .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.28), value: appeared)
 
                 testimonialCard
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 22)
                     .padding(.bottom, 18)
                     .opacity(appeared ? 1 : 0)
@@ -184,14 +186,17 @@ struct AppReviewView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
 
             Text("Une note honnête nous aide énormément à faire connaître Cooksy. Ça prend deux secondes — promis.")
                 .font(.system(size: 14.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
-                .lineLimit(3)
+                .lineLimit(4)
                 .minimumScaleFactor(0.85)
-                .padding(.horizontal, 8)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -234,6 +239,7 @@ struct AppReviewView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)

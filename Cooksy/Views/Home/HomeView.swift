@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var showsPaywallFromBadge: Bool = false
     @State private var showsQuotaInfo: Bool = false
     @State private var showsImportGuide: Bool = false
+    @State private var showsInviteFriends: Bool = false
     @AppStorage("cooksy.hasSeenImportGuide") private var hasSeenImportGuide: Bool = false
     /// True when the paywall is opened from the gift wheel's "Plus tard" —
     /// drives a soft reminder banner that the user can still play to
@@ -149,10 +150,30 @@ struct HomeView: View {
                         showsPaywallFromBadge = true
                     }
                 },
-                onDismiss: { showsQuotaInfo = false }
+                onDismiss: { showsQuotaInfo = false },
+                onTapBonusBolt: {
+                    showsQuotaInfo = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showsInviteFriends = true
+                    }
+                }
             )
             .presentationDetents([.height(420)])
             .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showsInviteFriends) {
+            NavigationStack {
+                InviteFriendsView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(action: { showsInviteFriends = false }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(CooksyTheme.primaryText)
+                            }
+                        }
+                    }
+            }
         }
     }
 
@@ -534,77 +555,103 @@ private struct HomeRecentImportCardView: View {
 }
 
 /// Full-bleed editorial card used in the "Tendances du jour" horizontal
-/// carousel on Home. The look is IG-Reel inspired: a warm food-themed
-/// gradient, a decorative SF Symbol (no emojis), polaroid-style white
-/// inner stroke, rank + rating pills, and an overlay that darkens the
-/// lower third so the title reads cleanly.
+/// carousel on Home. Magazine-style hero with the scenario emoji as a
+/// glowing centerpiece, layered light flares, and a clean typographic
+/// bottom block (source · handle · meta).
 private struct HomeTrendingReelCard: View {
     let item: HomeViewModel.TrendingRecipe
 
-    private var gradient: LinearGradient {
-        guard case .demo(let scenario) = item.artwork else {
-            return CooksyTheme.accentGradient
-        }
-        return LinearGradient(
-            colors: [
-                Color(hex: scenario.hero.topColorHex),
-                Color(hex: scenario.hero.bottomColorHex)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    private var topColor: Color {
+        guard case .demo(let scenario) = item.artwork else { return Color(hex: 0xEA662A) }
+        return Color(hex: scenario.hero.topColorHex)
     }
 
-    private var decorativeSymbol: String {
-        guard case .demo(let scenario) = item.artwork else {
-            return "fork.knife"
-        }
-        return Self.symbolForScenario(id: scenario.id, title: scenario.title)
+    private var bottomColor: Color {
+        guard case .demo(let scenario) = item.artwork else { return Color(hex: 0xC9471D) }
+        return Color(hex: scenario.hero.bottomColorHex)
+    }
+
+    private var heroEmoji: String {
+        guard case .demo(let scenario) = item.artwork else { return "🍽️" }
+        return scenario.hero.emoji
+    }
+
+    private var sourceLabel: String {
+        // Stable per-scenario "source" so the same recipe always shows the
+        // same network — feels like a real curated import feed.
+        let key = (item.id + item.title).unicodeScalars.reduce(0) { $0 + Int($1.value) }
+        return key % 2 == 0 ? "Instagram" : "TikTok"
+    }
+
+    private var sourceIcon: String {
+        sourceLabel == "TikTok" ? "music.note" : "camera.fill"
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // Base gradient — food-themed, reused from the scenario palette.
+            // Layered gradient base — warmer, deeper than a single linear pass.
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(gradient)
+                .fill(
+                    LinearGradient(
+                        colors: [topColor, bottomColor],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
 
-            // Subtle white blobs add dimension to the background without
-            // relying on emojis.
+            // Soft radial halo behind the hero emoji to give it a "lit"
+            // photographic feel without using an actual photo.
+            RadialGradient(
+                colors: [
+                    Color.white.opacity(0.45),
+                    Color.white.opacity(0.10),
+                    .clear
+                ],
+                center: .center,
+                startRadius: 10,
+                endRadius: 220
+            )
+            .blendMode(.screen)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Decorative light blobs for depth.
             Circle()
-                .fill(Color.white.opacity(0.12))
-                .frame(width: 220, height: 220)
-                .offset(x: 120, y: -110)
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 240, height: 240)
+                .blur(radius: 30)
+                .offset(x: 130, y: -120)
 
             Circle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 160, height: 160)
-                .offset(x: -80, y: 140)
+                .fill(Color.black.opacity(0.10))
+                .frame(width: 180, height: 180)
+                .blur(radius: 28)
+                .offset(x: -90, y: 160)
 
-            // Large decorative SF Symbol, editorial style.
-            Image(systemName: decorativeSymbol)
-                .font(.system(size: 180, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.22))
-                .offset(x: 40, y: -20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            // Hero emoji — large, soft, the visual anchor.
+            Text(heroEmoji)
+                .font(.system(size: 150))
+                .shadow(color: Color.black.opacity(0.18), radius: 18, y: 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .offset(y: -10)
                 .allowsHitTesting(false)
 
             // Bottom scrim so title/meta stay legible over any palette.
             LinearGradient(
                 colors: [
                     .clear,
-                    Color.black.opacity(0.15),
+                    Color.black.opacity(0.05),
                     Color.black.opacity(0.55)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
-            // Top row: rank pill + rating pill
+            // Top row: source pill (left) + rating pill (right)
             HStack(alignment: .top) {
                 HomeTrendingPill(
-                    icon: nil,
-                    text: "#\(item.rank)",
-                    background: Color.black.opacity(0.32),
+                    icon: sourceIcon,
+                    text: sourceLabel,
+                    background: Color.black.opacity(0.42),
                     foreground: .white
                 )
 
@@ -613,23 +660,42 @@ private struct HomeTrendingReelCard: View {
                 HomeTrendingPill(
                     icon: "star.fill",
                     text: item.ratingLabel,
-                    background: Color.black.opacity(0.32),
+                    background: Color.black.opacity(0.42),
                     foreground: .white
                 )
             }
             .padding(16)
 
-            // Bottom block: title + handle · duration · rating
-            VStack(alignment: .leading, spacing: 6) {
+            // Bottom block: rank chip + title + handle · duration
+            VStack(alignment: .leading, spacing: 8) {
                 Spacer(minLength: 0)
 
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("#\(item.rank) tendance")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .tracking(0.4)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .frame(height: 24)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.18))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.35), lineWidth: 0.8)
+                )
+
                 Text(item.title)
-                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .font(.system(size: 24, weight: .bold, design: .serif))
                     .foregroundStyle(.white)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(0.82)
                     .multilineTextAlignment(.leading)
-                    .shadow(color: Color.black.opacity(0.25), radius: 6, y: 2)
+                    .shadow(color: Color.black.opacity(0.30), radius: 8, y: 3)
 
                 HStack(spacing: 6) {
                     Text(item.handle)
@@ -657,40 +723,11 @@ private struct HomeTrendingReelCard: View {
         }
         .aspectRatio(3.0 / 4.0, contentMode: .fit)
         .overlay(
-            // Polaroid-style inner stroke for the premium editorial feel.
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.35), lineWidth: 1.5)
+                .strokeBorder(Color.white.opacity(0.40), lineWidth: 1.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color.black.opacity(0.18), radius: 20, y: 10)
-    }
-
-    /// Picks an SF Symbol appropriate for each demo scenario without
-    /// bringing in new assets. Matches on keywords in the scenario id and
-    /// title so it stays resilient if new scenarios are added.
-    private static func symbolForScenario(id: String, title: String) -> String {
-        let haystack = (id + " " + title).lowercased()
-        let rules: [(keywords: [String], symbol: String)] = [
-            (["nugget", "chicken", "poulet", "tender"], "bird.fill"),
-            (["pasta", "pates", "noodle", "ramen", "spaghet"], "takeoutbag.and.cup.and.straw.fill"),
-            (["taco", "burrito", "quesadilla", "wrap"], "leaf.fill"),
-            (["sushi", "ramen", "asia", "miso", "bowl saumon", "teriyaki"], "fish.fill"),
-            (["salad", "salade", "avocado", "quinoa"], "leaf.circle.fill"),
-            (["dessert", "cake", "gateau", "tiramisu", "choco", "cookie"], "birthday.cake.fill"),
-            (["burger", "sandwich", "grilled"], "flame.fill"),
-            (["pizza"], "circle.hexagongrid.fill"),
-            (["soup", "soupe", "ramen", "stew"], "cup.and.saucer.fill"),
-            (["oat", "porridge", "breakfast", "brunch"], "sun.max.fill"),
-            (["smoothie", "juice"], "drop.fill"),
-            (["egg", "omelette"], "oval.fill")
-        ]
-
-        for rule in rules {
-            if rule.keywords.contains(where: { haystack.contains($0) }) {
-                return rule.symbol
-            }
-        }
-        return "fork.knife"
+        .shadow(color: Color.black.opacity(0.22), radius: 24, y: 12)
     }
 }
 

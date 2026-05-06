@@ -55,6 +55,8 @@
 		C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000B000000000000B001 /* WeeklyImportsSheet.swift */; };
 		C71F000C000000000000A001 /* GiftWheelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000C000000000000B001 /* GiftWheelView.swift */; };
 		C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000D000000000000B001 /* ExclusiveOfferView.swift */; };
+		C71F0011000000000000A001 /* InviteRewardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0011000000000000B001 /* InviteRewardService.swift */; };
+		C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0012000000000000B001 /* InviteFriendsView.swift */; };
 		8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */; };
 		883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E295B4D72656690C64670ED8 /* RecipeBook.swift */; };
 		8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */; };
@@ -197,6 +199,8 @@
 		C71F000B000000000000B001 /* WeeklyImportsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyImportsSheet.swift; sourceTree = "<group>"; };
 		C71F000C000000000000B001 /* GiftWheelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftWheelView.swift; sourceTree = "<group>"; };
 		C71F000D000000000000B001 /* ExclusiveOfferView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExclusiveOfferView.swift; sourceTree = "<group>"; };
+		C71F0011000000000000B001 /* InviteRewardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteRewardService.swift; sourceTree = "<group>"; };
+		C71F0012000000000000B001 /* InviteFriendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteFriendsView.swift; sourceTree = "<group>"; };
 		14BDF91DC0D5EE665EBA20B3 /* AppConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		1C2D52E5A11B4E2292A91C10 /* CreateRecipeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateRecipeView.swift; sourceTree = "<group>"; };
 		1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeEditorSeed.swift; sourceTree = "<group>"; };
@@ -374,6 +378,7 @@
 				F20000000000000000000003 /* SessionFreshnessGuard.swift */,
 				C71F0001000000000000B001 /* ImportQuotaService.swift */,
 				C71F0002000000000000B001 /* PremiumOffersService.swift */,
+				C71F0011000000000000B001 /* InviteRewardService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -590,6 +595,7 @@
 				F10000000000000000000008 /* TrendingRecipesView.swift */,
 				F10000000000000000000009 /* ShareShortcutGuideView.swift */,
 				F100000000000000000000D0 /* DesktopAccessView.swift */,
+				C71F0012000000000000B001 /* InviteFriendsView.swift */,
 				F100000000000000000000D1 /* HelpView.swift */,
 				F100000000000000000000A0 /* Legal */,
 			);
@@ -858,6 +864,8 @@
 				C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */,
 				C71F000C000000000000A001 /* GiftWheelView.swift in Sources */,
 				C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */,
+				C71F0011000000000000A001 /* InviteRewardService.swift in Sources */,
+				C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */,
 				24368CBE04042DFA3B6F8C31 /* CooksyTheme.swift in Sources */,
 				77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */,
 				0DEA03C6F3737AD192298935 /* RecipeBook.swift in Sources */,

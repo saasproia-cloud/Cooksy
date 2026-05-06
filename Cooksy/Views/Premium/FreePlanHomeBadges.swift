@@ -10,6 +10,7 @@ import SwiftUI
 struct FreePlanHomeBadges: View {
     @StateObject private var quota = ImportQuotaService.shared
     @StateObject private var offers = PremiumOffersService.shared
+    @StateObject private var rewards = InviteRewardService.shared
 
     let onTapQuota: () -> Void
     let onTapGift: () -> Void
@@ -51,9 +52,10 @@ struct FreePlanHomeBadges: View {
                         .foregroundStyle(CooksyTheme.heroDark)
                         .padding(.trailing, 4)
                 } else {
-                    Text("\(quota.remainingThisWeek)/\(ImportQuotaService.freeWeeklyLimit)")
+                    Text("\(min(quota.remainingThisWeek, quota.weeklyLimit))/\(quota.weeklyLimit)")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.heroDark)
+                    bonusBoltAccent
                         .padding(.trailing, 4)
                 }
             }
@@ -67,6 +69,45 @@ struct FreePlanHomeBadges: View {
             )
         }
         .buttonStyle(CooksyTheme.pressScale())
+    }
+
+    /// Tiny bolt rendered after the count for free users to surface the
+    /// invite-reward bonus slot:
+    /// - Green active when the bonus is earned.
+    /// - Muted gray-green ghost when still locked — the parent button
+    ///   already routes the tap to the weekly imports sheet, where the
+    ///   user can interact with the larger bonus bolt to reach the
+    ///   invite-friends page.
+    @ViewBuilder
+    private var bonusBoltAccent: some View {
+        if rewards.bonusUnlocked {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color(hex: 0x6DAA5E), Color(hex: 0x4D8B47)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 22, height: 22)
+                    .shadow(color: Color(hex: 0x6DAA5E).opacity(0.45), radius: 4, y: 1)
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(.white)
+            }
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: 0xC8DDC0).opacity(0.65))
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Circle()
+                            .stroke(Color(hex: 0x6DAA5E).opacity(0.35), lineWidth: 1)
+                    )
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(Color(hex: 0x4D8B47).opacity(0.6))
+            }
+        }
     }
 
     // MARK: - Gift pill

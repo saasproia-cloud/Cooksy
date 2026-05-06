@@ -4,7 +4,6 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var recipeStore: RecipeStore
-    @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
 
     @State private var toastMessage: String?
@@ -39,7 +38,7 @@ struct ProfileView: View {
                     )
 
                     if sessionStore.isPremium {
-                        PremiumActiveCard(onManage: openSubscriptionsURL)
+                        PremiumActiveCard()
                     } else {
                         ProfilePremiumBanner(action: { showsPaywall = true })
                     }
@@ -96,12 +95,6 @@ struct ProfileView: View {
         }
     }
 
-    private func openSubscriptionsURL() {
-        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-            openURL(url)
-        }
-    }
-
     private func sectionTitle(_ text: String) -> some View {
         Text(text.uppercased())
             .font(.system(size: 11, weight: .black, design: .rounded))
@@ -135,26 +128,25 @@ struct ProfileView: View {
             )
 
             ProfileNavigationRow(
-                systemImage: "desktopcomputer",
-                title: "Utiliser Cooksy sur le bureau",
+                systemImage: "square.and.arrow.up",
+                title: "Ajouter Cooksy au partage",
                 isLast: true
             ) {
-                DesktopAccessView()
-                    .environmentObject(sessionStore)
+                ShareShortcutGuideView()
             }
         }
     }
 
     private var communitySection: some View {
         ProfileSectionCard {
-            // Native iOS share sheet — invites a friend with a pre-written
-            // pitch and a placeholder App Store link (replace with your
-            // real App Store URL once published).
-            ShareLinkProfileRow(
+            // Routes to the rewards page where each share counts toward
+            // the +1 weekly-import bonus (5 invites = 1 extra import).
+            ProfileNavigationRow(
                 systemImage: "person.badge.plus",
-                title: "Inviter des amis",
-                shareText: inviteText
-            )
+                title: "Inviter des amis"
+            ) {
+                InviteFriendsView()
+            }
 
             ProfileNavigationRow(
                 systemImage: "questionmark.circle",
@@ -164,17 +156,6 @@ struct ProfileView: View {
                 HelpView()
             }
         }
-    }
-
-    /// Pitch shown when the user shares Cooksy via the iOS share sheet.
-    private var inviteText: String {
-        """
-        Découvre Cooksy 🍳 — l'app qui transforme n'importe quelle vidéo cuisine TikTok ou Instagram en vraie recette structurée (ingrédients précis, étapes claires).
-
-        Plus besoin de re-scroller la vidéo pendant que tu cuisines !
-
-        https://apps.apple.com/app/cooksy
-        """
     }
 
     private var settingsSection: some View {

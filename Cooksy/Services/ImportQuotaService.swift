@@ -41,13 +41,20 @@ final class ImportQuotaService: ObservableObject {
         currentCount = defaults.integer(forKey: countKey)
     }
 
+    /// Effective weekly limit for the active user. Free users get the base
+    /// limit + any permanent bonus slots earned via the invite-friends
+    /// reward (see `InviteRewardService`). Premium users have no limit.
+    var weeklyLimit: Int {
+        Self.freeWeeklyLimit + InviteRewardService.shared.bonusImportSlots
+    }
+
     /// `true` if the user is allowed to start a new import. Always true
     /// for premium users; for free users this is true only while
     /// `count < limit` within the active window.
     var canImport: Bool {
         if isPremium { return true }
         rolloverIfWindowExpired()
-        return currentCount < Self.freeWeeklyLimit
+        return currentCount < weeklyLimit
     }
 
     /// Number of imports remaining this window. Returns `Int.max` for
@@ -55,7 +62,7 @@ final class ImportQuotaService: ObservableObject {
     var remainingThisWeek: Int {
         if isPremium { return .max }
         rolloverIfWindowExpired()
-        return max(Self.freeWeeklyLimit - currentCount, 0)
+        return max(weeklyLimit - currentCount, 0)
     }
 
     /// Number of seconds until the next reset (= window expiry).
@@ -84,7 +91,7 @@ final class ImportQuotaService: ObservableObject {
 
         currentCount += 1
         defaults.set(currentCount, forKey: countKey)
-        logger.info("Import quota: \(self.currentCount, privacy: .public)/\(Self.freeWeeklyLimit, privacy: .public) (window started)")
+        logger.info("Import quota: \(self.currentCount, privacy: .public)/\(self.weeklyLimit, privacy: .public) (window started)")
     }
 
     /// Reset hook used by tests / debug menu. NOT exposed in production UI.
@@ -106,7 +113,7 @@ final class ImportQuotaService: ObservableObject {
             defaults.removeObject(forKey: windowStartedAtKey)
             defaults.set(0, forKey: countKey)
             currentCount = 0
-            logger.info("Import quota window expired — reset to 0/\(Self.freeWeeklyLimit, privacy: .public)")
+            logger.info("Import quota window expired — reset to 0/\(self.weeklyLimit, privacy: .public)")
         }
     }
 }

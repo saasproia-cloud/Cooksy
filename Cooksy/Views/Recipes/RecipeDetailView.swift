@@ -4,6 +4,7 @@ import UIKit
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @EnvironmentObject private var sessionStore: SessionStore
 
     private let store: RecipeStore
 
@@ -20,6 +21,9 @@ struct RecipeDetailView: View {
     @State private var notice: RecipeDetailNotice?
     @State private var selectedTab: RecipePresentationTab = .ingredients
     @State private var checkedIngredients: Set<UUID> = []
+    @State private var showsPaywall = false
+
+    private var isPremium: Bool { sessionStore.isPremium }
 
     init(store: RecipeStore, recipeID: Recipe.ID) {
         self.store = store
@@ -97,6 +101,25 @@ struct RecipeDetailView: View {
                 responseForPreset: { viewModel.assistantReply(for: $0) },
                 responseForQuestion: { viewModel.assistantReply(for: $0) }
             )
+        }
+        .fullScreenCover(isPresented: $showsPaywall) {
+            NavigationStack {
+                PremiumPaywallView(
+                    allowsFreeModeDismiss: false,
+                    onDismissToFreeMode: { showsPaywall = false }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: { showsPaywall = false }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(CooksyTheme.elevatedSurface))
+                        }
+                    }
+                }
+            }
         }
 
         .sheet(isPresented: $showsPlanSheet) {
@@ -390,8 +413,16 @@ struct RecipeDetailView: View {
                 showsPhotoOptions = true
             }
 
-            quickActionButton(icon: "sparkles", label: "Assistant") {
-                showsAssistant = true
+            quickActionButton(
+                icon: "sparkles",
+                label: "Assistant",
+                isLocked: !isPremium
+            ) {
+                if isPremium {
+                    showsAssistant = true
+                } else {
+                    showsPaywall = true
+                }
             }
 
             quickActionButton(icon: "pencil", label: "Modifier") {
@@ -400,27 +431,45 @@ struct RecipeDetailView: View {
         }
     }
 
-    private func quickActionButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+    private func quickActionButton(
+        icon: String,
+        label: String,
+        isLocked: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             VStack(spacing: 7) {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(CooksyTheme.accentWarm)
+                    .foregroundStyle(isLocked
+                                     ? CooksyTheme.secondaryText.opacity(0.55)
+                                     : CooksyTheme.accentWarm)
 
                 Text(label)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .foregroundStyle(isLocked
+                                     ? CooksyTheme.secondaryText.opacity(0.7)
+                                     : CooksyTheme.secondaryText)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 64)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white)
+                    .fill(isLocked
+                          ? Color(hex: 0xF1ECE4)
+                          : Color.white)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
             )
+            .overlay(alignment: .topTrailing) {
+                if isLocked {
+                    PremiumCrownBadge(isPremium: false, size: 16)
+                        .offset(x: 5, y: -5)
+                        .allowsHitTesting(false)
+                }
+            }
         }
         .buttonStyle(.plain)
     }
@@ -534,15 +583,29 @@ struct RecipeDetailView: View {
         case .steps:
             RecipeStepsTabView(
                 steps: viewModel.instructions,
-                onCookStepByStep: { showsStepByStep = true }
+                cookModeIsLocked: !isPremium,
+                onCookStepByStep: {
+                    if isPremium {
+                        showsStepByStep = true
+                    } else {
+                        showsPaywall = true
+                    }
+                }
             )
         case .nutrition:
-            RecipeNutritionTabView(
-                perServingNutrition: viewModel.perServingNutritionDisplay,
-                totalNutrition: viewModel.totalNutritionDisplay,
-                isEstimated: viewModel.nutritionIsEstimated,
-                currentServings: viewModel.currentServings
-            )
+            LockedFeatureOverlay(
+                title: "Nutrition réservée à Cooksy Plus",
+                subtitle: "Calories, macros et valeurs nutritionnelles complètes pour chaque recette importée.",
+                isLocked: !isPremium,
+                onUnlockTap: { showsPaywall = true }
+            ) {
+                RecipeNutritionTabView(
+                    perServingNutrition: viewModel.perServingNutritionDisplay,
+                    totalNutrition: viewModel.totalNutritionDisplay,
+                    isEstimated: viewModel.nutritionIsEstimated,
+                    currentServings: viewModel.currentServings
+                )
+            }
         }
     }
 
@@ -721,16 +784,19 @@ struct RecipeIngredientRow: View {
 
 struct RecipeStepsTabView: View {
     let steps: [RecipeStep]
+    var cookModeIsLocked: Bool = false
     let onCookStepByStep: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Cook mode CTA
+            // Cook mode CTA — gray + crown for free users.
             Button(action: onCookStepByStep) {
                 HStack(spacing: 14) {
                     ZStack {
                         Circle()
-                            .fill(CooksyTheme.accentWarm)
+                            .fill(cookModeIsLocked
+                                  ? AnyShapeStyle(Color(hex: 0xC9C2B7))
+                                  : AnyShapeStyle(CooksyTheme.accentWarm))
                             .frame(width: 38, height: 38)
 
                         Image(systemName: "play.fill")
@@ -741,29 +807,48 @@ struct RecipeStepsTabView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Mode cuisine")
                             .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
+                            .foregroundStyle(cookModeIsLocked
+                                             ? CooksyTheme.secondaryText
+                                             : CooksyTheme.primaryText)
 
-                        Text("Suivez chaque étape en plein écran")
+                        Text(cookModeIsLocked
+                             ? "Réservé aux membres Cooksy Plus"
+                             : "Suivez chaque étape en plein écran")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(CooksyTheme.secondaryText)
                     }
 
                     Spacer(minLength: 0)
 
-                    Image(systemName: "chevron.right")
+                    Image(systemName: cookModeIsLocked ? "lock.fill" : "chevron.right")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(CooksyTheme.secondaryText)
                 }
                 .padding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(Color.white)
+                        .fill(cookModeIsLocked
+                              ? Color(hex: 0xF1ECE4)
+                              : Color.white)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(CooksyTheme.accentWarm.opacity(0.3), lineWidth: 1.5)
+                        .stroke(cookModeIsLocked
+                                ? Color(hex: 0xC9C2B7).opacity(0.6)
+                                : CooksyTheme.accentWarm.opacity(0.3),
+                                lineWidth: 1.5)
                 )
-                .shadow(color: CooksyTheme.accentWarm.opacity(0.08), radius: 12, y: 4)
+                .shadow(
+                    color: cookModeIsLocked ? .clear : CooksyTheme.accentWarm.opacity(0.08),
+                    radius: 12, y: 4
+                )
+                .overlay(alignment: .topTrailing) {
+                    if cookModeIsLocked {
+                        PremiumCrownBadge(isPremium: false, size: 22)
+                            .offset(x: 8, y: -8)
+                            .allowsHitTesting(false)
+                    }
+                }
             }
             .buttonStyle(.plain)
 
