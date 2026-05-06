@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import RevenueCat
 
 @MainActor
 final class CooksyAppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
@@ -30,6 +31,7 @@ struct CooksyApp: App {
     init() {
         AppAppearance.configure()
         IngredientVisualCatalog.preload()
+        PurchaseService.shared.configure()
     }
 
     var body: some Scene {
@@ -39,6 +41,21 @@ struct CooksyApp: App {
                 .environmentObject(sessionStore)
                 .task {
                     await sessionStore.bootstrap()
+                    await PurchaseService.shared.fetchOfferings()
+                }
+                .task(id: sessionStore.phase) {
+                    switch sessionStore.phase {
+                    case .signedIn(let user):
+                        await PurchaseService.shared.login(userID: user.id.uuidString)
+                        // Keep Supabase `is_premium` in sync with the RevenueCat source of truth.
+                        if PurchaseService.shared.isPremium != sessionStore.isPremium {
+                            await sessionStore.setPremium(PurchaseService.shared.isPremium)
+                        }
+                    case .signedOut:
+                        await PurchaseService.shared.logout()
+                    case .loading:
+                        break
+                    }
                 }
                 .preferredColorScheme(.light)
         }

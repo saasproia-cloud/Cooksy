@@ -10,8 +10,6 @@ struct BrowserImportView: View {
     let onImported: (RecipeImportAssessment) -> Void
 
     @StateObject private var viewModel = BrowserImportViewModel()
-    @State private var importErrorMessage = ""
-    @State private var showsImportError = false
 
     init(initialURL: URL? = nil, onImported: @escaping (RecipeImportAssessment) -> Void) {
         self.initialURL = initialURL
@@ -51,11 +49,6 @@ struct BrowserImportView: View {
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             bottomBar
-        }
-        .alert("Import impossible", isPresented: $showsImportError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(importErrorMessage)
         }
         .task {
             guard let initialURL else { return }
@@ -299,8 +292,29 @@ struct BrowserImportView: View {
                 let seed = try await viewModel.importCurrentPage()
                 onImported(seed)
             } catch {
-                importErrorMessage = error.localizedDescription
-                showsImportError = true
+                // The import failed (TikTok with no caption, no usable recipe,
+                // …). Instead of surfacing a system alert, route through the
+                // OOPS failure screen so the user gets a tailored CTA back to
+                // the source video.
+                let fallbackURL = viewModel.currentURL
+                let failureSeed = RecipeEditorSeed(
+                    sourceURL: fallbackURL,
+                    importDebug: RecipeImportDebugInfo(
+                        ingredientsCount: 0,
+                        stepsCount: 0,
+                        strategy: "browser",
+                        durationMs: 0,
+                        isLikelyValid: false,
+                        missing: ["ingredients", "steps"],
+                        failureReason: "not_food",
+                        needsReview: false
+                    )
+                )
+                let assessment = RecipeValidationService.assess(
+                    failureSeed,
+                    sourceKind: .url
+                )
+                onImported(assessment)
             }
         }
     }
@@ -325,6 +339,9 @@ private final class BrowserImportViewModel: NSObject, ObservableObject, WKNaviga
     @Published private(set) var detectionState: RecipeDetectionState = .idle
 
     let webView: WKWebView
+    var currentURL: URL? {
+        webView.url ?? lastSuccessfulURL
+    }
     private var lastSuccessfulURL: URL?
     private var cachedSnapshotJSON: String?
     private var cachedSnapshotURL: String?

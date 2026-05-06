@@ -8,9 +8,18 @@ import SwiftUI
 struct OnboardingFlow: View {
     @StateObject private var coordinator = OnboardingCoordinator()
     @EnvironmentObject private var sessionStore: SessionStore
+    @Environment(\.scenePhase) private var scenePhase
 
     /// When true we present the returning-user login screen on top of the flow.
     @State private var showingLogin: Bool = false
+
+    /// Toast banner shown when the user tries to import a recipe (via the
+    /// share extension) before finishing onboarding. The pending import
+    /// gets cleared so it does not auto-process once they reach the home
+    /// screen — the user must re-share the link.
+    @State private var importBlockedBannerVisible: Bool = false
+
+    private let sharedLinkInbox = SharedLinkInbox()
 
     /// Prevents double-writing the answers if the view reappears after auth.
     /// Persisted in UserDefaults because the OnboardingFlow gets unmounted
@@ -22,7 +31,7 @@ struct OnboardingFlow: View {
     @AppStorage("cooksy.onboarding.didSaveAnswers") private var didSaveAnswers: Bool = false
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             CooksyTheme.background
                 .ignoresSafeArea()
 
@@ -32,8 +41,17 @@ struct OnboardingFlow: View {
                     removal: .opacity.combined(with: .move(edge: .leading))
                 ))
                 .id(coordinator.currentStep)
+
+            if importBlockedBannerVisible {
+                ImportBlockedBanner()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(20)
+            }
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.88), value: coordinator.currentStep)
+        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: importBlockedBannerVisible)
         .fullScreenCover(isPresented: $showingLogin) {
             LoginView(
                 onBack: { showingLogin = false },
@@ -44,6 +62,14 @@ struct OnboardingFlow: View {
         .onChange(of: sessionStore.phase) { _, newValue in
             handlePhaseChange(newValue)
         }
+        .onChange(of: scenePhase) { _, newValue in
+            if newValue == .active {
+                consumePendingImportIfAny()
+            }
+        }
+        .onOpenURL { _ in
+            consumePendingImportIfAny()
+        }
         // Cover the case where Apple/Google OAuth flips the phase to
         // `.loading` then `.signedIn` while we were temporarily unmounted
         // (the root router shows `.bootstrap` during `.loading`). On
@@ -52,6 +78,22 @@ struct OnboardingFlow: View {
         // manually here to push the onboarding answers.
         .onAppear {
             handlePhaseChange(sessionStore.phase)
+            consumePendingImportIfAny()
+        }
+    }
+
+    /// If a recipe was shared via the share extension while the user is
+    /// still in onboarding, drop it and show a banner explaining they have
+    /// to finish onboarding first. The user must re-share the link once
+    /// onboarding completes — we never auto-launch a stale import.
+    private func consumePendingImportIfAny() {
+        guard let draft = sharedLinkInbox.peek(), draft.hasPayload else { return }
+        sharedLinkInbox.clear()
+        OnboardingHaptics.selection()
+        importBlockedBannerVisible = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            importBlockedBannerVisible = false
         }
     }
 
@@ -68,6 +110,7 @@ struct OnboardingFlow: View {
 
         case .appReview:
             AppReviewView(
+                onBack: { coordinator.back() },
                 onContinue: { coordinator.next() }
             )
 
@@ -236,5 +279,42 @@ struct OnboardingFlow: View {
                 showingLogin = false
             }
         }
+    }
+}
+
+private struct ImportBlockedBanner: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(CooksyTheme.accentGradient)
+                    .frame(width: 36, height: 36)
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Termine d'abord ton inscription")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                Text("Tu pourras importer ta recette une fois ton compte créé. Re-partage le lien à ce moment-là.")
+                    .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(CooksyTheme.stroke, lineWidth: 1)
+        )
+        .shadow(color: CooksyTheme.softShadow, radius: 18, y: 8)
     }
 }

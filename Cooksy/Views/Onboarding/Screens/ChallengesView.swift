@@ -11,7 +11,7 @@ struct ChallengesView: View {
         OnboardingChrome(
             title: "Qu'est-ce qui te freine\nle plus en cuisine ?",
             subtitle: "Plusieurs choix. Ça nous aide à choisir les recettes qui lèvent tes vrais blocages.",
-            canAdvance: true,
+            canAdvance: coordinator.canAdvance(from: .challenges),
             progress: progress(for: .challenges),
             showsBack: OnboardingStep.challenges.allowsBack,
             showsSkip: OnboardingStep.challenges.allowsSkip,

@@ -259,9 +259,9 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    /// Mock premium flip — called from the paywall CTA until StoreKit/RevenueCat is wired.
-    /// Updates both the local optimistic copy and the Supabase row.
-    func setPremiumMock(_ premium: Bool) async {
+    /// Updates premium status locally and syncs the Supabase `is_premium` column.
+    /// Called after a successful RevenueCat purchase, restore, or status sync.
+    func setPremium(_ premium: Bool) async {
         guard let user = currentUser else { return }
 
         // Optimistic local update so the router can react immediately.

@@ -38,6 +38,7 @@ struct PremiumPaywallView: View {
 
     @State private var selectedPlan: PremiumPlan = .defaultPlan
     @State private var isPurchasing: Bool = false
+    @State private var purchaseError: String? = nil
     @State private var showsGiftWheel: Bool = false
     @State private var showsExclusiveOffer: Bool = false
     @State private var giftReminderDismissed: Bool = false
@@ -120,6 +121,14 @@ struct PremiumPaywallView: View {
         .overlay(alignment: .topLeading) { stickyCloseButton }
         .overlay(alignment: .topTrailing) { stickyRestoreButton }
         .ignoresSafeArea(edges: .bottom)
+        .alert("Erreur", isPresented: .init(
+            get: { purchaseError != nil },
+            set: { if !$0 { purchaseError = nil } }
+        )) {
+            Button("OK", role: .cancel) { purchaseError = nil }
+        } message: {
+            Text(purchaseError ?? "")
+        }
         .onAppear {
             offers.paywallWasReached()
         }
@@ -176,7 +185,7 @@ struct PremiumPaywallView: View {
     }
 
     private var stickyRestoreButton: some View {
-        Button(action: { /* restore */ }) {
+        Button(action: handleRestore) {
             Text("Restaurer")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
@@ -251,8 +260,8 @@ struct PremiumPaywallView: View {
         OnboardingHaptics.medium()
 
         // Wire the purchase intent into the gift state machine BEFORE
-        // flipping the premium flag — so the post-trial conversion / cancel
-        // bookkeeping is correctly seeded.
+        // the payment sheet appears so the post-trial conversion /
+        // cancel bookkeeping is correctly seeded.
         offers.recordPurchaseStarted(
             plan: selectedPlan,
             usingFreeTrial: selectedPlan.hasFreeTrial && trialEnabled
@@ -260,18 +269,43 @@ struct PremiumPaywallView: View {
 
         isPurchasing = true
         Task {
-            await sessionStore.setPremiumMock(true)
-            await MainActor.run {
-                isPurchasing = false
-                offers.clearFreeModeChoice()
-                // Mock-flow only: when the user picks the annual plan
-                // without trial, treat the purchase as the trial having
-                // converted instantly. Real StoreKit will replace this
-                // hook with a server webhook.
-                if selectedPlan == .yearly && !trialEnabled {
-                    offers.recordTrialConverted()
+            do {
+                try await PurchaseService.shared.purchase(plan: selectedPlan)
+                // Only mark premium if RevenueCat confirmed the entitlement.
+                if PurchaseService.shared.isPremium {
+                    await sessionStore.setPremium(true)
+                }
+                await MainActor.run {
+                    isPurchasing = false
+                    offers.clearFreeModeChoice()
+                    if selectedPlan == .yearly && !trialEnabled {
+                        offers.recordTrialConverted()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isPurchasing = false
+                    purchaseError = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private func handleRestore() {
+        guard !isPurchasing else { return }
+        isPurchasing = true
+        Task {
+            do {
+                try await PurchaseService.shared.restorePurchases()
+                if PurchaseService.shared.isPremium {
+                    await sessionStore.setPremium(true)
+                } else {
+                    purchaseError = "Aucun abonnement actif trouvé."
+                }
+            } catch {
+                purchaseError = error.localizedDescription
+            }
+            isPurchasing = false
         }
     }
 }

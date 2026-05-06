@@ -185,7 +185,14 @@ struct PaywallView: View {
                 .padding(.top, 4)
 
             HStack(spacing: 16) {
-                PaywallFooterLink(title: "Restaurer") { /* no-op for now */ }
+                PaywallFooterLink(title: "Restaurer") {
+                    Task {
+                        try? await PurchaseService.shared.restorePurchases()
+                        if PurchaseService.shared.isPremium {
+                            await sessionStore.setPremium(true)
+                        }
+                    }
+                }
                 Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
                 PaywallFooterLink(title: "Conditions") { }
                 Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
@@ -203,7 +210,15 @@ struct PaywallView: View {
         isActivating = true
         OnboardingHaptics.success()
         Task {
-            await sessionStore.setPremiumMock(true)
+            do {
+                let rcPlan: PremiumPlan = selectedPlan == .annual ? .yearly : .monthly
+                try await PurchaseService.shared.purchase(plan: rcPlan)
+                if PurchaseService.shared.isPremium {
+                    await sessionStore.setPremium(true)
+                }
+            } catch {
+                // User cancelled → silently ignore.
+            }
             await MainActor.run { isActivating = false }
         }
     }

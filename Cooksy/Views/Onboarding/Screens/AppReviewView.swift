@@ -10,6 +10,7 @@ import SwiftUI
 ///   • the primary CTA invites a rating before the user has touched a star
 ///   • a soft "Plus tard" always lets them skip
 struct AppReviewView: View {
+    let onBack: () -> Void
     let onContinue: () -> Void
 
     @Environment(\.requestReview) private var requestReview
@@ -42,7 +43,32 @@ struct AppReviewView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer(minLength: 12)
+                HStack {
+                    Button {
+                        OnboardingHaptics.selection()
+                        onBack()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                            .frame(width: 38, height: 38)
+                            .background(
+                                Circle()
+                                    .fill(CooksyTheme.elevatedSurface)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(CooksyTheme.stroke, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+
+                Spacer(minLength: 4)
 
                 socialProofPill
                     .opacity(appeared ? 1 : 0)

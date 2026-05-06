@@ -57,11 +57,11 @@ enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
     static let totalQuestions = 15
 
     /// Whether the "Passer" (skip) button should be shown on this screen.
-    /// Plan rules: no skip on Q1 (goal), Q3 (level), Q6 (diet), Q7 (allergies).
+    /// Only the softest behavioural signals can be skipped — every actual
+    /// preference must be answered so the recipe engine has real data.
     var allowsSkip: Bool {
         switch self {
-        case .sources, .timeSlider, .frequency, .servings, .cuisines,
-             .equipment, .budget, .mealMoments, .shopping, .challenges:
+        case .mealMoments, .shopping, .challenges:
             return true
         default:
             return false
@@ -71,7 +71,7 @@ enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
     /// Whether the back chevron is shown (off on the first screen and during the auto-loading transition).
     var allowsBack: Bool {
         switch self {
-        case .welcome, .appReview, .buildingProfile:
+        case .welcome, .buildingProfile:
             return false
         default:
             return true
@@ -181,15 +181,15 @@ final class OnboardingCoordinator: ObservableObject {
         case .spiceLevel:
             return answers.spiceLevel != nil
         case .equipment:
-            return true // optional, can skip
+            return !answers.equipment.isEmpty
         case .budget:
-            return true // optional, can skip
+            return answers.budget != nil
         case .mealMoments:
-            return true // optional, can skip
+            return !answers.mealMoments.isEmpty
         case .shopping:
-            return true // optional, can skip
+            return !answers.shoppingPlaces.isEmpty
         case .challenges:
-            return true // optional
+            return !answers.challenges.isEmpty
         }
     }
 

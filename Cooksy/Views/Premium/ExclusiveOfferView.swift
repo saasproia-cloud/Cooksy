@@ -550,7 +550,14 @@ struct ExclusiveOfferView: View {
         isPurchasing = true
 
         Task {
-            await sessionStore.setPremiumMock(true)
+            do {
+                try await PurchaseService.shared.purchase(plan: .yearly)
+                if PurchaseService.shared.isPremium {
+                    await sessionStore.setPremium(true)
+                }
+            } catch {
+                // User cancelled or error — silently unblock.
+            }
             await MainActor.run {
                 offers.clearFreeModeChoice()
                 if !trialEnabled {

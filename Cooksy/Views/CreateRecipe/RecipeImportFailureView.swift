@@ -177,6 +177,13 @@ struct RecipeImportFailureView: View {
                     .scaledToFit()
                     .frame(width: proxy.size.width)
                     .frame(maxHeight: .infinity, alignment: .top)
+                    .opacity(didAppear ? 1 : 0)
+                    .scaleEffect(didAppear ? 1 : 0.97)
+                    .animation(
+                        .spring(response: 0.55, dampingFraction: 0.85)
+                            .delay(0.05),
+                        value: didAppear
+                    )
 
                 Button(action: {
                     OnboardingHaptics.medium()
@@ -193,6 +200,11 @@ struct RecipeImportFailureView: View {
                 .position(
                     x: proxy.size.width / 2,
                     y: imageHeight(in: proxy) * (2110.0 / 3179.0)
+                )
+                .opacity(didAppear ? 1 : 0)
+                .animation(
+                    .easeOut(duration: 0.45).delay(0.25),
+                    value: didAppear
                 )
             }
         }

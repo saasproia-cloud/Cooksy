@@ -4,5 +4,7 @@
    <FileRef
       location = "group:Cooksy.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:Cooksy/Services/PurchaseService.swift">
+   </FileRef>
 </Workspace>
-

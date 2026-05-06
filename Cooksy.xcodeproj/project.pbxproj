@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -41,22 +41,6 @@
 		7F51341EEDA0EFB4D770E679 /* RecipeEditorSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */; };
 		849D18B4B61099D1E30E0EE1 /* TrendingRecipePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */; };
 		873F4C997B7C1FFCF0CDDFBA /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14827D31D5DF8504B453F5E0 /* RootTabView.swift */; };
-		B71F4D9A2F12345678901234 /* VideoSplashOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */; };
-		C71F0001000000000000A001 /* ImportQuotaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0001000000000000B001 /* ImportQuotaService.swift */; };
-		C71F0002000000000000A001 /* PremiumOffersService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0002000000000000B001 /* PremiumOffersService.swift */; };
-		C71F0003000000000000A001 /* PaywallPlanModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0003000000000000B001 /* PaywallPlanModel.swift */; };
-		C71F0004000000000000A001 /* IngredientConfetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0004000000000000B001 /* IngredientConfetti.swift */; };
-		C71F0005000000000000A001 /* PremiumPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0005000000000000B001 /* PremiumPaywallView.swift */; };
-		C71F0006000000000000A001 /* WelcomeOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0006000000000000B001 /* WelcomeOfferSheet.swift */; };
-		C71F0007000000000000A001 /* QuotaReachedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0007000000000000B001 /* QuotaReachedSheet.swift */; };
-		C71F0008000000000000A001 /* LockedFeatureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0008000000000000B001 /* LockedFeatureOverlay.swift */; };
-		C71F0009000000000000A001 /* GiftBoxMiniGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */; };
-		C71F000A000000000000A001 /* FreePlanHomeBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000A000000000000B001 /* FreePlanHomeBadges.swift */; };
-		C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000B000000000000B001 /* WeeklyImportsSheet.swift */; };
-		C71F000C000000000000A001 /* GiftWheelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000C000000000000B001 /* GiftWheelView.swift */; };
-		C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000D000000000000B001 /* ExclusiveOfferView.swift */; };
-		C71F0011000000000000A001 /* InviteRewardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0011000000000000B001 /* InviteRewardService.swift */; };
-		C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0012000000000000B001 /* InviteFriendsView.swift */; };
 		8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */; };
 		883B61D11F6B6C2BD63A5B40 /* RecipeBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E295B4D72656690C64670ED8 /* RecipeBook.swift */; };
 		8BA8B13E7EA0FD9EED768341 /* CooksyBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */; };
@@ -77,22 +61,53 @@
 		A31C42014123456789ABC001 /* RecipePresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31C42014123456789ABC101 /* RecipePresentationSupport.swift */; };
 		A31C42024123456789ABC001 /* RecipePresentationComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31C42024123456789ABC101 /* RecipePresentationComponents.swift */; };
 		B59D8AF82D964A6D8D92D2BC /* RecipeWebImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */; };
+		B71F4D9A2F12345678901234 /* VideoSplashOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */; };
+		C71F0001000000000000A001 /* ImportQuotaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0001000000000000B001 /* ImportQuotaService.swift */; };
+		C71F0002000000000000A001 /* PremiumOffersService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0002000000000000B001 /* PremiumOffersService.swift */; };
+		C71F0003000000000000A001 /* PaywallPlanModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0003000000000000B001 /* PaywallPlanModel.swift */; };
+		C71F0004000000000000A001 /* IngredientConfetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0004000000000000B001 /* IngredientConfetti.swift */; };
+		C71F0005000000000000A001 /* PremiumPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0005000000000000B001 /* PremiumPaywallView.swift */; };
+		C71F0006000000000000A001 /* WelcomeOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0006000000000000B001 /* WelcomeOfferSheet.swift */; };
+		C71F0007000000000000A001 /* QuotaReachedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0007000000000000B001 /* QuotaReachedSheet.swift */; };
+		C71F0008000000000000A001 /* LockedFeatureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0008000000000000B001 /* LockedFeatureOverlay.swift */; };
+		C71F0009000000000000A001 /* GiftBoxMiniGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */; };
+		C71F000A000000000000A001 /* FreePlanHomeBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000A000000000000B001 /* FreePlanHomeBadges.swift */; };
+		C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000B000000000000B001 /* WeeklyImportsSheet.swift */; };
+		C71F000C000000000000A001 /* GiftWheelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000C000000000000B001 /* GiftWheelView.swift */; };
+		C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000D000000000000B001 /* ExclusiveOfferView.swift */; };
+		C71F0011000000000000A001 /* InviteRewardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0011000000000000B001 /* InviteRewardService.swift */; };
+		C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0012000000000000B001 /* InviteFriendsView.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E76937A97BDE51B26E1F365F /* Foundation.framework */; };
-		E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E8B6A0132F962D6B00310B81 /* Supabase */; };
 		D66E5382CB61F6BCC307F937 /* CooksyShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DF9D5C4EB2EE74782AA2994D /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		E4E9A669F8A587355B41ABD6 /* SharedImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A178E636136507ED9665AA0A /* SharedImportDraft.swift */; };
 		E86461F22F82EF5800DCF323 /* Cooksy-2.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */; };
+		E89AAE3F2FAB9F7100C4F1D0 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = E89AAE3E2FAB9F7100C4F1D0 /* RevenueCat */; };
+		E89AAE412FAB9F7100C4F1D0 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = E89AAE402FAB9F7100C4F1D0 /* RevenueCatUI */; };
+		E8A69E052FABDFBF00A00B2B /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */; };
+		E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E8B6A0132F962D6B00310B81 /* Supabase */; };
 		EB03BB00745A6F42077168F0 /* RecipeValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* RecipeValidationService.swift */; };
 		EF6766BBFB2920DA16C208E8 /* RecipeBookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */; };
-		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
+		F00000000000000000000B01 /* ImportGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000A01 /* ImportGuideView.swift */; };
 		F10000000000000000000011 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* ProfileView.swift */; };
 		F10000000000000000000012 /* ProfileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* ProfileSettingsView.swift */; };
 		F10000000000000000000013 /* ProfileComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ProfileComponents.swift */; };
+		F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* CulinaryPreferencesView.swift */; };
+		F10000000000000000000015 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* EditProfileView.swift */; };
+		F10000000000000000000016 /* PremiumActiveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* PremiumActiveCard.swift */; };
+		F10000000000000000000017 /* PremiumCrownBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* PremiumCrownBadge.swift */; };
+		F10000000000000000000018 /* TrendingRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* TrendingRecipesView.swift */; };
+		F10000000000000000000019 /* ShareShortcutGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000009 /* ShareShortcutGuideView.swift */; };
+		F100000000000000000000B1 /* LegalDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A1 /* LegalDocumentView.swift */; };
+		F100000000000000000000B2 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A2 /* PrivacyPolicyView.swift */; };
+		F100000000000000000000B3 /* TermsOfServiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A3 /* TermsOfServiceView.swift */; };
+		F100000000000000000000C0 /* DesktopAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D0 /* DesktopAccessView.swift */; };
+		F100000000000000000000C1 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D1 /* HelpView.swift */; };
 		F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SupabaseClientProvider.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
 		F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SessionFreshnessGuard.swift */; };
+		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
 		F30000000000000000000101 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* OnboardingFlow.swift */; };
 		F30000000000000000000102 /* OnboardingAnswers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000002 /* OnboardingAnswers.swift */; };
 		F30000000000000000000103 /* OnboardingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000003 /* OnboardingCoordinator.swift */; };
@@ -136,18 +151,6 @@
 		F30000000000000000000143 /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000043 /* BudgetView.swift */; };
 		F30000000000000000000144 /* MealMomentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000044 /* MealMomentsView.swift */; };
 		F30000000000000000000145 /* ShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000045 /* ShoppingView.swift */; };
-		F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* CulinaryPreferencesView.swift */; };
-		F10000000000000000000015 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* EditProfileView.swift */; };
-		F10000000000000000000016 /* PremiumActiveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* PremiumActiveCard.swift */; };
-		F10000000000000000000017 /* PremiumCrownBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* PremiumCrownBadge.swift */; };
-		F100000000000000000000B1 /* LegalDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A1 /* LegalDocumentView.swift */; };
-		F100000000000000000000B2 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A2 /* PrivacyPolicyView.swift */; };
-		F100000000000000000000B3 /* TermsOfServiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A3 /* TermsOfServiceView.swift */; };
-		F00000000000000000000B01 /* ImportGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000A01 /* ImportGuideView.swift */; };
-		F10000000000000000000018 /* TrendingRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* TrendingRecipesView.swift */; };
-		F10000000000000000000019 /* ShareShortcutGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000009 /* ShareShortcutGuideView.swift */; };
-		F100000000000000000000C0 /* DesktopAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D0 /* DesktopAccessView.swift */; };
-		F100000000000000000000C1 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D1 /* HelpView.swift */; };
 		F40000000000000000000101 /* TrendingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001 /* TrendingArtwork.swift */; };
 /* End PBXBuildFile section */
 
@@ -185,22 +188,6 @@
 /* Begin PBXFileReference section */
 		04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CooksyShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		14827D31D5DF8504B453F5E0 /* RootTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
-		B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoSplashOverlay.swift; sourceTree = "<group>"; };
-		C71F0001000000000000B001 /* ImportQuotaService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportQuotaService.swift; sourceTree = "<group>"; };
-		C71F0002000000000000B001 /* PremiumOffersService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumOffersService.swift; sourceTree = "<group>"; };
-		C71F0003000000000000B001 /* PaywallPlanModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallPlanModel.swift; sourceTree = "<group>"; };
-		C71F0004000000000000B001 /* IngredientConfetti.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientConfetti.swift; sourceTree = "<group>"; };
-		C71F0005000000000000B001 /* PremiumPaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumPaywallView.swift; sourceTree = "<group>"; };
-		C71F0006000000000000B001 /* WelcomeOfferSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeOfferSheet.swift; sourceTree = "<group>"; };
-		C71F0007000000000000B001 /* QuotaReachedSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuotaReachedSheet.swift; sourceTree = "<group>"; };
-		C71F0008000000000000B001 /* LockedFeatureOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LockedFeatureOverlay.swift; sourceTree = "<group>"; };
-		C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftBoxMiniGameView.swift; sourceTree = "<group>"; };
-		C71F000A000000000000B001 /* FreePlanHomeBadges.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FreePlanHomeBadges.swift; sourceTree = "<group>"; };
-		C71F000B000000000000B001 /* WeeklyImportsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyImportsSheet.swift; sourceTree = "<group>"; };
-		C71F000C000000000000B001 /* GiftWheelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftWheelView.swift; sourceTree = "<group>"; };
-		C71F000D000000000000B001 /* ExclusiveOfferView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExclusiveOfferView.swift; sourceTree = "<group>"; };
-		C71F0011000000000000B001 /* InviteRewardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteRewardService.swift; sourceTree = "<group>"; };
-		C71F0012000000000000B001 /* InviteFriendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteFriendsView.swift; sourceTree = "<group>"; };
 		14BDF91DC0D5EE665EBA20B3 /* AppConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		1C2D52E5A11B4E2292A91C10 /* CreateRecipeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateRecipeView.swift; sourceTree = "<group>"; };
 		1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeEditorSeed.swift; sourceTree = "<group>"; };
@@ -242,8 +229,24 @@
 		A20000000000000000000015 /* CooksyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CooksyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A31C42014123456789ABC101 /* RecipePresentationSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipePresentationSupport.swift; sourceTree = "<group>"; };
 		A31C42024123456789ABC101 /* RecipePresentationComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipePresentationComponents.swift; sourceTree = "<group>"; };
+		B71F4C9A2F12345678901234 /* VideoSplashOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoSplashOverlay.swift; sourceTree = "<group>"; };
 		C031CB0EB64DA601375638B9 /* CooksyApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyApp.swift; sourceTree = "<group>"; };
 		C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingRecipePreviewView.swift; sourceTree = "<group>"; };
+		C71F0001000000000000B001 /* ImportQuotaService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportQuotaService.swift; sourceTree = "<group>"; };
+		C71F0002000000000000B001 /* PremiumOffersService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumOffersService.swift; sourceTree = "<group>"; };
+		C71F0003000000000000B001 /* PaywallPlanModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallPlanModel.swift; sourceTree = "<group>"; };
+		C71F0004000000000000B001 /* IngredientConfetti.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientConfetti.swift; sourceTree = "<group>"; };
+		C71F0005000000000000B001 /* PremiumPaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumPaywallView.swift; sourceTree = "<group>"; };
+		C71F0006000000000000B001 /* WelcomeOfferSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeOfferSheet.swift; sourceTree = "<group>"; };
+		C71F0007000000000000B001 /* QuotaReachedSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuotaReachedSheet.swift; sourceTree = "<group>"; };
+		C71F0008000000000000B001 /* LockedFeatureOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LockedFeatureOverlay.swift; sourceTree = "<group>"; };
+		C71F0009000000000000B001 /* GiftBoxMiniGameView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftBoxMiniGameView.swift; sourceTree = "<group>"; };
+		C71F000A000000000000B001 /* FreePlanHomeBadges.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FreePlanHomeBadges.swift; sourceTree = "<group>"; };
+		C71F000B000000000000B001 /* WeeklyImportsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyImportsSheet.swift; sourceTree = "<group>"; };
+		C71F000C000000000000B001 /* GiftWheelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftWheelView.swift; sourceTree = "<group>"; };
+		C71F000D000000000000B001 /* ExclusiveOfferView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExclusiveOfferView.swift; sourceTree = "<group>"; };
+		C71F0011000000000000B001 /* InviteRewardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteRewardService.swift; sourceTree = "<group>"; };
+		C71F0012000000000000B001 /* InviteFriendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteFriendsView.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
 		DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
 		DDFE043E909AA15F5CDFAE1B /* BrandHeaderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BrandHeaderView.swift; sourceTree = "<group>"; };
@@ -251,15 +254,24 @@
 		E295B4D72656690C64670ED8 /* RecipeBook.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeBook.swift; sourceTree = "<group>"; };
 		E76937A97BDE51B26E1F365F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Cooksy-2.mp4"; sourceTree = "<group>"; };
+		E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
 		EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedLinkInbox.swift; sourceTree = "<group>"; };
 		EF7DA30D65C0C079B9DF09F4 /* RecipeOCRService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeOCRService.swift; sourceTree = "<group>"; };
-		F402E2B31A2FB4C0776646C4 /* CooksyLogoMark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyLogoMark.swift; sourceTree = "<group>"; };
-		F994BB5264D63C2BB2AB20A4 /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeWebImportService.swift; sourceTree = "<group>"; };
-		FD31655D8A0CBE5D299EB204 /* RecipeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeStore.swift; sourceTree = "<group>"; };
+		F00000000000000000000A01 /* ImportGuideView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideView.swift; sourceTree = "<group>"; };
 		F10000000000000000000001 /* ProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		F10000000000000000000002 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* ProfileComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileComponents.swift; sourceTree = "<group>"; };
+		F10000000000000000000004 /* CulinaryPreferencesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CulinaryPreferencesView.swift; sourceTree = "<group>"; };
+		F10000000000000000000005 /* EditProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
+		F10000000000000000000006 /* PremiumActiveCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumActiveCard.swift; sourceTree = "<group>"; };
+		F10000000000000000000007 /* PremiumCrownBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumCrownBadge.swift; sourceTree = "<group>"; };
+		F10000000000000000000008 /* TrendingRecipesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingRecipesView.swift; sourceTree = "<group>"; };
+		F10000000000000000000009 /* ShareShortcutGuideView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareShortcutGuideView.swift; sourceTree = "<group>"; };
+		F100000000000000000000A1 /* LegalDocumentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LegalDocumentView.swift; sourceTree = "<group>"; };
+		F100000000000000000000A2 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
+		F100000000000000000000A3 /* TermsOfServiceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TermsOfServiceView.swift; sourceTree = "<group>"; };
+		F100000000000000000000D0 /* DesktopAccessView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DesktopAccessView.swift; sourceTree = "<group>"; };
+		F100000000000000000000D1 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* SupabaseClientProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseClientProvider.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* SessionFreshnessGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionFreshnessGuard.swift; sourceTree = "<group>"; };
@@ -306,19 +318,11 @@
 		F30000000000000000000043 /* BudgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
 		F30000000000000000000044 /* MealMomentsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealMomentsView.swift; sourceTree = "<group>"; };
 		F30000000000000000000045 /* ShoppingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingView.swift; sourceTree = "<group>"; };
-		F10000000000000000000004 /* CulinaryPreferencesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CulinaryPreferencesView.swift; sourceTree = "<group>"; };
-		F10000000000000000000005 /* EditProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
-		F10000000000000000000006 /* PremiumActiveCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumActiveCard.swift; sourceTree = "<group>"; };
-		F10000000000000000000007 /* PremiumCrownBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumCrownBadge.swift; sourceTree = "<group>"; };
-		F100000000000000000000A1 /* LegalDocumentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LegalDocumentView.swift; sourceTree = "<group>"; };
-		F100000000000000000000A2 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
-		F100000000000000000000A3 /* TermsOfServiceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TermsOfServiceView.swift; sourceTree = "<group>"; };
-		F00000000000000000000A01 /* ImportGuideView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideView.swift; sourceTree = "<group>"; };
-		F10000000000000000000008 /* TrendingRecipesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingRecipesView.swift; sourceTree = "<group>"; };
-		F10000000000000000000009 /* ShareShortcutGuideView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareShortcutGuideView.swift; sourceTree = "<group>"; };
-		F100000000000000000000D0 /* DesktopAccessView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DesktopAccessView.swift; sourceTree = "<group>"; };
-		F100000000000000000000D1 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		F40000000000000000000001 /* TrendingArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingArtwork.swift; sourceTree = "<group>"; };
+		F402E2B31A2FB4C0776646C4 /* CooksyLogoMark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyLogoMark.swift; sourceTree = "<group>"; };
+		F994BB5264D63C2BB2AB20A4 /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		FB018A7E5190461BBE325C73 /* RecipeWebImportService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeWebImportService.swift; sourceTree = "<group>"; };
+		FD31655D8A0CBE5D299EB204 /* RecipeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -342,8 +346,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E89AAE412FAB9F7100C4F1D0 /* RevenueCatUI in Frameworks */,
 				E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */,
 				4F7D2E190405771A3F93F9DC /* Foundation.framework in Frameworks */,
+				E89AAE3F2FAB9F7100C4F1D0 /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,18 +383,11 @@
 				F20000000000000000000002 /* SessionStore.swift */,
 				F20000000000000000000003 /* SessionFreshnessGuard.swift */,
 				C71F0001000000000000B001 /* ImportQuotaService.swift */,
+				E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */,
 				C71F0002000000000000B001 /* PremiumOffersService.swift */,
 				C71F0011000000000000B001 /* InviteRewardService.swift */,
 			);
 			path = Services;
-			sourceTree = "<group>";
-		};
-		F40000000000000000000201 /* Data */ = {
-			isa = PBXGroup;
-			children = (
-				F40000000000000000000001 /* TrendingArtwork.swift */,
-			);
-			path = Data;
 			sourceTree = "<group>";
 		};
 		1C89F74FBF3B841D636CF2AA /* DesignSystem */ = {
@@ -582,36 +581,6 @@
 			path = Premium;
 			sourceTree = "<group>";
 		};
-		F10000000000000000000021 /* Profile */ = {
-			isa = PBXGroup;
-			children = (
-				F10000000000000000000003 /* ProfileComponents.swift */,
-				F10000000000000000000002 /* ProfileSettingsView.swift */,
-				F10000000000000000000001 /* ProfileView.swift */,
-				F10000000000000000000004 /* CulinaryPreferencesView.swift */,
-				F10000000000000000000005 /* EditProfileView.swift */,
-				F10000000000000000000006 /* PremiumActiveCard.swift */,
-				F10000000000000000000007 /* PremiumCrownBadge.swift */,
-				F10000000000000000000008 /* TrendingRecipesView.swift */,
-				F10000000000000000000009 /* ShareShortcutGuideView.swift */,
-				F100000000000000000000D0 /* DesktopAccessView.swift */,
-				C71F0012000000000000B001 /* InviteFriendsView.swift */,
-				F100000000000000000000D1 /* HelpView.swift */,
-				F100000000000000000000A0 /* Legal */,
-			);
-			path = Profile;
-			sourceTree = "<group>";
-		};
-		F100000000000000000000A0 /* Legal */ = {
-			isa = PBXGroup;
-			children = (
-				F100000000000000000000A1 /* LegalDocumentView.swift */,
-				F100000000000000000000A2 /* PrivacyPolicyView.swift */,
-				F100000000000000000000A3 /* TermsOfServiceView.swift */,
-			);
-			path = Legal;
-			sourceTree = "<group>";
-		};
 		DBF22409252D66CE309B8A32 /* Cooksy */ = {
 			isa = PBXGroup;
 			children = (
@@ -640,6 +609,36 @@
 				C57DA6396478C031DB413B57 /* TrendingRecipePreviewView.swift */,
 			);
 			path = Home;
+			sourceTree = "<group>";
+		};
+		F10000000000000000000021 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000003 /* ProfileComponents.swift */,
+				F10000000000000000000002 /* ProfileSettingsView.swift */,
+				F10000000000000000000001 /* ProfileView.swift */,
+				F10000000000000000000004 /* CulinaryPreferencesView.swift */,
+				F10000000000000000000005 /* EditProfileView.swift */,
+				F10000000000000000000006 /* PremiumActiveCard.swift */,
+				F10000000000000000000007 /* PremiumCrownBadge.swift */,
+				F10000000000000000000008 /* TrendingRecipesView.swift */,
+				F10000000000000000000009 /* ShareShortcutGuideView.swift */,
+				F100000000000000000000D0 /* DesktopAccessView.swift */,
+				C71F0012000000000000B001 /* InviteFriendsView.swift */,
+				F100000000000000000000D1 /* HelpView.swift */,
+				F100000000000000000000A0 /* Legal */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		F100000000000000000000A0 /* Legal */ = {
+			isa = PBXGroup;
+			children = (
+				F100000000000000000000A1 /* LegalDocumentView.swift */,
+				F100000000000000000000A2 /* PrivacyPolicyView.swift */,
+				F100000000000000000000A3 /* TermsOfServiceView.swift */,
+			);
+			path = Legal;
 			sourceTree = "<group>";
 		};
 		F30000000000000000000201 /* Onboarding */ = {
@@ -706,6 +705,14 @@
 				F30000000000000000000045 /* ShoppingView.swift */,
 			);
 			path = Screens;
+			sourceTree = "<group>";
+		};
+		F40000000000000000000201 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				F40000000000000000000001 /* TrendingArtwork.swift */,
+			);
+			path = Data;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -803,6 +810,7 @@
 			mainGroup = BEFF8E79044DB072549ACEA6;
 			packageReferences = (
 				E8B6A0122F962C8D00310B81 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				E89AAE3D2FAB9F7100C4F1D0 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			productRefGroup = B112FB767A46FF60171FF77D /* Products */;
 			projectDirPath = "";
@@ -904,6 +912,7 @@
 				A31C42024123456789ABC001 /* RecipePresentationComponents.swift in Sources */,
 				5A4B9C11D2E34F56A7B8C901 /* SystemImagePicker.swift in Sources */,
 				5C71BCE1FBF06DF48D21F74D /* RecipeOCRService.swift in Sources */,
+				E8A69E052FABDFBF00A00B2B /* PurchaseService.swift in Sources */,
 				5998D31F786C2C63BBDACE34 /* RecipeImportPipeline.swift in Sources */,
 				8837B35BFB14A985045E98C3 /* IngredientPhotoClassifierService.swift in Sources */,
 				A20000000000000000000001 /* RecipeValidationService.swift in Sources */,
@@ -1064,7 +1073,8 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -1087,7 +1097,11 @@
 				INFOPLIST_FILE = CooksyShareExtension/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.ios.shareextension;
 				PRODUCT_NAME = CooksyShareExtension;
@@ -1108,7 +1122,11 @@
 				DEVELOPMENT_TEAM = HDW2CA2JDT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.iosTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1129,7 +1147,11 @@
 				DEVELOPMENT_TEAM = HDW2CA2JDT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.iosTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1161,7 +1183,10 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Cooksy;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.ios;
 				PRODUCT_NAME = Cooksy;
@@ -1189,7 +1214,11 @@
 				INFOPLIST_FILE = CooksyShareExtension/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.ios.shareextension;
 				PRODUCT_NAME = CooksyShareExtension;
@@ -1221,7 +1250,10 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Cooksy;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cooksy.ios;
 				PRODUCT_NAME = Cooksy;
@@ -1335,6 +1367,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		E89AAE3D2FAB9F7100C4F1D0 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.70.0;
+			};
+		};
 		E8B6A0122F962C8D00310B81 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift";
@@ -1346,6 +1386,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E89AAE3E2FAB9F7100C4F1D0 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E89AAE3D2FAB9F7100C4F1D0 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		E89AAE402FAB9F7100C4F1D0 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E89AAE3D2FAB9F7100C4F1D0 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
 		E8B6A0132F962D6B00310B81 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E8B6A0122F962C8D00310B81 /* XCRemoteSwiftPackageReference "supabase-swift" */;
