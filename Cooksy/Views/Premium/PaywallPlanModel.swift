@@ -124,3 +124,42 @@ extension PremiumPlan {
         return formatter
     }()
 }
+
+// MARK: - Live storefront prices
+
+@MainActor
+extension PremiumPlan {
+    /// Real price string from the StoreKit storefront — exactly matches
+    /// what Apple will charge in the user's country / currency. Falls
+    /// back to the hardcoded EUR formatting only when the offering
+    /// hasn't been fetched yet (cold start, no network). Never apply a
+    /// local discount on top of this string: Apple only honours the
+    /// promotional offers configured in App Store Connect.
+    var liveOrFallbackPriceString: String {
+        switch self {
+        case .monthly:
+            return PurchaseService.shared.monthlyPriceString ?? formattedPrice()
+        case .yearly:
+            return PurchaseService.shared.annualPriceString ?? formattedPrice()
+        }
+    }
+
+    /// Per-month equivalent of the annual plan, derived from the live
+    /// price when available so it matches what Apple is going to bill.
+    /// Returns `nil` for monthly plans.
+    var liveOrFallbackMonthlyEquivalent: String? {
+        guard self == .yearly else { return nil }
+        if let live = PurchaseService.shared.annualMonthlyEquivalentString {
+            return live
+        }
+        return monthlyEquivalentString()
+    }
+
+    /// Real free-trial duration extracted from the storefront's intro
+    /// offer (e.g. `7`). When we can't read it (offering not loaded),
+    /// we fall back to the marketing copy of 7 days for the annual plan.
+    var trialDaysOrFallback: Int {
+        if let live = PurchaseService.shared.annualTrialDays { return live }
+        return self == .yearly ? 7 : 0
+    }
+}

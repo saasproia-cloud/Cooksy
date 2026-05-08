@@ -65,7 +65,6 @@ struct AppReviewView: View {
 
                     Spacer()
                 }
-                .padding(.horizontal, 20)
                 .padding(.top, 4)
 
                 Spacer(minLength: 4)
@@ -75,18 +74,17 @@ struct AppReviewView: View {
                     .offset(y: appeared ? 0 : -10)
                     .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.05), value: appeared)
 
-                Spacer(minLength: 14)
+                Spacer(minLength: 12)
 
                 heroBlock
                     .opacity(appeared ? 1 : 0)
                     .scaleEffect(appeared ? 1 : 0.9)
                     .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.15), value: appeared)
 
-                Spacer(minLength: 14)
+                Spacer(minLength: 12)
 
                 copyBlock
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 28)
                     .padding(.bottom, 14)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 12)
@@ -94,7 +92,6 @@ struct AppReviewView: View {
 
                 testimonialCard
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 22)
                     .padding(.bottom, 18)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 14)
@@ -108,11 +105,11 @@ struct AppReviewView: View {
                 Spacer(minLength: 6)
 
                 ctas
-                    .padding(.horizontal, 28)
                     .padding(.bottom, 26)
                     .opacity(appeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.5).delay(0.65), value: appeared)
             }
+            .padding(.horizontal, 20)
             .frame(maxWidth: .infinity)
         }
         .onAppear {
@@ -207,22 +204,21 @@ struct AppReviewView: View {
     private var copyBlock: some View {
         VStack(spacing: 8) {
             Text("Tu nous fais\ngrandir 🌱")
-                .font(.system(size: 30, weight: .bold, design: .serif))
+                .font(.system(size: 28, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.7)
-                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
 
             Text("Une note honnête nous aide énormément à faire connaître Cooksy. Ça prend deux secondes — promis.")
-                .font(.system(size: 14.5, weight: .medium, design: .rounded))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
                 .lineLimit(4)
                 .minimumScaleFactor(0.85)
-                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
         }
     }
 
@@ -257,11 +253,10 @@ struct AppReviewView: View {
                     }
                 }
                 Text("« Plus besoin de revoir 10 fois la vidéo — la recette est là, prête à cuisiner. Un vrai bijou. »")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .font(.system(size: 12.5, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
                     .lineLimit(4)
-                    .minimumScaleFactor(0.9)
+                    .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -282,7 +277,7 @@ struct AppReviewView: View {
 
     private var starsBlock: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 14) {
+            HStack(spacing: 12) {
                 ForEach(1...5, id: \.self) { idx in
                     let isFilled = idx <= max(hoveredStar, lockedStar)
                     Button {
@@ -297,7 +292,7 @@ struct AppReviewView: View {
                         }
                     } label: {
                         Image(systemName: isFilled ? "star.fill" : "star")
-                            .font(.system(size: 38, weight: .bold))
+                            .font(.system(size: 34, weight: .bold))
                             .foregroundStyle(
                                 isFilled
                                     ? AnyShapeStyle(CooksyTheme.accentGradient)

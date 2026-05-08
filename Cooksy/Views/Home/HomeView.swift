@@ -61,6 +61,26 @@ struct HomeView: View {
                 .padding(.bottom, 120)
             }
         }
+        .overlay(alignment: .top) {
+            // Fresh-gift celebration: pops in once when a previously
+            // expired gift becomes claimable again, then dismissed
+            // either by tapping "Jouer" (opens the wheel) or X.
+            if !(sessionStore.profile?.isPremium ?? false) && offers.hasFreshGiftCelebrationPending {
+                FreshGiftCelebrationToast(
+                    onTapPlay: {
+                        offers.acknowledgeFreshGiftCelebration()
+                        showsGiftWheel = true
+                    },
+                    onDismiss: {
+                        offers.acknowledgeFreshGiftCelebration()
+                    }
+                )
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.5, dampingFraction: 0.82),
+                   value: offers.hasFreshGiftCelebrationPending)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             viewModel.refreshPendingImport()
@@ -90,12 +110,13 @@ struct HomeView: View {
             })
         }
         .fullScreenCover(isPresented: $showsGiftWheel) {
-            GiftWheelView(
+            // Routes to whichever mini-game is active for the current
+            // gift cycle (wheel / scratch card / mystery box). The
+            // selection rotates each cooldown so users don't replay
+            // the same game twice in a row.
+            GiftMiniGameHost(
                 onClose: { showsGiftWheel = false },
                 onClaim: { discount in
-                    // User won and tapped "Recevoir mon cadeau" — stamp
-                    // the discount on the offers service then route to
-                    // the exclusive offer page.
                     offers.recordGiftWon(percent: discount)
                     showsGiftWheel = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {

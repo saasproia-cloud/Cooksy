@@ -75,6 +75,9 @@
 		C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000B000000000000B001 /* WeeklyImportsSheet.swift */; };
 		C71F000C000000000000A001 /* GiftWheelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000C000000000000B001 /* GiftWheelView.swift */; };
 		C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000D000000000000B001 /* ExclusiveOfferView.swift */; };
+		C71F000E000000000000A001 /* GiftScratchCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000E000000000000B001 /* GiftScratchCardView.swift */; };
+		C71F000F000000000000A001 /* GiftMysteryBoxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F000F000000000000B001 /* GiftMysteryBoxView.swift */; };
+		C71F0010000000000000A001 /* GiftMiniGameHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0010000000000000B001 /* GiftMiniGameHost.swift */; };
 		C71F0011000000000000A001 /* InviteRewardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0011000000000000B001 /* InviteRewardService.swift */; };
 		C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0012000000000000B001 /* InviteFriendsView.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
@@ -245,6 +248,9 @@
 		C71F000B000000000000B001 /* WeeklyImportsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyImportsSheet.swift; sourceTree = "<group>"; };
 		C71F000C000000000000B001 /* GiftWheelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftWheelView.swift; sourceTree = "<group>"; };
 		C71F000D000000000000B001 /* ExclusiveOfferView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExclusiveOfferView.swift; sourceTree = "<group>"; };
+		C71F000E000000000000B001 /* GiftScratchCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftScratchCardView.swift; sourceTree = "<group>"; };
+		C71F000F000000000000B001 /* GiftMysteryBoxView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftMysteryBoxView.swift; sourceTree = "<group>"; };
+		C71F0010000000000000B001 /* GiftMiniGameHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftMiniGameHost.swift; sourceTree = "<group>"; };
 		C71F0011000000000000B001 /* InviteRewardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteRewardService.swift; sourceTree = "<group>"; };
 		C71F0012000000000000B001 /* InviteFriendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteFriendsView.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
@@ -577,6 +583,9 @@
 				C71F000B000000000000B001 /* WeeklyImportsSheet.swift */,
 				C71F000C000000000000B001 /* GiftWheelView.swift */,
 				C71F000D000000000000B001 /* ExclusiveOfferView.swift */,
+				C71F000E000000000000B001 /* GiftScratchCardView.swift */,
+				C71F000F000000000000B001 /* GiftMysteryBoxView.swift */,
+				C71F0010000000000000B001 /* GiftMiniGameHost.swift */,
 			);
 			path = Premium;
 			sourceTree = "<group>";
@@ -872,6 +881,9 @@
 				C71F000B000000000000A001 /* WeeklyImportsSheet.swift in Sources */,
 				C71F000C000000000000A001 /* GiftWheelView.swift in Sources */,
 				C71F000D000000000000A001 /* ExclusiveOfferView.swift in Sources */,
+				C71F000E000000000000A001 /* GiftScratchCardView.swift in Sources */,
+				C71F000F000000000000A001 /* GiftMysteryBoxView.swift in Sources */,
+				C71F0010000000000000A001 /* GiftMiniGameHost.swift in Sources */,
 				C71F0011000000000000A001 /* InviteRewardService.swift in Sources */,
 				C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */,
 				24368CBE04042DFA3B6F8C31 /* CooksyTheme.swift in Sources */,

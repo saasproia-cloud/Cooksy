@@ -155,3 +155,88 @@ struct FreePlanHomeBadges: View {
         return "Cadeau"
     }
 }
+
+// MARK: - Fresh-gift celebration toast
+
+/// Small auto-presented banner that fires the first time the user opens
+/// the app after a gift cooldown elapses — i.e. their previous gift
+/// expired without claim and a fresh one is now available.
+///
+/// Acknowledging happens explicitly: tapping "Jouer" opens the wheel
+/// and clears the flag; tapping the X also clears it. The toast won't
+/// re-appear next launch unless another full reissue cycle completes.
+struct FreshGiftCelebrationToast: View {
+    let onTapPlay: () -> Void
+    let onDismiss: () -> Void
+
+    @State private var pulse: Bool = false
+    @State private var sparkleTick: Int = 0
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color(hex: 0xC084FC), Color(hex: 0x8B5CF6)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 38, height: 38)
+                    .shadow(color: Color(hex: 0x8B5CF6).opacity(0.45), radius: 8, y: 3)
+                Image(systemName: "gift.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .scaleEffect(pulse ? 1.08 : 1)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Nouveau cadeau disponible !")
+                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(1)
+                Text("Retente ta chance et débloque ta remise.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            Button(action: onTapPlay) {
+                Text("Jouer")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                    .background(Capsule().fill(CooksyTheme.accentGradient))
+                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.35), radius: 6, y: 2)
+            }
+            .buttonStyle(CooksyTheme.pressScale())
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(hex: 0x8B5CF6).opacity(0.45), lineWidth: 1)
+                )
+                .shadow(color: Color(hex: 0x8B5CF6).opacity(0.18), radius: 16, y: 6)
+        )
+        .padding(.horizontal, 14)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+    }
+}

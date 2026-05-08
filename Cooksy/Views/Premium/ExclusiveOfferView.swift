@@ -15,6 +15,7 @@ struct ExclusiveOfferView: View {
 
     @EnvironmentObject private var sessionStore: SessionStore
     @StateObject private var offers = PremiumOffersService.shared
+    @StateObject private var purchaseService = PurchaseService.shared
 
     @State private var trialEnabled: Bool = true
     @State private var isPurchasing: Bool = false
@@ -25,15 +26,25 @@ struct ExclusiveOfferView: View {
 
     private let yearlyPlan: PremiumPlan = .yearly
 
+    /// Whether Apple still allows the trial for the current Apple ID.
+    private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
+    /// Real trial duration from the storefront (e.g. 7).
+    private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
+    /// `true` when the trial banner should be shown to the user.
+    private var trialShown: Bool { trialEnabled && trialEligible }
+
+    /// Live monthly equivalent of the annual plan, formatted in the
+    /// user's currency. Always reflects what Apple will bill — never
+    /// adjusted for a fictional local discount.
     private var monthlyEquivalent: String {
-        yearlyPlan.monthlyEquivalentString(
-            discountPercent: discountPercent,
-            withTrialDays: trialEnabled ? 7 : 0
-        ) ?? "\(yearlyPlan.formattedPrice(discountPercent: discountPercent))/mois"
+        yearlyPlan.liveOrFallbackMonthlyEquivalent
+            ?? "\(yearlyPlan.liveOrFallbackPriceString)/an"
     }
 
+    /// Live "regular" monthly subscription price (for the strikethrough
+    /// "you'd otherwise pay …/mois" comparison line).
     private var monthlyOfMonthlyPlan: String {
-        PremiumPlan.monthly.formattedPrice() + PremiumPlan.monthly.unitLabel
+        PremiumPlan.monthly.liveOrFallbackPriceString + PremiumPlan.monthly.unitLabel
     }
 
     var body: some View {
@@ -52,13 +63,13 @@ struct ExclusiveOfferView: View {
 
                     title
                     giftIllustration
-                        .frame(height: 260)
+                        .frame(height: 230)
 
                     subtitleBlock
 
                     Spacer(minLength: 8)
                 }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 360) // leave room for the sticky stack
             }
 
@@ -134,9 +145,11 @@ struct ExclusiveOfferView: View {
             .foregroundStyle(CooksyTheme.ctaOrangeDark)
 
             Text("Votre offre\nunique")
-                .font(.system(size: 34, weight: .black, design: .serif))
+                .font(.system(size: 30, weight: .black, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .lineSpacing(-2)
+                .minimumScaleFactor(0.8)
+                .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -155,10 +168,10 @@ struct ExclusiveOfferView: View {
                         ],
                         center: .center,
                         startRadius: 10,
-                        endRadius: 200
+                        endRadius: 180
                     )
                 )
-                .frame(width: 360, height: 360)
+                .frame(width: 300, height: 300)
                 .blur(radius: 24)
 
             // 2. Sparkle particles around the medallion.
@@ -174,7 +187,7 @@ struct ExclusiveOfferView: View {
 
             // 4. Discount seal anchored to the top-right of the medallion.
             discountSeal
-                .offset(x: 80, y: -82)
+                .offset(x: 70, y: -72)
                 .rotationEffect(.degrees(sealWiggle ? 10 : -6))
                 .animation(
                     .easeInOut(duration: 2.4).repeatForever(autoreverses: true),
@@ -182,6 +195,7 @@ struct ExclusiveOfferView: View {
                 )
         }
         .frame(maxWidth: .infinity)
+        .clipped()
     }
 
     private var medallion: some View {
@@ -189,7 +203,7 @@ struct ExclusiveOfferView: View {
             // Dropped soft shadow ring (sits below the disc).
             Circle()
                 .fill(CooksyTheme.ctaOrangeDark.opacity(0.18))
-                .frame(width: 220, height: 220)
+                .frame(width: 195, height: 195)
                 .offset(y: 14)
                 .blur(radius: 20)
 
@@ -206,7 +220,7 @@ struct ExclusiveOfferView: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 200, height: 200)
+                .frame(width: 175, height: 175)
                 .overlay(
                     Circle()
                         .stroke(
@@ -222,7 +236,7 @@ struct ExclusiveOfferView: View {
             // Inner ring — adds a "coin" feel.
             Circle()
                 .stroke(.white.opacity(0.28), lineWidth: 1)
-                .frame(width: 170, height: 170)
+                .frame(width: 148, height: 148)
 
             // Top sheen.
             Circle()
@@ -233,16 +247,16 @@ struct ExclusiveOfferView: View {
                         endPoint: .center
                     )
                 )
-                .frame(width: 200, height: 200)
+                .frame(width: 175, height: 175)
 
             // Diagonal shimmer that sweeps the disc.
             shimmerStripe
-                .frame(width: 200, height: 200)
+                .frame(width: 175, height: 175)
                 .clipShape(Circle())
 
             // Centered gift glyph.
             Image(systemName: "gift.fill")
-                .font(.system(size: 86, weight: .bold))
+                .font(.system(size: 76, weight: .bold))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
                 .shadow(color: CooksyTheme.ctaOrangeDark.opacity(0.4), radius: 2, y: 1)
@@ -359,31 +373,39 @@ struct ExclusiveOfferView: View {
     private var subtitleBlock: some View {
         VStack(spacing: 10) {
             Text(headerLabel)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.85)
+                .lineLimit(2)
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(monthlyOfMonthlyPlan)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .strikethrough()
                 Text(monthlyEquivalent)
-                    .font(.system(size: 30, weight: .black, design: .serif))
+                    .font(.system(size: 26, weight: .black, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
 
             Text("Une fois cette offre fermée, elle est perdue.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.85)
+                .lineLimit(2)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var headerLabel: String {
-        trialEnabled
-            ? "7 jours gratuits, puis −\(discountPercent) % à vie"
-            : "−\(discountPercent) % à vie sur l'annuel"
+        if trialShown {
+            return "\(trialDays) jours gratuits, puis offre exclusive activée"
+        }
+        return "Offre exclusive sur l'annuel"
     }
 
     // MARK: - Sticky stack (toggle + plan card + CTA + footer)
@@ -395,7 +417,7 @@ struct ExclusiveOfferView: View {
             cta
             footer
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 20)
         .padding(.top, 16)
         .padding(.bottom, 22)
         .background(.ultraThinMaterial)
@@ -407,30 +429,39 @@ struct ExclusiveOfferView: View {
         )
     }
 
+    @ViewBuilder
     private var trialToggleRow: some View {
-        Toggle(isOn: $trialEnabled.animation(.spring(response: 0.35))) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(trialEnabled ? "Essai gratuit 7 jours activé" : "Activer 7 jours d'essai gratuit")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                Text("En plus du −\(discountPercent) % — les deux se cumulent.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
+        if trialEligible {
+            Toggle(isOn: $trialEnabled.animation(.spring(response: 0.35))) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(trialEnabled
+                         ? "Essai gratuit \(trialDays) jours activé"
+                         : "Activer \(trialDays) jours d'essai gratuit")
+                        .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Text("Aucun paiement aujourd'hui. Annulable à tout moment.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                }
             }
+            .tint(CooksyTheme.primaryAccent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(CooksyTheme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(CooksyTheme.stroke, lineWidth: 1)
+                    )
+            )
+            .disabled(isPurchasing)
+            .opacity(isPurchasing ? 0.55 : 1)
         }
-        .tint(CooksyTheme.primaryAccent)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(CooksyTheme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(CooksyTheme.stroke, lineWidth: 1)
-                )
-        )
-        .disabled(isPurchasing)
-        .opacity(isPurchasing ? 0.55 : 1)
     }
 
     private var planCard: some View {
@@ -452,18 +483,22 @@ struct ExclusiveOfferView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Plan annuel")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
-                    Text("\(yearlyPlan.formattedPrice(discountPercent: discountPercent))/an")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                    Text("\(yearlyPlan.liveOrFallbackPriceString)\(yearlyPlan.unitLabel)")
+                        .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 Text(monthlyEquivalent)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .font(.system(size: 14, weight: .black, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 12)
             .background(
                 UnevenRoundedRectangle(
@@ -480,9 +515,7 @@ struct ExclusiveOfferView: View {
     }
 
     private var planChip: String {
-        trialEnabled
-            ? "7 J GRATUITS · −\(discountPercent) % À VIE"
-            : "−\(discountPercent) % DE RÉDUCTION"
+        trialShown ? "\(trialDays) J GRATUITS · CADEAU EXCLUSIF" : "CADEAU EXCLUSIF"
     }
 
     private var cta: some View {
@@ -496,6 +529,8 @@ struct ExclusiveOfferView: View {
                 Text(ctaLabel)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
@@ -513,9 +548,10 @@ struct ExclusiveOfferView: View {
         if isPurchasing {
             return "Activation…"
         }
-        return trialEnabled
-            ? "Commencer mes 7 jours gratuits"
-            : "S'abonner à \(yearlyPlan.formattedPrice(discountPercent: discountPercent))/an"
+        if trialShown {
+            return "Commencer mes \(trialDays) jours gratuits"
+        }
+        return "S'abonner à \(yearlyPlan.liveOrFallbackPriceString)\(yearlyPlan.unitLabel)"
     }
 
     private var footer: some View {
@@ -530,38 +566,48 @@ struct ExclusiveOfferView: View {
     }
 
     private var footerLabel: String {
-        trialEnabled
+        trialShown
             ? "Pas de paiement maintenant"
             : "Aucun engagement, annulez à tout moment"
     }
 
     // MARK: - Purchase
 
-    /// Run the full purchase locally — record the start, flip the
-    /// premium flag, then dismiss. The host paywall used to do this
-    /// after dismissing the cover; doing it inline avoids the brief
-    /// "back to paywall" flash and lets us show a real loading state
-    /// on the CTA itself.
+    /// Run the full purchase locally — execute the purchase, and only
+    /// after StoreKit confirms the entitlement do we mutate the gift
+    /// state machine. The previous version mutated the gift BEFORE
+    /// the purchase, which silently consumed the gift if the user
+    /// cancelled the StoreKit sheet.
     private func handlePurchase() {
         guard !isPurchasing else { return }
         OnboardingHaptics.medium()
-
-        offers.recordPurchaseStarted(plan: yearlyPlan, usingFreeTrial: trialEnabled)
         isPurchasing = true
 
+        let percent = discountPercent
+
         Task {
+            var didSucceed = false
             do {
-                try await PurchaseService.shared.purchase(plan: .yearly)
-                if PurchaseService.shared.isPremium {
+                // Try the matching Promotional Offer first ("GIFT25")
+                // — Apple applies a real reduction if the offer is
+                // configured server-side. Otherwise this falls back
+                // silently to the regular annual price.
+                try await PurchaseService.shared.purchaseAnnualWithPromo(
+                    offerIdentifier: "GIFT\(percent)"
+                )
+                didSucceed = PurchaseService.shared.isPremium
+                if didSucceed {
                     await sessionStore.setPremium(true)
                 }
             } catch {
-                // User cancelled or error — silently unblock.
+                // User cancelled or error — gift state unchanged.
             }
+
             await MainActor.run {
-                offers.clearFreeModeChoice()
-                if !trialEnabled {
-                    offers.recordTrialConverted()
+                if didSucceed {
+                    let inTrial = PurchaseService.shared.isInTrial
+                    offers.recordPurchaseCompleted(plan: yearlyPlan, inTrial: inTrial)
+                    offers.clearFreeModeChoice()
                 }
                 isPurchasing = false
                 onClose()

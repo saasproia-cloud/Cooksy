@@ -1,17 +1,21 @@
 import SwiftUI
+import UIKit
 
 /// "Inviter des amis" rewards page.
 ///
 /// Free-plan users earn a permanent **+1 weekly import** by inviting
-/// 5 friends. Each tap on the share button counts as one invite — we
-/// can't verify the recipient really opens the link, same as every
-/// referral-share flow.
+/// 5 friends. We only credit an invite when the system share sheet
+/// reports a **completed** share (the user actually picked Messages /
+/// Mail / WhatsApp / etc. and tapped Send). Cancelling the share sheet
+/// does NOT count — see `InviteShareSheet` below.
 ///
 /// After the bonus unlocks the page stays accessible: users can keep
 /// sharing (it just doesn't grant additional slots, since the cap is
 /// `1` extra import).
 struct InviteFriendsView: View {
     @StateObject private var rewards = InviteRewardService.shared
+    @State private var showsShareSheet = false
+    @State private var sentToast: Bool = false
 
     private static let totalSteps = InviteRewardService.invitesNeededForBonus
 
@@ -29,7 +33,7 @@ struct InviteFriendsView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             CooksyTheme.background
                 .ignoresSafeArea()
 
@@ -42,7 +46,7 @@ struct InviteFriendsView: View {
                     }
                     rewardExplainerCard
                     shareButton
-                    Text("Une invitation = 1 partage. Tu peux continuer à inviter des amis même après avoir débloqué ton bonus.")
+                    Text("Une invitation est comptée seulement quand le message est réellement envoyé. Tu peux continuer à inviter des amis même après avoir débloqué ton bonus.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .multilineTextAlignment(.center)
@@ -51,11 +55,46 @@ struct InviteFriendsView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-                .padding(.bottom, 80)
+                .padding(.bottom, 100)
+            }
+
+            if sentToast {
+                ComingSoonToast(message: "Invitation envoyée 🎉")
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .navigationTitle("Inviter des amis")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showsShareSheet) {
+            InviteShareSheet(
+                items: [inviteText],
+                onCompletion: { completed in
+                    // Only count the invite when the user actually sent the
+                    // message (Messages, Mail, WhatsApp, etc. tapped Send).
+                    // Cancelling the share sheet returns `completed == false`
+                    // and the counter stays unchanged.
+                    guard completed else { return }
+                    OnboardingHaptics.medium()
+                    rewards.recordInvite()
+                    showSentToast()
+                }
+            )
+        }
+    }
+
+    private func showSentToast() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            sentToast = true
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    sentToast = false
+                }
+            }
+        }
     }
 
     // MARK: - Hero
@@ -259,7 +298,10 @@ struct InviteFriendsView: View {
     // MARK: - Share button
 
     private var shareButton: some View {
-        ShareLink(item: inviteText) {
+        Button(action: {
+            OnboardingHaptics.selection()
+            showsShareSheet = true
+        }) {
             HStack(spacing: 10) {
                 Image(systemName: "person.badge.plus")
                     .font(.system(size: 16, weight: .bold))
@@ -276,11 +318,32 @@ struct InviteFriendsView: View {
             .shadow(color: CooksyTheme.primaryAccent.opacity(0.35), radius: 16, y: 8)
         }
         .buttonStyle(CooksyTheme.pressScale())
-        .simultaneousGesture(TapGesture().onEnded {
-            OnboardingHaptics.medium()
-            rewards.recordInvite()
-        })
     }
+}
+
+// MARK: - Share sheet with completion callback
+
+/// Wraps `UIActivityViewController` so we can observe whether the user
+/// actually sent the invite. SwiftUI's built-in `ShareLink` doesn't give
+/// us a completion hook — opening the share sheet would always count as
+/// an invite, even if the user backs out. With this wrapper we only fire
+/// `onCompletion(true)` when iOS reports `completed == true` (Messages
+/// tapped Send, Mail tapped Send, etc.). Cancelling reports `false`.
+private struct InviteShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    let onCompletion: (Bool) -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            DispatchQueue.main.async {
+                onCompletion(completed)
+            }
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

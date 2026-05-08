@@ -25,8 +25,6 @@ struct RootTabView: View {
     @State private var sharedImportFailureAssessment: RecipeImportAssessment?
     @State private var sharedImportCreateSeed: RecipeEditorSeed?
     @State private var lastDeferredSharedImportKey: String?
-    @State private var sharedImportErrorMessage = ""
-    @State private var showsSharedImportError = false
     @State private var savedImportedRecipeRoute: SavedImportedRecipeRoute?
 
     var body: some View {
@@ -165,19 +163,6 @@ struct RootTabView: View {
                 )
             }
         }
-        .alert("Import partagé impossible", isPresented: $showsSharedImportError) {
-            Button("Réessayer") {
-                Task {
-                    await processPendingSharedImportIfNeeded(force: true)
-                }
-            }
-
-            Button("OK", role: .cancel) {
-                sharedLinkInbox.clear()
-            }
-        } message: {
-            Text(sharedImportErrorMessage)
-        }
         .overlay {
             if isProcessingSharedImport {
                 RootSharedImportOverlay(
@@ -251,8 +236,26 @@ struct RootTabView: View {
                 "App shared import failed host=\(draft.hostLabel, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
             lastDeferredSharedImportKey = draft.dedupeKey
-            sharedImportErrorMessage = makeSharedImportErrorMessage(for: error, hostLabel: draft.hostLabel)
-            showsSharedImportError = true
+            // Convert the thrown error into a synthetic failure assessment so
+            // the user sees the OOPS error screen (consistent with all other
+            // failure paths) instead of a generic iOS alert.
+            let failureSeed = RecipeEditorSeed(
+                sourceURL: draft.preferredImportURL,
+                importDebug: RecipeImportDebugInfo(
+                    ingredientsCount: 0,
+                    stepsCount: 0,
+                    strategy: "shared",
+                    durationMs: 0,
+                    isLikelyValid: false,
+                    missing: ["ingredients", "steps"],
+                    failureReason: "not_food",
+                    needsReview: false
+                )
+            )
+            sharedImportFailureAssessment = RecipeValidationService.assess(
+                failureSeed,
+                sourceKind: .shared
+            )
         }
 
         currentSharedImportHostLabel = ""
@@ -344,15 +347,6 @@ struct RootTabView: View {
         sharedImportCreateSeed = nil
         lastDeferredSharedImportKey = nil
         sharedLinkInbox.clear()
-    }
-
-    private func makeSharedImportErrorMessage(for error: Error, hostLabel: String) -> String {
-        let trimmedHost = hostLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty else {
-            return error.localizedDescription
-        }
-
-        return "Cooksy n'a pas reussi a importer ce partage depuis \(trimmedHost).\n\n\(error.localizedDescription)"
     }
 
     @MainActor

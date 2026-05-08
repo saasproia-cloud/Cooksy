@@ -35,6 +35,7 @@ struct PremiumPaywallView: View {
 
     @EnvironmentObject private var sessionStore: SessionStore
     @StateObject private var offers = PremiumOffersService.shared
+    @StateObject private var purchaseService = PurchaseService.shared
 
     @State private var selectedPlan: PremiumPlan = .defaultPlan
     @State private var isPurchasing: Bool = false
@@ -48,10 +49,15 @@ struct PremiumPaywallView: View {
     /// actually leave to free mode).
     @State private var hasTriggeredExitIntent: Bool = false
 
-    /// Trial is no longer a user-toggleable choice — it's automatically
-    /// included with the annual plan and unavailable on monthly. The flag
-    /// is now derived from the selected plan instead of a `@State` toggle.
-    private var trialEnabled: Bool { selectedPlan.hasFreeTrial }
+    /// Trial is automatically included with the annual plan and only
+    /// when Apple says the current Apple ID is still eligible (it grants
+    /// the trial only once per Apple ID). When ineligible, the paywall
+    /// must NOT promise a trial.
+    private var trialAvailable: Bool {
+        selectedPlan.hasFreeTrial && purchaseService.isAnnualTrialEligible
+    }
+    /// Real trial duration (days) read from the StoreKit storefront.
+    private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -90,8 +96,10 @@ struct PremiumPaywallView: View {
 
                     PaywallPlanPicker(
                         selectedPlan: $selectedPlan,
-                        offerDiscount: activeDiscountPercent,
                         offerExpiresAt: activeOfferExpiresAt,
+                        trialDays: trialDays,
+                        trialEligible: purchaseService.isAnnualTrialEligible,
+                        giftActive: offers.giftOfferIsActive,
                         confettiTrigger: $confettiTrigger
                     )
                     .padding(.horizontal, 22)
@@ -108,8 +116,8 @@ struct PremiumPaywallView: View {
 
             PaywallStickyCTA(
                 selectedPlan: selectedPlan,
-                trialEnabled: trialEnabled,
-                discountPercent: activeDiscountPercent,
+                trialAvailable: trialAvailable,
+                trialDays: trialDays,
                 isPurchasing: isPurchasing,
                 onPurchase: handlePurchase
             )
@@ -133,7 +141,7 @@ struct PremiumPaywallView: View {
             offers.paywallWasReached()
         }
         .fullScreenCover(isPresented: $showsGiftWheel) {
-            GiftWheelView(
+            GiftMiniGameHost(
                 onClose: { showsGiftWheel = false },
                 onClaim: { discount in
                     offers.recordGiftWon(percent: discount)
@@ -206,19 +214,9 @@ struct PremiumPaywallView: View {
 
     // MARK: - Derived state
 
-    private var activeDiscountPercent: Int? {
-        guard offers.giftOfferIsActive else { return nil }
-        return offers.giftDiscountPercent
-    }
-
     private var activeOfferExpiresAt: Date? {
         guard offers.giftOfferIsActive else { return nil }
         return offers.giftOfferExpiresAt
-    }
-
-    private func effectiveDiscount(for plan: PremiumPlan) -> Int? {
-        guard plan.supportsPromotionalDiscount else { return nil }
-        return activeDiscountPercent
     }
 
     private var shouldShowGiftReminderBanner: Bool {
@@ -259,28 +257,45 @@ struct PremiumPaywallView: View {
         guard !isPurchasing else { return }
         OnboardingHaptics.medium()
 
-        // Wire the purchase intent into the gift state machine BEFORE
-        // the payment sheet appears so the post-trial conversion /
-        // cancel bookkeeping is correctly seeded.
-        offers.recordPurchaseStarted(
-            plan: selectedPlan,
-            usingFreeTrial: selectedPlan.hasFreeTrial && trialEnabled
-        )
-
         isPurchasing = true
+        let plan = selectedPlan
+        // Snapshot whether a gift is active right now — the purchase
+        // closure runs concurrently and the state machine could roll
+        // over while the StoreKit sheet is up.
+        let giftActive = offers.giftOfferIsActive
+        let giftPercent = offers.giftDiscountPercent
+
         Task {
             do {
-                try await PurchaseService.shared.purchase(plan: selectedPlan)
-                // Only mark premium if RevenueCat confirmed the entitlement.
-                if PurchaseService.shared.isPremium {
-                    await sessionStore.setPremium(true)
+                if plan == .yearly, giftActive, let percent = giftPercent {
+                    // Try the matching Promotional Offer first
+                    // (e.g. "GIFT25"). If App Store Connect doesn't
+                    // have it configured, RC silently falls back to
+                    // the regular price — the user still gets premium,
+                    // just at the standard tariff.
+                    try await PurchaseService.shared.purchaseAnnualWithPromo(
+                        offerIdentifier: "GIFT\(percent)"
+                    )
+                } else {
+                    try await PurchaseService.shared.purchase(plan: plan)
                 }
+
+                // Only mark premium / record the gift if RevenueCat
+                // actually confirmed the entitlement. A user who
+                // dismissed the StoreKit sheet returns here without
+                // `isPremium`, so nothing must mutate.
+                guard PurchaseService.shared.isPremium else {
+                    await MainActor.run { isPurchasing = false }
+                    return
+                }
+
+                await sessionStore.setPremium(true)
+                let inTrial = PurchaseService.shared.isInTrial
+
                 await MainActor.run {
-                    isPurchasing = false
+                    offers.recordPurchaseCompleted(plan: plan, inTrial: inTrial)
                     offers.clearFreeModeChoice()
-                    if selectedPlan == .yearly && !trialEnabled {
-                        offers.recordTrialConverted()
-                    }
+                    isPurchasing = false
                 }
             } catch {
                 await MainActor.run {
@@ -330,8 +345,9 @@ private struct PaywallEditorialHero: View {
                         HStack(spacing: 4) {
                             Image(systemName: "gift.fill")
                                 .font(.system(size: 11, weight: .bold))
-                            Text("−\(giftDiscountPercent ?? 25) %")
+                            Text("CADEAU")
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .tracking(0.6)
                         }
                         .foregroundStyle(CooksyTheme.heroDark)
                         .padding(.horizontal, 10)
@@ -342,13 +358,13 @@ private struct PaywallEditorialHero: View {
                 }
             }
 
-            Text("Tes recettes\npréférées, prêtes\nà cuisiner.")
+            Text("7 jours gratuits,\npuis tes recettes\nprêtes à cuisiner.")
                 .font(.system(size: 36, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .lineSpacing(-2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Importe n'importe quelle vidéo TikTok, Instagram ou YouTube. Cooksy en fait une recette propre, structurée, à ton rythme.")
+            Text("Essai gratuit sans paiement immédiat. Importe n'importe quelle vidéo TikTok, Instagram ou YouTube — Cooksy en fait une recette propre, structurée, à ton rythme.")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .lineSpacing(2)
@@ -406,8 +422,10 @@ private struct PaywallValueProps: View {
 
 private struct PaywallPlanPicker: View {
     @Binding var selectedPlan: PremiumPlan
-    let offerDiscount: Int?
     let offerExpiresAt: Date?
+    let trialDays: Int
+    let trialEligible: Bool
+    let giftActive: Bool
     @Binding var confettiTrigger: Int
 
     var body: some View {
@@ -417,8 +435,8 @@ private struct PaywallPlanPicker: View {
                     .font(.system(size: 22, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                 Spacer(minLength: 4)
-                if let discount = offerDiscount {
-                    Text("OFFRE −\(discount) %")
+                if giftActive {
+                    Text("CADEAU ACTIF")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .tracking(0.8)
                         .foregroundStyle(.white)
@@ -448,9 +466,12 @@ private struct PaywallPlanPicker: View {
 
     private func planCard(_ plan: PremiumPlan) -> some View {
         let isSelected = plan == selectedPlan
-        let discount = plan.supportsPromotionalDiscount ? offerDiscount : nil
-        let priceText = plan.formattedPrice(discountPercent: discount)
-        let originalPriceText = (discount != nil) ? plan.formattedPrice() : nil
+        // Always show the live storefront price — never apply a local
+        // discount on top of it (Apple only honours promo offers
+        // configured server-side in App Store Connect).
+        let priceText = plan.liveOrFallbackPriceString
+        let showsTrial = plan.hasFreeTrial && trialEligible
+        let monthlyEquivalent = plan.liveOrFallbackMonthlyEquivalent
 
         return HStack(alignment: .center, spacing: 14) {
             ZStack {
@@ -468,7 +489,20 @@ private struct PaywallPlanPicker: View {
             }
 
             VStack(alignment: .leading, spacing: 5) {
-                if let badge = plan.badge {
+                if showsTrial {
+                    HStack(spacing: 4) {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("\(trialDays) JOURS GRATUITS")
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .tracking(0.8)
+                    }
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(CooksyTheme.accentGradient))
+                } else if let badge = plan.badge {
                     Text(badge)
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .tracking(0.8)
@@ -490,18 +524,21 @@ private struct PaywallPlanPicker: View {
             Spacer(minLength: 4)
 
             VStack(alignment: .trailing, spacing: 2) {
-                if let originalPriceText {
-                    Text(originalPriceText)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .strikethrough()
-                }
                 Text(priceText)
                     .font(.system(size: 18, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Text(plan.unitLabel)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
+                if plan == .yearly, let monthlyEquivalent {
+                    Text("soit \(monthlyEquivalent)/mois")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
         }
         .padding(16)
@@ -613,13 +650,13 @@ private struct PaywallCompactFAQ: View {
 
 private struct PaywallStickyCTA: View {
     let selectedPlan: PremiumPlan
-    let trialEnabled: Bool
-    let discountPercent: Int?
+    let trialAvailable: Bool
+    let trialDays: Int
     let isPurchasing: Bool
     let onPurchase: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Button(action: onPurchase) {
                 HStack(spacing: 10) {
                     if isPurchasing {
@@ -630,6 +667,8 @@ private struct PaywallStickyCTA: View {
                     Text(ctaCopy)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
@@ -646,12 +685,16 @@ private struct PaywallStickyCTA: View {
             .buttonStyle(CooksyTheme.pressScale())
             .disabled(isPurchasing)
 
-            if let priceLine = priceHighlightLine {
-                priceLine
-                    .multilineTextAlignment(.center)
-            }
+            // ONE clear billing lockup — no fragmentation. The user
+            // reads exactly what Apple is going to charge in their own
+            // currency, and when (after the trial or immediately).
+            billingLockup
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .padding(.horizontal, 4)
 
-            Text(legalCopy)
+            Text("Sans engagement · Annulable en 2 taps depuis Réglages")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
@@ -676,70 +719,39 @@ private struct PaywallStickyCTA: View {
         )
     }
 
-    private var effectiveDiscount: Int? {
-        selectedPlan.supportsPromotionalDiscount ? discountPercent : nil
-    }
-
     private var ctaCopy: String {
-        // The orange button should communicate "small monthly cost"
-        // rather than the upfront annual total. For the yearly plan we
-        // display the per-month equivalent (≈ 2,49 €/mois) — both when
-        // the trial is on and off, since the trial is auto-included
-        // and the secondary line below the button explains the rest.
-        if let perMonth = selectedPlan.monthlyEquivalentString(discountPercent: effectiveDiscount) {
-            return "Continuer · \(perMonth)"
+        if selectedPlan == .yearly && trialAvailable {
+            return "Commencer mes \(trialDays) jours gratuits"
         }
-        let priceText = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
-        return "Continuer · \(priceText)\(selectedPlan.unitLabel)"
+        return "Continuer · \(selectedPlan.liveOrFallbackPriceString)\(selectedPlan.unitLabel)"
     }
 
-    private var priceHighlightLine: Text? {
-        // Annual: highlight the trial + the full annual price as a
-        // strikethrough so the user understands what they'll actually
-        // be billed. Monthly: nothing — the button copy already shows
-        // the full price.
-        if selectedPlan.hasFreeTrial && trialEnabled {
-            let billed = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
-            var line = Text("Essai 7 jours offert")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+    /// Single source of truth for the small line under the CTA. It
+    /// always reads "[trial preface] then [LIVE PRICE] / [unit]" so the
+    /// user never has any doubt about what's being charged.
+    private var billingLockup: Text {
+        let billed = selectedPlan.liveOrFallbackPriceString
+        let unit = selectedPlan.unitLabel
+
+        if selectedPlan == .yearly && trialAvailable {
+            let trialPart = Text("Essai \(trialDays) jours gratuit")
+                .font(.system(size: 12.5, weight: .bold, design: .rounded))
                 .foregroundColor(CooksyTheme.primaryAccentStrong)
-            line = line
-                + Text("  ·  puis \(billed)\(selectedPlan.unitLabel)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(CooksyTheme.secondaryText)
-            return line
-        }
-
-        if let strike = (effectiveDiscount != nil) ? selectedPlan.formattedPrice() : nil {
-            let billed = selectedPlan.formattedPrice(discountPercent: effectiveDiscount)
-            var line = Text(strike + selectedPlan.unitLabel)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .strikethrough()
+            let billedPart = Text("  ·  puis \(billed)\(unit)")
+                .font(.system(size: 12.5, weight: .medium, design: .rounded))
                 .foregroundColor(CooksyTheme.secondaryText)
-            line = line
-                + Text("  ·  \(billed)\(selectedPlan.unitLabel)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundColor(CooksyTheme.primaryAccentStrong)
-            return line
+            return trialPart + billedPart
         }
-
-        return nil
-    }
-
-    private var legalCopy: String {
-        var pieces: [String] = []
-        if effectiveDiscount != nil, !selectedPlan.firstPeriodDisclaimer.isEmpty {
-            pieces.append(selectedPlan.firstPeriodDisclaimer)
-        }
-        pieces.append("Résiliable en 2 taps")
-        return pieces.joined(separator: " · ")
+        return Text("Facturé \(billed)\(unit) · aujourd'hui")
+            .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+            .foregroundColor(CooksyTheme.secondaryText)
     }
 }
 
 // MARK: - Offer timer capsule
 
 /// Live countdown rendered next to "OFFRE −25 %". Reads from the same
-/// 24 h gift-offer expiry that drives `activeDiscountPercent`, so the
+/// 24 h gift-offer expiry that drives the gift state machine, so the
 /// UI never drifts from discount eligibility.
 private struct PaywallOfferTimerCapsule: View {
     let expiresAt: Date

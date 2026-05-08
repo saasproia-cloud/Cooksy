@@ -7,11 +7,19 @@ import SwiftUI
 /// locally + in Supabase via `SessionStore.setPremiumMock`.
 struct PaywallView: View {
     @EnvironmentObject private var sessionStore: SessionStore
+    @StateObject private var purchaseService = PurchaseService.shared
 
     @State private var selectedPlan: PaywallPlan = .annual
     @State private var trialEnabled: Bool = true
     @State private var appeared: Bool = false
     @State private var isActivating: Bool = false
+
+    /// Real trial duration from the storefront (default 7 if not loaded).
+    private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
+    /// Whether Apple still allows the trial for this Apple ID.
+    private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
+    /// Resolved trial state shown in the UI.
+    private var trialShown: Bool { trialEnabled && trialEligible && selectedPlan == .annual }
 
     var body: some View {
         ZStack {
@@ -75,7 +83,9 @@ struct PaywallView: View {
                     .foregroundStyle(CooksyTheme.primaryText)
                     .multilineTextAlignment(.center)
 
-                Text("3 jours d'essai gratuit, puis le prix qui te convient. Annulable à tout moment.")
+                Text(trialEligible
+                     ? "\(trialDays) jours d'essai gratuit, puis le plan qui te convient. Annulable à tout moment."
+                     : "Choisis ton plan. Annulable à tout moment.")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
@@ -132,22 +142,26 @@ struct PaywallView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 8) {
-            Toggle(isOn: $trialEnabled) {
-                Text(trialEnabled ? "Essai gratuit 3 jours activé" : "Essai gratuit désactivé")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
+            if trialEligible && selectedPlan == .annual {
+                Toggle(isOn: $trialEnabled) {
+                    Text(trialEnabled
+                         ? "Essai gratuit \(trialDays) jours activé"
+                         : "Essai gratuit désactivé")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                }
+                .tint(CooksyTheme.ctaOrange)
+                .padding(.horizontal, 16)
+                .frame(height: 44)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(CooksyTheme.elevatedSurface.opacity(0.85))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                )
             }
-            .tint(CooksyTheme.ctaOrange)
-            .padding(.horizontal, 16)
-            .frame(height: 44)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(CooksyTheme.elevatedSurface.opacity(0.85))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-            )
 
             Button(action: activate) {
                 HStack(spacing: 8) {
@@ -176,9 +190,9 @@ struct PaywallView: View {
             .buttonStyle(CooksyTheme.pressScale())
             .disabled(isActivating)
 
-            Text(trialEnabled
-                 ? "Sans engagement. Annulable dans Réglages ≥ Apple ID ≥ Abonnements."
-                 : "Facturation immédiate selon le plan choisi.")
+            Text(trialShown
+                 ? "Pas de paiement aujourd'hui. \(selectedPlan.livePrice)\(selectedPlan.cadence) après l'essai. Annulable depuis Réglages > Apple ID."
+                 : "Facturation immédiate de \(selectedPlan.livePrice)\(selectedPlan.cadence). Annulable à tout moment.")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
@@ -203,7 +217,9 @@ struct PaywallView: View {
     }
 
     private var ctaTitle: String {
-        trialEnabled ? "Commencer l'essai gratuit" : "Continuer avec \(selectedPlan.shortName)"
+        trialShown
+            ? "Commencer mes \(trialDays) jours gratuits"
+            : "Continuer avec \(selectedPlan.shortName)"
     }
 
     private func activate() {
@@ -254,6 +270,19 @@ enum PaywallPlan: String, CaseIterable, Identifiable {
         case .weekly:   return "4,99 €"
         case .annual:   return "39,99 €"
         case .lifetime: return "89,99 €"
+        }
+    }
+
+    /// Price string sourced from RevenueCat when available so what we
+    /// show always matches what Apple is going to bill. Falls back to
+    /// the hardcoded marketing price only during a cold start (no
+    /// network, offering not yet fetched).
+    @MainActor
+    var livePrice: String {
+        switch self {
+        case .weekly:   return PurchaseService.shared.monthlyPriceString ?? price
+        case .annual:   return PurchaseService.shared.annualPriceString ?? price
+        case .lifetime: return price
         }
     }
 
@@ -334,9 +363,11 @@ private struct PaywallPlanCard: View {
                 Spacer(minLength: 0)
 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(plan.price)
+                    Text(plan.livePrice)
                         .font(.system(size: 17, weight: .bold, design: .serif))
                         .foregroundStyle(CooksyTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                     Text(plan.cadence)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
