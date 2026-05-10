@@ -579,7 +579,84 @@ private struct BackendStableIngredient: Decodable {
     let group: String?
 
     func asDraft() -> IngredientDraft {
-        IngredientDraft(amount: quantity, unit: unit, name: name, nutritionQuery: nutritionQuery, group: nonEmpty(group))
+        let cleaned = BackendStableIngredient.sanitize(name: name, unit: unit, amount: quantity)
+        return IngredientDraft(
+            amount: cleaned.amount,
+            unit: cleaned.unit,
+            name: cleaned.name,
+            nutritionQuery: nutritionQuery,
+            group: nonEmpty(group)
+        )
+    }
+
+    /// Defense-in-depth cleanup applied after decoding the backend response.
+    /// The backend already sanitizes its output, but the network sits between
+    /// us and any future regression — we apply the same patterns here to make
+    /// sure unit fragments don't end up displayed in the name column and that
+    /// countable ingredients aren't shown as 0.3 of a lime.
+    private static func sanitize(name: String, unit: String, amount: String) -> (name: String, unit: String, amount: String) {
+        var cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleanUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleanAmount = amount.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. Move unit fragments out of the name field (e.g. "À café Sel"
+        //    → name="Sel", unit="c. à café"). Folds accents for matching.
+        let folded = cleanName
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .lowercased()
+
+        let unitPrefixes: [(prefix: String, label: String)] = [
+            ("a soupe ", "c. à soupe"),
+            ("a cafe ", "c. à café"),
+            ("cuillere a soupe ", "c. à soupe"),
+            ("cuillere a cafe ", "c. à café"),
+            ("cas ", "c. à soupe"),
+            ("cac ", "c. à café"),
+            ("pincee ", "pincée")
+        ]
+        for entry in unitPrefixes {
+            if folded.hasPrefix(entry.prefix) {
+                let prefixCount = entry.prefix.count
+                let remainder = String(cleanName.dropFirst(prefixCount))
+                let trimmed = remainder
+                    .replacingOccurrences(of: #"^\s*(?:de\s+|d['’]\s*|la\s+|le\s+|les\s+|l['’]\s*)"#,
+                                          with: "",
+                                          options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    cleanName = trimmed.prefix(1).uppercased() + trimmed.dropFirst()
+                    if cleanUnit.isEmpty { cleanUnit = entry.label }
+                }
+                break
+            }
+        }
+
+        // 2. Round countable ingredient quantities to integers (≥ 1).
+        if let value = Double(cleanAmount.replacingOccurrences(of: ",", with: ".")),
+           value > 0,
+           value != value.rounded(),
+           cleanUnit.isEmpty || isCountableUnit(cleanUnit) {
+            let countablePatterns = [
+                "œuf", "oeuf", "citron", "oignon", "tomate", "pomme",
+                "échalote", "echalote", "gousse", "tranche", "tortilla",
+                "burger", "pain", "filet", "escalope", "tenders", "nuggets"
+            ]
+            let lowName = cleanName.lowercased()
+            if countablePatterns.contains(where: { lowName.contains($0) }) {
+                let rounded = max(1, Int(value.rounded()))
+                cleanAmount = String(rounded)
+            }
+        }
+
+        return (cleanName, cleanUnit, cleanAmount)
+    }
+
+    private static func isCountableUnit(_ unit: String) -> Bool {
+        let normalized = unit
+            .folding(options: .diacriticInsensitive, locale: nil)
+            .lowercased()
+        let weightVolume = ["g", "gr", "gramme", "grammes", "kg", "ml", "cl", "dl", "l", "litre", "tasse", "cup", "oz", "lb"]
+        return !weightVolume.contains { normalized == $0 || normalized.hasPrefix("\($0) ") }
     }
 }
 

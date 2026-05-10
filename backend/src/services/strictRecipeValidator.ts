@@ -23,9 +23,11 @@ import { containsFoodSignal } from "./foodTermGate.js";
 export type StrictIssueCode =
   | "TITLE_GENERIC"
   | "TITLE_DRIFTED_FROM_DIGEST"
+  | "TITLE_INCOHERENT_WITH_INGREDIENTS"
   | "INGREDIENTS_TOO_FEW"
   | "INGREDIENT_VAGUE"
   | "INGREDIENT_UNIT_SWAP"
+  | "INGREDIENT_INCOHERENT_WITH_DISH"
   | "QUANTITY_IMPLAUSIBLE"
   | "IMPLAUSIBLE_QUANTITY"
   | "SPECIFICITY_REDUCED"
@@ -92,6 +94,53 @@ const STEP_NOISE_PATTERNS: RegExp[] = [
 // Qualified forms (sauce soja, fromage frais, pain burger) are fine
 // and must never trigger this check.
 // ---------------------------------------------------------------------
+
+// ---------------------------------------------------------------------
+// Dish ↔ ingredient coherence tables.
+//
+// Two complementary tables wired into the strict validator:
+//
+//  - DISH_SIGNATURE_INGREDIENTS: if the title matches a known dish, the
+//    recipe should contain at least one of the listed signature
+//    ingredients. Missing signatures = the title is probably wrong (e.g.
+//    title says "crêpes" but ingredients have no flour/eggs/milk → likely
+//    titled wrong from heuristics).
+//
+//  - DISH_FORBIDDEN_INGREDIENTS: ingredients that should never appear in
+//    the matched dish (e.g. "chou" in a "tacos" recipe). When matched, the
+//    LLM probably hallucinated.
+// ---------------------------------------------------------------------
+
+const DISH_SIGNATURE_INGREDIENTS: ReadonlyArray<{
+  pattern: RegExp;
+  signatures: ReadonlyArray<string>;
+  label: string;
+}> = [
+  { pattern: /\bcrepes?\b/i, signatures: ["farine", "oeufs", "œufs", "lait"], label: "crêpes" },
+  { pattern: /\bpancakes?\b/i, signatures: ["farine", "oeufs", "œufs", "lait", "levure"], label: "pancakes" },
+  { pattern: /\bgaufres?\b/i, signatures: ["farine", "oeufs", "œufs", "lait", "levure"], label: "gaufres" },
+  { pattern: /\bcarbonara\b/i, signatures: ["pates", "pâtes", "spaghetti", "rigatoni", "linguine", "guanciale", "pancetta", "lardons", "oeufs", "œufs"], label: "carbonara" },
+  { pattern: /\blasagnes?\b/i, signatures: ["lasagne", "viande", "boeuf", "bœuf", "bechamel", "béchamel", "tomate"], label: "lasagnes" },
+  { pattern: /\btacos?\b/i, signatures: ["tortilla", "viande", "poulet", "boeuf", "bœuf", "porc"], label: "tacos" },
+  { pattern: /\bquesadillas?\b/i, signatures: ["tortilla", "fromage", "cheddar", "mozzarella"], label: "quesadilla" },
+  { pattern: /\bburger\b/i, signatures: ["pain", "bun", "viande", "boeuf", "bœuf", "poulet", "fromage"], label: "burger" },
+  { pattern: /\btiramisu\b/i, signatures: ["mascarpone", "biscuits", "cafe", "café", "oeufs", "œufs"], label: "tiramisu" },
+  { pattern: /\bcheesecake\b/i, signatures: ["fromage", "philadelphia", "mascarpone", "ricotta", "biscuits", "beurre"], label: "cheesecake" },
+  { pattern: /\brisotto\b/i, signatures: ["riz", "arborio", "bouillon", "parmesan"], label: "risotto" },
+  { pattern: /\bquiche\b/i, signatures: ["pate", "pâte", "oeufs", "œufs", "creme", "crème", "lait"], label: "quiche" },
+];
+
+const DISH_FORBIDDEN_INGREDIENTS: ReadonlyArray<{
+  pattern: RegExp;
+  forbidden: ReadonlyArray<string>;
+  label: string;
+}> = [
+  { pattern: /\btacos?\b/i, forbidden: ["chou", "choucroute", "endive"], label: "tacos" },
+  { pattern: /\bcarbonara\b/i, forbidden: ["creme", "crème", "lait"], label: "carbonara" },
+  { pattern: /\bpizza\b/i, forbidden: ["pates", "pâtes", "riz"], label: "pizza" },
+  { pattern: /\bcrepes?\b/i, forbidden: ["riz", "boulgour", "quinoa"], label: "crêpes" },
+  { pattern: /\btiramisu\b/i, forbidden: ["viande", "poulet", "boeuf", "bœuf", "porc"], label: "tiramisu" },
+];
 
 const BARE_VAGUE_CATEGORIES = new Set([
   "fromage",
@@ -275,6 +324,55 @@ export function validateStrictRecipe(
         severity: "soft",
         message: `Le titre "${recipe.title}" diverge du plat détecté "${ctx.digestDish}".`,
         repairHint: `Vérifie que le titre reflète bien le plat "${ctx.digestDish}".`,
+      });
+    }
+  }
+
+  // --- Title ↔ ingredient coherence ---
+  // Title says "crêpes" but no flour/eggs/milk anywhere → title is wrong.
+  if (recipe.title) {
+    const ingredientBlobLower = normalizeLookup(
+      foldLigatures(recipe.ingredientDrafts.map((i) => i.name ?? "").join(" "))
+    );
+    for (const entry of DISH_SIGNATURE_INGREDIENTS) {
+      if (!entry.pattern.test(recipe.title)) continue;
+      const hasAnySignature = entry.signatures.some((sig) =>
+        ingredientBlobLower.includes(normalizeLookup(sig))
+      );
+      if (!hasAnySignature) {
+        hardIssues.push({
+          code: "TITLE_INCOHERENT_WITH_INGREDIENTS",
+          severity: "hard",
+          message: `Le titre "${recipe.title}" évoque "${entry.label}" mais aucun ingrédient signature (${entry.signatures.slice(0, 4).join(", ")}…) n'est présent.`,
+          repairHint: `Soit reprends le titre depuis le digest DISH ou les ingrédients dominants, soit ajoute les ingrédients signature attendus pour "${entry.label}".`,
+        });
+        break;
+      }
+    }
+  }
+
+  // --- Ingredient ↔ dish coherence (hallucination guard) ---
+  // Title says "tacos" but ingredients include "chou" → likely hallucinated.
+  if (recipe.title) {
+    const incoherentOffenders: string[] = [];
+    for (const dish of DISH_FORBIDDEN_INGREDIENTS) {
+      if (!dish.pattern.test(recipe.title)) continue;
+      for (const ing of recipe.ingredientDrafts) {
+        const key = normalizeLookup(ing.name ?? "");
+        if (!key) continue;
+        if (countTokens(ing.name) >= 2) continue; // qualified names are usually fine
+        if (dish.forbidden.some((f) => normalizeLookup(f) === key)) {
+          incoherentOffenders.push(ing.name);
+        }
+      }
+    }
+    if (incoherentOffenders.length > 0) {
+      hardIssues.push({
+        code: "INGREDIENT_INCOHERENT_WITH_DISH",
+        severity: "hard",
+        message: `Ingrédients incohérents avec le plat "${recipe.title}": ${incoherentOffenders.join(", ")}.`,
+        repairHint: "Vérifie le digest et le contexte vidéo : ces ingrédients ressemblent à une hallucination. Supprime-les ou remplace-les par les ingrédients réellement présents.",
+        offenders: incoherentOffenders,
       });
     }
   }

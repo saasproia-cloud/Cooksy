@@ -55,7 +55,7 @@ final class PurchaseService: NSObject, ObservableObject {
 
     /// Sandbox key — replace with the live key before App Store submission.
     /// Find it in RevenueCat Dashboard → Project Settings → API Keys → Public app SDK key.
-    private static let apiKey = "test_jIGGNTvSGURxfCizpICebehLAgt"
+    private static let apiKey = "appl_XyhiKYHcCHxYVpnLlnoqOokWWEu"
 
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "PurchaseService")
 
@@ -130,6 +130,7 @@ final class PurchaseService: NSObject, ObservableObject {
         monthlyPriceString = monthlyProduct?.localizedPriceString
         annualPriceString = annualProduct?.localizedPriceString
         annualMonthlyEquivalentString = computeMonthlyEquivalent(annualProduct: annualProduct)
+
         annualTrialDays = extractTrialDays(annualProduct: annualProduct)
     }
 

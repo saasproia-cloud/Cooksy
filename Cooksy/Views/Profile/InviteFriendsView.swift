@@ -69,18 +69,45 @@ struct InviteFriendsView: View {
         .sheet(isPresented: $showsShareSheet) {
             InviteShareSheet(
                 items: [inviteText],
-                onCompletion: { completed in
+                onCompletion: { activityType, completed in
                     // Only count the invite when the user actually sent the
                     // message (Messages, Mail, WhatsApp, etc. tapped Send).
-                    // Cancelling the share sheet returns `completed == false`
-                    // and the counter stays unchanged.
+                    // - Cancelling → completed == false, ignored.
+                    // - Copying the link → completed == true but the
+                    //   activityType is `.copyToPasteboard`; that's not an
+                    //   invite to a real person, so we skip it. Same for
+                    //   the other "self-action" types in the deny-list.
                     guard completed else { return }
+                    guard Self.activityCountsAsInvite(activityType) else { return }
                     OnboardingHaptics.medium()
                     rewards.recordInvite()
                     showSentToast()
                 }
             )
         }
+    }
+
+    /// Activity types that complete successfully but don't represent a
+    /// real invitation to another person. We deny-list these (rather than
+    /// allow-listing Messages/Mail/etc.) so third-party share extensions
+    /// like WhatsApp, Telegram, Signal, Discord, Snapchat, etc. — whose
+    /// activity types are arbitrary bundle identifiers — keep counting.
+    private static func activityCountsAsInvite(_ type: UIActivity.ActivityType?) -> Bool {
+        guard let type else {
+            // `nil` happens when the share sheet auto-dismisses without
+            // an explicit choice. Don't count.
+            return false
+        }
+        let denied: Set<UIActivity.ActivityType> = [
+            .copyToPasteboard,        // "Copier" — link only, no recipient
+            .saveToCameraRoll,
+            .print,
+            .assignToContact,
+            .addToReadingList,
+            .openInIBooks,
+            .markupAsPDF
+        ]
+        return !denied.contains(type)
     }
 
     private func showSentToast() {
@@ -325,19 +352,21 @@ struct InviteFriendsView: View {
 
 /// Wraps `UIActivityViewController` so we can observe whether the user
 /// actually sent the invite. SwiftUI's built-in `ShareLink` doesn't give
-/// us a completion hook — opening the share sheet would always count as
-/// an invite, even if the user backs out. With this wrapper we only fire
-/// `onCompletion(true)` when iOS reports `completed == true` (Messages
-/// tapped Send, Mail tapped Send, etc.). Cancelling reports `false`.
+/// us a completion hook — and the share sheet treats "Copy" as a
+/// successful completion, which we don't want to count as an invitation.
+///
+/// The closure receives both the chosen activity (Messages, Mail,
+/// WhatsApp, "Copy", …) and the completion flag, so the caller can
+/// filter out actions that aren't a real invite to another person.
 private struct InviteShareSheet: UIViewControllerRepresentable {
     let items: [Any]
-    let onCompletion: (Bool) -> Void
+    let onCompletion: (UIActivity.ActivityType?, Bool) -> Void
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        controller.completionWithItemsHandler = { _, completed, _, _ in
+        controller.completionWithItemsHandler = { activityType, completed, _, _ in
             DispatchQueue.main.async {
-                onCompletion(completed)
+                onCompletion(activityType, completed)
             }
         }
         return controller

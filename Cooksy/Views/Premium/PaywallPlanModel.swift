@@ -98,9 +98,15 @@ extension PremiumPlan {
     /// Drives the "soit 2,49 €/mois" line under the CTA on the annual
     /// plan to make the savings feel concrete.
     ///
-    /// `withTrialDays` shaves the equivalent monthly down by the share of the
-    /// year covered for free, so the displayed price drops a few cents when
-    /// the user activates the trial — communicating the value of the offer.
+    /// Returns just the money amount (e.g. `"2,49 €"`) — call sites
+    /// add the `/mois` unit themselves. This keeps the shape identical
+    /// to `PurchaseService.annualMonthlyEquivalentString` so the live
+    /// and fallback paths can never diverge into a `"3,33 €/mois/mois"`
+    /// duplicate-suffix bug.
+    ///
+    /// `withTrialDays` shaves the equivalent monthly down by the share
+    /// of the year covered for free, so the displayed price drops a few
+    /// cents when the user activates the trial.
     func monthlyEquivalentString(discountPercent: Int? = nil, withTrialDays trialDays: Int = 0) -> String? {
         guard self == .yearly else { return nil }
         let total = discountedPrice(percent: discountPercent)
@@ -109,10 +115,7 @@ extension PremiumPlan {
         var rounded = Decimal()
         var raw = perMonth
         NSDecimalRound(&rounded, &raw, 2, .plain)
-        guard let str = Self.priceFormatter.string(from: rounded as NSDecimalNumber) else {
-            return nil
-        }
-        return "\(str)/mois"
+        return Self.priceFormatter.string(from: rounded as NSDecimalNumber)
     }
 
     private static let priceFormatter: NumberFormatter = {

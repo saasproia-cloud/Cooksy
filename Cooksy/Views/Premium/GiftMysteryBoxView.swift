@@ -71,7 +71,7 @@ struct GiftMysteryBoxView: View {
 
                 cta
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 22)
             .padding(.bottom, 30)
 
             if showsConfetti {
@@ -165,18 +165,40 @@ struct GiftMysteryBoxView: View {
     // MARK: - Boxes
 
     private var boxRow: some View {
-        HStack(spacing: 16) {
-            ForEach(0..<3, id: \.self) { index in
-                box(at: index)
+        GeometryReader { geo in
+            let spacing: CGFloat = 12
+            let boxWidth = min((geo.size.width - 2 * spacing) / 3, 110)
+            let boxHeight = boxWidth * (130.0 / 110.0)
+            let iconWidth = boxWidth * (92.0 / 110.0)
+            let iconHeight = boxHeight * (102.0 / 130.0)
+            HStack(spacing: spacing) {
+                ForEach(0..<3, id: \.self) { index in
+                    box(
+                        at: index,
+                        boxWidth: boxWidth,
+                        boxHeight: boxHeight,
+                        iconWidth: iconWidth,
+                        iconHeight: iconHeight
+                    )
+                }
             }
+            .frame(width: geo.size.width, alignment: .center)
         }
-        .frame(maxWidth: .infinity)
+        .frame(height: 158)
     }
 
-    private func box(at index: Int) -> some View {
+    private func box(
+        at index: Int,
+        boxWidth: CGFloat,
+        boxHeight: CGFloat,
+        iconWidth: CGFloat,
+        iconHeight: CGFloat
+    ) -> some View {
         let isSelected = selectedIndex == index
         let isOther = selectedIndex != nil && !isSelected
         let pair = boxColors[index % boxColors.count]
+        let intrinsicScale = iconWidth / 92
+        let stateScale: CGFloat = isSelected ? 1.1 : (isOther ? 0.85 : 1.0)
 
         return VStack(spacing: 8) {
             ZStack {
@@ -192,13 +214,13 @@ struct GiftMysteryBoxView: View {
                     state: boxState(for: index),
                     bobOffset: isSelected || isOther ? 0 : (bobToggle ? -4 : 4)
                 )
-                .frame(width: 92, height: 102)
-                .scaleEffect(isSelected ? 1.1 : (isOther ? 0.85 : 1.0))
+                .frame(width: iconWidth, height: iconHeight)
+                .scaleEffect(intrinsicScale * stateScale)
                 .opacity(isOther ? 0.55 : 1)
                 .animation(.spring(response: 0.5, dampingFraction: 0.72), value: selectedIndex)
                 .animation(.easeInOut(duration: 1.5), value: bobToggle)
             }
-            .frame(width: 110, height: 130)
+            .frame(width: boxWidth, height: boxHeight)
             .contentShape(Rectangle())
             .onTapGesture {
                 handleTap(index: index)

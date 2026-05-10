@@ -71,7 +71,7 @@ struct GiftScratchCardView: View {
 
                 cta
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 22)
             .padding(.bottom, 30)
 
             if showsConfetti {

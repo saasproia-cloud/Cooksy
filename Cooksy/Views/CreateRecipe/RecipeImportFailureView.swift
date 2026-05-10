@@ -125,6 +125,7 @@ struct RecipeImportFailureView: View {
 
     @State private var showsCreateRecipe = false
     @State private var didAppear = false
+    @State private var dragOffset: CGFloat = 0
 
     init(
         store: RecipeStore,
@@ -184,6 +185,7 @@ struct RecipeImportFailureView: View {
                             .delay(0.05),
                         value: didAppear
                     )
+                    .offset(y: dragOffset)
 
                 Button(action: {
                     OnboardingHaptics.medium()
@@ -199,14 +201,60 @@ struct RecipeImportFailureView: View {
                 )
                 .position(
                     x: proxy.size.width / 2,
-                    y: imageHeight(in: proxy) * (2110.0 / 3179.0)
+                    y: imageHeight(in: proxy) * (2110.0 / 3179.0) + dragOffset
                 )
                 .opacity(didAppear ? 1 : 0)
                 .animation(
                     .easeOut(duration: 0.45).delay(0.25),
                     value: didAppear
                 )
+
+                // Subtle drag handle at the very top — tells the user the
+                // screen can be swiped down to dismiss without cluttering the
+                // mockup with a hard "X" close button.
+                Capsule()
+                    .fill(CooksyTheme.ctaOrangeDark.opacity(0.35))
+                    .frame(width: 44, height: 5)
+                    .padding(.top, 8)
+                    .opacity(didAppear ? 1 : 0)
+                    .animation(
+                        .easeOut(duration: 0.4).delay(0.35),
+                        value: didAppear
+                    )
             }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { value in
+                        // Only follow the finger when dragging downward —
+                        // upward drags shouldn't bend the screen.
+                        if value.translation.height > 0 {
+                            dragOffset = value.translation.height
+                        }
+                    }
+                    .onEnded { value in
+                        // Dismiss when the user drags down past ~140 pt or
+                        // flicks down quickly. Otherwise snap back to place.
+                        let dismissDistance: CGFloat = 140
+                        let velocity = value.predictedEndTranslation.height
+                        if value.translation.height > dismissDistance || velocity > 600 {
+                            OnboardingHaptics.selection()
+                            withAnimation(.easeIn(duration: 0.22)) {
+                                dragOffset = 1000
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                                if let secondaryAction = context.secondaryAction {
+                                    secondaryAction()
+                                }
+                                dismiss()
+                            }
+                        } else {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+                                dragOffset = 0
+                            }
+                        }
+                    }
+            )
         }
     }
 

@@ -86,6 +86,12 @@ app.post("/api/import/url", async (request, reply) => {
     }
     return response;
   } catch (error) {
+    if (error instanceof RecipeImportNotFoodError) {
+      // Surface the explicit not_food / not_enough_info reason so the iOS
+      // client can render its dedicated failure screen instead of the
+      // generic "import failed" envelope.
+      throw error;
+    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorType = error instanceof Error ? error.constructor.name : "Unknown";
     const isTimeout = errorMessage.toLowerCase().includes("timeout") ||

@@ -256,7 +256,7 @@ function hasMinimalRecipeSignal(source: ClassifiedSource): boolean {
  *   3. Grouping heuristics (consecutive ingredient-like lines form sections)
  */
 export function parseStructuredRecipe(text: string): ParsedRecipe {
-  const cleaned = normalizeLineWhitespace(text || "");
+  const cleaned = normalizeLineWhitespace(stripCaptionMarkdown(text || ""));
   if (!cleaned) {
     return emptyParsedRecipe();
   }
@@ -298,6 +298,17 @@ function emptyParsedRecipe(): ParsedRecipe {
     rawStepCount: 0,
     hasExplicitSections: false,
   };
+}
+
+// Normalize Markdown emphasis syntax that some captions use to mark sections
+// (e.g. `**La sauce:**`, `__Pour le poulet :__`, `_Marinade_`). The section
+// header regexes operate on plain text, so we strip the wrappers up front.
+function stripCaptionMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*\n]+?)\*\*/g, "$1")
+    .replace(/__([^_\n]+?)__/g, "$1")
+    .replace(/(?<![_*\w])_([^_\n]+?)_(?![_*\w])/g, "$1")
+    .replace(/(?<![_*\w])\*([^*\n]+?)\*(?![_*\w])/g, "$1");
 }
 
 // --- Section Header Detection ---

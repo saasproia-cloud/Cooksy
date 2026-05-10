@@ -23,11 +23,11 @@ struct AppReviewView: View {
 
     private let moodLabels: [String] = [
         "Tape une étoile pour nous noter",
-        "Aïe… on peut faire mieux 🙏",
+        "Aïe… on peut faire mieux.",
         "Pas mal — merci pour ton retour",
-        "Sympa, ça nous touche 🙂",
+        "Sympa, ça nous touche.",
         "Génial — on adore !",
-        "Wow, tu nous rends fous 🤍"
+        "Wow, on adore tellement."
     ]
 
     private var currentMood: String {
@@ -42,75 +42,80 @@ struct AppReviewView: View {
             AnimatedAmbientBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                HStack {
-                    Button {
-                        OnboardingHaptics.selection()
-                        onBack()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                            .frame(width: 38, height: 38)
-                            .background(
-                                Circle()
-                                    .fill(CooksyTheme.elevatedSurface)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(CooksyTheme.stroke, lineWidth: 1)
-                            )
+            GeometryReader { geo in
+                let heroDiameter = min(geo.size.width * 0.68, 240)
+
+                VStack(spacing: 0) {
+                    HStack {
+                        Button {
+                            OnboardingHaptics.selection()
+                            onBack()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(width: 38, height: 38)
+                                .background(
+                                    Circle()
+                                        .fill(CooksyTheme.elevatedSurface)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
+                    .padding(.top, 4)
 
-                    Spacer()
+                    Spacer(minLength: 4)
+
+                    socialProofPill
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : -10)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.05), value: appeared)
+
+                    Spacer(minLength: 12)
+
+                    heroBlock(diameter: heroDiameter)
+                        .opacity(appeared ? 1 : 0)
+                        .scaleEffect(appeared ? 1 : 0.9)
+                        .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.15), value: appeared)
+
+                    Spacer(minLength: 12)
+
+                    copyBlock
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 14)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
+                        .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.28), value: appeared)
+
+                    testimonialCard
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 18)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 14)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.4), value: appeared)
+
+                    starsBlock
+                        .padding(.bottom, 12)
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.45).delay(0.52), value: appeared)
+
+                    Spacer(minLength: 6)
+
+                    ctas
+                        .padding(.bottom, 26)
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5).delay(0.65), value: appeared)
                 }
-                .padding(.top, 4)
-
-                Spacer(minLength: 4)
-
-                socialProofPill
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : -10)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.05), value: appeared)
-
-                Spacer(minLength: 12)
-
-                heroBlock
-                    .opacity(appeared ? 1 : 0)
-                    .scaleEffect(appeared ? 1 : 0.9)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.15), value: appeared)
-
-                Spacer(minLength: 12)
-
-                copyBlock
-                    .frame(maxWidth: .infinity)
-                    .padding(.bottom, 14)
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 12)
-                    .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.28), value: appeared)
-
-                testimonialCard
-                    .frame(maxWidth: .infinity)
-                    .padding(.bottom, 18)
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 14)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.4), value: appeared)
-
-                starsBlock
-                    .padding(.bottom, 12)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.45).delay(0.52), value: appeared)
-
-                Spacer(minLength: 6)
-
-                ctas
-                    .padding(.bottom, 26)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.5).delay(0.65), value: appeared)
+                .frame(maxWidth: 380)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 22)
             }
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity)
         }
         .onAppear {
             appeared = true
@@ -156,8 +161,15 @@ struct AppReviewView: View {
 
     // MARK: - Hero block
 
-    private var heroBlock: some View {
-        ZStack {
+    private func heroBlock(diameter: CGFloat) -> some View {
+        let scale = diameter / 280
+        let centerSize = 104 * scale
+        let positions: [(CGFloat, CGFloat)] = [
+            (-110, -70), (96, -86), (-86, 52),
+            (100, 60), (-70, -8), (84, 4)
+        ]
+
+        return ZStack {
             Circle()
                 .fill(
                     RadialGradient(
@@ -170,18 +182,14 @@ struct AppReviewView: View {
                         endRadius: 160
                     )
                 )
-                .frame(width: 280, height: 280)
+                .frame(width: diameter, height: diameter)
                 .blur(radius: 6)
 
             ForEach(0..<6, id: \.self) { i in
-                let positions: [(CGFloat, CGFloat)] = [
-                    (-110, -70), (96, -86), (-86, 52),
-                    (100, 60), (-70, -8), (84, 4)
-                ]
                 Image(systemName: "sparkle")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 13 * scale, weight: .bold))
                     .foregroundStyle(CooksyTheme.primaryAccentGlow.opacity(0.85))
-                    .offset(x: positions[i].0, y: positions[i].1)
+                    .offset(x: positions[i].0 * scale, y: positions[i].1 * scale)
                     .opacity(sparkle ? 1 : 0.35)
                     .scaleEffect(sparkle ? 1 : 0.7)
             }
@@ -189,21 +197,22 @@ struct AppReviewView: View {
             ZStack {
                 Circle()
                     .fill(CooksyTheme.accentGradient)
-                    .frame(width: 104, height: 104)
+                    .frame(width: centerSize, height: centerSize)
                     .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 22, y: 12)
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 44, weight: .bold))
+                    .font(.system(size: 44 * scale, weight: .bold))
                     .foregroundStyle(.white)
                     .scaleEffect(sparkle ? 1.06 : 1)
             }
         }
+        .frame(width: diameter, height: diameter)
     }
 
     // MARK: - Copy
 
     private var copyBlock: some View {
         VStack(spacing: 8) {
-            Text("Tu nous fais\ngrandir 🌱")
+            Text("Tu nous fais\ngrandir.")
                 .font(.system(size: 28, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
@@ -255,8 +264,8 @@ struct AppReviewView: View {
                 Text("« Plus besoin de revoir 10 fois la vidéo — la recette est là, prête à cuisiner. Un vrai bijou. »")
                     .font(.system(size: 12.5, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
-                    .lineLimit(4)
-                    .minimumScaleFactor(0.85)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.9)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -220,6 +220,10 @@ struct RootTabView: View {
                             "App shared import rejected host=\(draft.hostLabel, privacy: .public) reason=\(assessment.userFacingFailureMessage, privacy: .public)"
                         )
                         lastDeferredSharedImportKey = draft.dedupeKey
+                        // Clear the inbox right away so killing the app while
+                        // the OOPS screen is on screen doesn't replay the same
+                        // failed import on the next launch (infinite loop).
+                        sharedLinkInbox.clear()
                         sharedImportFailureAssessment = assessment
                     }
                 } else {
@@ -236,6 +240,10 @@ struct RootTabView: View {
                 "App shared import failed host=\(draft.hostLabel, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
             lastDeferredSharedImportKey = draft.dedupeKey
+            // Clear the inbox right away so killing the app while the OOPS
+            // screen is on screen doesn't replay the same failed import on
+            // the next launch (infinite loop).
+            sharedLinkInbox.clear()
             // Convert the thrown error into a synthetic failure assessment so
             // the user sees the OOPS error screen (consistent with all other
             // failure paths) instead of a generic iOS alert.

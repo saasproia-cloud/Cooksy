@@ -148,12 +148,13 @@ export async function enrichRecipeNutrition(
   const perServingDivisor = parseServings(recipe.servingsText) ||
     inferRecipeServings(recipe) ||
     1;
-  const perServing = {
+  const rawPerServing = {
     calories: totals.calories / perServingDivisor,
     protein: totals.protein / perServingDivisor,
     carbs: totals.carbs / perServingDivisor,
     fat: totals.fat / perServingDivisor
   };
+  const perServing = sanityBoundPerServing(rawPerServing, recipe);
 
   const shouldApplyUsda = true;
   if (!shouldApplyUsda) {
@@ -181,6 +182,45 @@ export async function enrichRecipeNutrition(
     nutritionCoverage,
     matchedIngredients
   };
+}
+
+/**
+ * Apply realistic per-serving bounds and macro coherence checks.
+ *
+ *  - calories outside [80, 1500] kcal/serving = the divisor or USDA totals
+ *    are wrong; fall back to the dish-type estimate.
+ *  - macro caloric sum (protein*4 + carbs*4 + fat*9) should match
+ *    calories within ±20%; if not, recompute macros from the calorie
+ *    target using a balanced 20/45/35 split.
+ */
+function sanityBoundPerServing(
+  perServing: NutritionTotals,
+  recipe: RecipeImportResult
+): NutritionTotals {
+  const lowerCal = 80;
+  const upperCal = 1500;
+  let { calories, protein, carbs, fat } = perServing;
+
+  if (!Number.isFinite(calories) || calories < lowerCal || calories > upperCal) {
+    const dish = estimateRecipeLevelNutrition(recipe);
+    console.warn(
+      `[sanityBoundPerServing] Per-serving calories out of range (${calories.toFixed(0)} kcal); falling back to dish-type estimate (${dish.calories} kcal).`
+    );
+    return dish;
+  }
+
+  const macroSum = protein * 4 + carbs * 4 + fat * 9;
+  const macroDrift = macroSum > 0 ? Math.abs(macroSum - calories) / calories : 0;
+  if (macroDrift > 0.2) {
+    console.warn(
+      `[sanityBoundPerServing] Macro/calorie drift ${(macroDrift * 100).toFixed(0)}% — recomputing macros from calories.`
+    );
+    protein = Math.round((calories * 0.2) / 4);
+    carbs = Math.round((calories * 0.45) / 4);
+    fat = Math.round((calories * 0.35) / 9);
+  }
+
+  return { calories, protein, carbs, fat };
 }
 
 async function estimateIngredientNutrition(

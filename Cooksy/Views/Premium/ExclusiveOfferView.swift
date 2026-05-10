@@ -35,10 +35,18 @@ struct ExclusiveOfferView: View {
 
     /// Live monthly equivalent of the annual plan, formatted in the
     /// user's currency. Always reflects what Apple will bill — never
-    /// adjusted for a fictional local discount.
+    /// adjusted for a fictional local discount. The string is just the
+    /// money amount (e.g. `"3,33 €"`); call sites add `/mois` themselves.
     private var monthlyEquivalent: String {
         yearlyPlan.liveOrFallbackMonthlyEquivalent
-            ?? "\(yearlyPlan.liveOrFallbackPriceString)/an"
+            ?? yearlyPlan.liveOrFallbackPriceString
+    }
+
+    /// Same number with the `/mois` unit appended — used wherever the
+    /// price is presented standalone (the hero price next to the
+    /// strikethrough, the plan-card right column).
+    private var monthlyEquivalentLabeled: String {
+        "\(monthlyEquivalent)/mois"
     }
 
     /// Live "regular" monthly subscription price (for the strikethrough
@@ -384,7 +392,7 @@ struct ExclusiveOfferView: View {
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .strikethrough()
-                Text(monthlyEquivalent)
+                Text(monthlyEquivalentLabeled)
                     .font(.system(size: 26, weight: .black, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
             }
@@ -492,7 +500,7 @@ struct ExclusiveOfferView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                Text(monthlyEquivalent)
+                Text(monthlyEquivalentLabeled)
                     .font(.system(size: 14, weight: .black, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryAccentStrong)
                     .lineLimit(1)

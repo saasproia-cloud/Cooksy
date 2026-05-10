@@ -89,7 +89,8 @@ export async function buildURLImportResponse(input: {
   }
 
   try {
-    const recipeWithNutrition = await ensureRecipeNutrition(input.recipe);
+    const repairedRecipe = roundCountableIngredientQuantities(repairPerPortionRecipe(input.recipe));
+    const recipeWithNutrition = await ensureRecipeNutrition(repairedRecipe);
     const title = stableTitle(recipeWithNutrition.title);
     const ingredients = normalizeIngredients(recipeWithNutrition.ingredientDrafts, title);
     const steps = ensureCompleteSteps(recipeWithNutrition, title, ingredients);
@@ -193,6 +194,170 @@ function normalizeIngredients(
       seen.add(key);
       return true;
     });
+}
+
+/**
+ * Detect and repair per-portion quantities. The LLM is instructed to emit
+ * total recipe quantities, but occasionally slips and divides by the portion
+ * count (typically 3). The signature is multiple ingredients with fractional
+ * parts ≈ 1/3 or 2/3 (0.3, 13.3, 33.3, 66.7, 83.3, etc.). When we see this
+ * pattern across ≥3 ingredients we multiply by the inferred factor and round
+ * to natural cooking quantities. We also patch `servingsText` so the
+ * downstream nutrition divisor stays in sync.
+ */
+function repairPerPortionRecipe(recipe: RecipeImportResult): RecipeImportResult {
+  const factor = detectPerPortionFactor(recipe.ingredientDrafts);
+  if (factor === null) {
+    return recipe;
+  }
+
+  console.warn(
+    `[repairPerPortionRecipe] Detected /${factor} per-portion division across ingredients; multiplying by ${factor} and patching servingsText.`
+  );
+
+  const repairedDrafts = recipe.ingredientDrafts.map((ing) => {
+    const value = parseRawAmount(ing.amount);
+    if (value === null) return ing;
+    const repaired = roundToNaturalQuantity(value * factor, ing.unit);
+    return { ...ing, amount: formatNaturalAmount(repaired) };
+  });
+
+  const currentServings = parseLeadingInteger(recipe.servingsText);
+  const repairedServingsText =
+    currentServings === null || currentServings <= 1
+      ? `${factor} personnes`
+      : recipe.servingsText;
+
+  return {
+    ...recipe,
+    ingredientDrafts: repairedDrafts,
+    servingsText: repairedServingsText
+  };
+}
+
+/**
+ * Countable ingredients (œuf, citron, oignon, gousse, tortilla, etc.)
+ * never make sense as fractions when no weight/volume unit is attached.
+ * After /3 repair we sometimes still see legacy decimals like `Tenders 1.3`
+ * — clamp them to integers (minimum 1) to avoid kitchen-impossible amounts.
+ */
+const COUNTABLE_INGREDIENT_PATTERNS: RegExp[] = [
+  /\boeufs?\b/i,
+  /\bœufs?\b/i,
+  /\bcitrons?\b/i,
+  /\boignons?\b/i,
+  /\btomates?\b/i,
+  /\bpommes?\b/i,
+  /\b[ée]chalotes?\b/i,
+  /\bgousses?\b/i,
+  /\btranches?\b/i,
+  /\btortillas?\b/i,
+  /\bbuns?\b/i,
+  /\bpains?\s+burger\b/i,
+  /\bpains?\s+brioch[eé]\b/i,
+  /\bescalopes?\b/i,
+  /\bfilets?\b/i,
+  /\bblancs?\s+de\s+poulet\b/i,
+  /\btenders?\b/i,
+  /\bnuggets?\b/i,
+];
+
+const WEIGHT_VOLUME_UNIT_RE = /\b(g|gr|gramme|grammes|kg|mg|ml|cl|dl|l|litre|tasse|cup|oz|lb)\b/i;
+
+function roundCountableIngredientQuantities(recipe: RecipeImportResult): RecipeImportResult {
+  let mutated = false;
+  const drafts = recipe.ingredientDrafts.map((ing) => {
+    const value = parseRawAmount(ing.amount);
+    if (value === null) return ing;
+    if (value === Math.round(value)) return ing;
+
+    const unit = (ing.unit ?? "").toLowerCase().trim();
+    if (WEIGHT_VOLUME_UNIT_RE.test(unit)) return ing;
+
+    const name = ing.name ?? "";
+    const isCountable = COUNTABLE_INGREDIENT_PATTERNS.some((re) => re.test(name));
+    if (!isCountable) return ing;
+
+    const rounded = Math.max(1, Math.round(value));
+    if (rounded === value) return ing;
+
+    mutated = true;
+    return { ...ing, amount: String(rounded) };
+  });
+
+  if (!mutated) return recipe;
+  console.warn(
+    "[roundCountableIngredientQuantities] Rounded one or more countable ingredient quantities to integers."
+  );
+  return { ...recipe, ingredientDrafts: drafts };
+}
+
+function detectPerPortionFactor(ingredients: RecipeIngredientDraft[]): number | null {
+  let thirdSignals = 0;
+  for (const ing of ingredients) {
+    const value = parseRawAmount(ing.amount);
+    if (value !== null && looksLikeThirdDivision(value)) {
+      thirdSignals++;
+    }
+  }
+  if (thirdSignals >= 3) return 3;
+  return null;
+}
+
+function parseLeadingInteger(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d+)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseRawAmount(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.replace(",", ".").trim().match(/^(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function looksLikeThirdDivision(value: number): boolean {
+  if (value <= 0 || value > 10_000) return false;
+  const fractional = value - Math.floor(value);
+  const tol = 0.05;
+  return (
+    Math.abs(fractional - 1 / 3) < tol ||
+    Math.abs(fractional - 2 / 3) < tol ||
+    Math.abs(fractional - 0.3) < tol ||
+    Math.abs(fractional - 0.7) < tol
+  );
+}
+
+function roundToNaturalQuantity(value: number, rawUnit: string | undefined): number {
+  const unit = (rawUnit ?? "").toLowerCase().trim();
+
+  const isWeightOrVolume = /\b(g|gr|gramme|grammes|kg|mg|ml|cl|dl|l|litre|tasse|cup)\b/.test(unit);
+  if (isWeightOrVolume) {
+    if (value < 1) return Math.round(value * 10) / 10;
+    if (value < 5) return Math.round(value * 2) / 2;
+    if (value < 50) return Math.round(value / 5) * 5;
+    if (value < 250) return Math.round(value / 10) * 10;
+    if (value < 500) return Math.round(value / 25) * 25;
+    return Math.round(value / 50) * 50;
+  }
+
+  const isSpoonOrPinch = /(c\.?\s*[àa]\s*(?:soupe|caf[ée])|cuill|c\.s|c\.c|cas|cac|tbsp|tsp|pinc|trait|filet)/.test(unit);
+  if (isSpoonOrPinch) {
+    if (value < 1) return Math.round(value * 2) / 2 || 0.5;
+    return Math.round(value * 2) / 2;
+  }
+
+  return Math.max(1, Math.round(value));
+}
+
+function formatNaturalAmount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  if (Number.isInteger(value)) return String(value);
+  return String(Math.round(value * 10) / 10);
 }
 
 function normalizeSteps(

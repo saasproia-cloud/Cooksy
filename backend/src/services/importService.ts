@@ -79,11 +79,12 @@ type ImportedPageSummary = {
 
 export class RecipeImportNotFoodError extends Error {
   readonly error = "not_food";
-  readonly reason = "no_food_detected";
+  readonly reason: string;
 
-  constructor() {
+  constructor(reason: string = "no_food_detected") {
     super("not_food");
     this.name = "RecipeImportNotFoodError";
+    this.reason = reason;
   }
 }
 
@@ -810,6 +811,22 @@ export async function importFromUrl(input: {
       );
       bestValidatedRecipe = compilerResult.recipe;
     }
+  }
+
+  // Graceful "not enough info" fallback: when caption is sparse, no
+  // transcript was usable, and the recipe ended up basically empty, fail
+  // explicitly instead of returning a half-fabricated recipe. The iOS
+  // client renders a clean error screen for this code.
+  if (
+    captionWasSparse &&
+    !transcript &&
+    !usedWebFallback &&
+    bestValidatedRecipe.ingredientDrafts.filter((i) => i.name?.trim()).length < 2
+  ) {
+    console.warn(
+      `[importService] No usable caption, transcript or web fallback for ${canonicalSourceURL}; raising not_enough_info.`
+    );
+    throw new RecipeImportNotFoodError("not_enough_info");
   }
 
   const finalizedRecipe = await finalizeImportedRecipe(bestValidatedRecipe, {

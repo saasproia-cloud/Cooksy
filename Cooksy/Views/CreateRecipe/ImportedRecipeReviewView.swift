@@ -6,6 +6,7 @@ import UIKit
 struct ImportedRecipeReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @EnvironmentObject private var sessionStore: SessionStore
 
     private let store: RecipeStore
     private let onSaved: ((Recipe.ID) -> Void)?
@@ -17,6 +18,9 @@ struct ImportedRecipeReviewView: View {
     @State private var showsStepByStep = false
     @State private var showsBookPicker = false
     @State private var showsCreateBookSheet = false
+    @State private var showsPaywall = false
+
+    private var isPremium: Bool { sessionStore.isPremium }
 
     init(
         store: RecipeStore,
@@ -125,6 +129,25 @@ struct ImportedRecipeReviewView: View {
         }
         .fullScreenCover(isPresented: $showsStepByStep) {
             StepByStepCookingView(recipeTitle: viewModel.title, steps: viewModel.instructions)
+        }
+        .fullScreenCover(isPresented: $showsPaywall) {
+            NavigationStack {
+                PremiumPaywallView(
+                    allowsFreeModeDismiss: false,
+                    onDismissToFreeMode: { showsPaywall = false }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: { showsPaywall = false }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(CooksyTheme.elevatedSurface))
+                        }
+                    }
+                }
+            }
         }
         .safeAreaInset(edge: .bottom) {
             saveArea
@@ -586,15 +609,29 @@ struct ImportedRecipeReviewView: View {
         case .steps:
             RecipeStepsTabView(
                 steps: viewModel.instructions,
-                onCookStepByStep: { showsStepByStep = true }
+                cookModeIsLocked: !isPremium,
+                onCookStepByStep: {
+                    if isPremium {
+                        showsStepByStep = true
+                    } else {
+                        showsPaywall = true
+                    }
+                }
             )
         case .nutrition:
-            RecipeNutritionTabView(
-                perServingNutrition: viewModel.perServingNutritionDisplay,
-                totalNutrition: viewModel.totalNutritionDisplay,
-                isEstimated: viewModel.nutritionIsEstimated,
-                currentServings: viewModel.currentServings
-            )
+            LockedFeatureOverlay(
+                title: "Nutrition réservée à Cooksy Plus",
+                subtitle: "Calories, macros et valeurs nutritionnelles complètes pour chaque recette importée.",
+                isLocked: !isPremium,
+                onUnlockTap: { showsPaywall = true }
+            ) {
+                RecipeNutritionTabView(
+                    perServingNutrition: viewModel.perServingNutritionDisplay,
+                    totalNutrition: viewModel.totalNutritionDisplay,
+                    isEstimated: viewModel.nutritionIsEstimated,
+                    currentServings: viewModel.currentServings
+                )
+            }
         }
     }
 

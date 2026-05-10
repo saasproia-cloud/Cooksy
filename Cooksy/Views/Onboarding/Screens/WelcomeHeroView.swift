@@ -1,9 +1,27 @@
 import SwiftUI
 
 /// A1 — Welcome hero.
-/// Central "phone" rendered entirely in SwiftUI mocks a looping vertical
-/// feed to make the product promise (TikTok/Reel → recipe) tangible before
-/// the user even taps anything.
+///
+/// Direction artistique
+/// --------------------
+/// Premium éditorial, pas de gadget, pas d'emoji. Le hero raconte
+/// littéralement la magie produit : une carte vidéo (façon TikTok/Reel)
+/// se transforme en carte recette propre, reliées par un bridge animé.
+/// L'utilisateur voit, en un coup d'œil, ce que l'app fait — sans
+/// avoir à lire un seul mot.
+///
+///   • Fond ambiant chaleureux (deux blobs qui respirent)
+///   • Carte vidéo 9:16 floutée à gauche (avatar, handle, durée, play)
+///   • Bridge central : capsule orange avec icône wand.and.stars qui
+///     pulse, particules lumineuses traversant gauche → droite
+///   • Carte recette propre à droite : titre, time chip, ingrédients
+///   • Les deux cartes flottent indépendamment (parallaxe), tilt 3D
+///     très léger
+///   • Wordmark serif fin en haut, headline confiante en bas, un seul
+///     CTA capsule + bouton inline "Déjà un compte ?"
+///
+/// Aucune image bitmap : tout est dessiné en SwiftUI, donc parfaitement
+/// net sur tous les écrans Retina, et adaptatif sur tous les iPhone.
 struct WelcomeHeroView: View {
     let onContinue: () -> Void
     let onExistingAccount: () -> Void
@@ -15,87 +33,97 @@ struct WelcomeHeroView: View {
             AnimatedAmbientBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 24)
+            GeometryReader { geo in
+                let availableWidth = geo.size.width - 48
+                let bridgeWidth: CGFloat = 50
+                let cardWidth = min((availableWidth - bridgeWidth) / 2, 142)
+                let cardHeight = cardWidth * 1.42
 
-                PhoneMockup()
-                    .frame(maxWidth: 200)
-                    .scaleEffect(heroAppeared ? 1 : 0.9)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 18)
+
+                    Text("Cooksy")
+                        .font(.system(size: 18, weight: .semibold, design: .serif))
+                        .tracking(0.5)
+                        .foregroundStyle(CooksyTheme.primaryText.opacity(0.85))
+                        .opacity(heroAppeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.45), value: heroAppeared)
+
+                    Spacer(minLength: 28)
+
+                    TransformationHero(
+                        cardWidth: cardWidth,
+                        cardHeight: cardHeight,
+                        bridgeWidth: bridgeWidth,
+                        appeared: heroAppeared
+                    )
+                    .frame(height: cardHeight + 30)
+
+                    Spacer(minLength: 26)
+
+                    VStack(spacing: 6) {
+                        Text("Une vidéo.\nUne recette.")
+                            .font(.system(size: 32, weight: .bold, design: .serif))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(-2)
+                            .minimumScaleFactor(0.8)
+                            .lineLimit(3)
+                    }
+                    .frame(maxWidth: .infinity)
                     .opacity(heroAppeared ? 1 : 0)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.1), value: heroAppeared)
+                    .offset(y: heroAppeared ? 0 : 14)
+                    .animation(
+                        .spring(response: 0.55, dampingFraction: 0.85).delay(0.35),
+                        value: heroAppeared
+                    )
 
-                Spacer(minLength: 24)
+                    Spacer(minLength: 22)
 
-                // Width is pinned to UIScreen.main.bounds.width minus the desired
-                // 22pt padding on each side. SwiftUI's layout was repeatedly
-                // ignoring `.padding(.horizontal)` on this particular VStack
-                // (we confirmed with a debug Rectangle that even an explicit
-                // padded shape was rendering edge-to-edge), so we bypass the
-                // padding chain entirely with an absolute frame width.
-                let textWidth = max(UIScreen.main.bounds.width - 44, 0)
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Transforme n'importe quelle vidéo en recette parfaite.")
-                        .font(.system(size: 22, weight: .bold, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(4)
-                        .minimumScaleFactor(0.6)
-
-                    Text("Colle un lien TikTok, Instagram ou YouTube — on extrait la recette en 15 secondes. Tu n'as plus qu'à cuisiner.")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(5)
-                        .minimumScaleFactor(0.7)
-                }
-                .frame(width: textWidth, alignment: .leading)
-                .padding(.bottom, 24)
-                .opacity(heroAppeared ? 1 : 0)
-                .offset(y: heroAppeared ? 0 : 12)
-                .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.25), value: heroAppeared)
-
-                VStack(spacing: 14) {
-                    Button(action: {
-                        OnboardingHaptics.medium()
-                        onContinue()
-                    }) {
-                        Text("Commencer")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            OnboardingHaptics.medium()
+                            onContinue()
+                        }) {
+                            HStack(spacing: 8) {
+                                Text("Commencer")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 14, weight: .bold))
+                            }
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 54)
+                            .frame(height: 56)
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(CooksyTheme.accentGradient)
                             )
-                            .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 10)
-                    }
-                    .buttonStyle(CooksyTheme.pressScale())
-
-                    Button(action: {
-                        OnboardingHaptics.selection()
-                        onExistingAccount()
-                    }) {
-                        HStack(spacing: 4) {
-                            Text("Tu as déjà un compte ?")
-                                .foregroundStyle(CooksyTheme.secondaryText)
-                            Text("Se connecter")
-                                .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                            .shadow(color: CooksyTheme.primaryAccent.opacity(0.40), radius: 18, y: 10)
                         }
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .buttonStyle(CooksyTheme.pressScale())
+
+                        Button(action: {
+                            OnboardingHaptics.selection()
+                            onExistingAccount()
+                        }) {
+                            HStack(spacing: 4) {
+                                Text("Déjà un compte ?")
+                                    .foregroundStyle(CooksyTheme.secondaryText)
+                                Text("Se connecter")
+                                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                            }
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 28)
+                    .opacity(heroAppeared ? 1 : 0)
+                    .animation(.easeOut(duration: 0.5).delay(0.55), value: heroAppeared)
                 }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 30)
-                .opacity(heroAppeared ? 1 : 0)
-                .animation(.easeOut(duration: 0.5).delay(0.55), value: heroAppeared)
+                .frame(width: geo.size.width)
+                .padding(.horizontal, 24)
             }
-            // Lock the outer VStack to the ZStack's full width. Without this
-            // the VStack can size to its tightest child and ZStack's default
-            // centre alignment causes children with `.frame(maxWidth:.infinity)`
-            // to bleed past both screen edges on iPhone 17 Pro.
-            .frame(maxWidth: .infinity)
         }
         .onAppear { heroAppeared = true }
     }
@@ -108,12 +136,11 @@ struct AnimatedAmbientBackground: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            let drift = CGFloat((sin(t * 0.4) + 1) * 0.5) // 0…1
+            let drift = CGFloat((sin(t * 0.4) + 1) * 0.5)
 
             ZStack {
                 CooksyTheme.ambientGradient
 
-                // Warm orange blob that drifts
                 Circle()
                     .fill(
                         RadialGradient(
@@ -130,7 +157,6 @@ struct AnimatedAmbientBackground: View {
                     .offset(x: -120 + drift * 60, y: -260 + drift * 40)
                     .blur(radius: 20)
 
-                // Second warm blob bottom-right
                 Circle()
                     .fill(
                         RadialGradient(
@@ -147,295 +173,393 @@ struct AnimatedAmbientBackground: View {
                     .offset(x: 140 - drift * 40, y: 320 - drift * 60)
                     .blur(radius: 24)
             }
-            // Without this, the ZStack reports the natural size of the
-            // 540×540 blob circles to its parent. Any consumer placing
-            // this background inside another ZStack alongside a VStack
-            // with `.frame(maxWidth: .infinity)` ends up with the VStack
-            // bleeding past both screen edges. Pinning the background
-            // to its container fixes that at the source.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
     }
 }
 
-// MARK: - Phone mockup
+// MARK: - Transformation hero (centerpiece)
 
-/// Phone mockup that visualises the "video → clean recipe" promise: a small
-/// TikTok-style video preview at the top, an orange "magic" arrow, and a
-/// crisp recipe card filling the rest of the screen with a title, hero
-/// gradient, ingredients, and steps. Pure SwiftUI — no image assets.
-private struct PhoneMockup: View {
-    @State private var sparklePulse = false
+/// Two floating cards (video → recipe) connected by an animated bridge.
+/// Each card oscillates with its own sin/cos so the parallax feels
+/// organic. Three "magic dust" particles travel from the video card to
+/// the recipe card on a continuous loop, anchoring the bridge metaphor.
+private struct TransformationHero: View {
+    let cardWidth: CGFloat
+    let cardHeight: CGFloat
+    let bridgeWidth: CGFloat
+    let appeared: Bool
 
     var body: some View {
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = w * 2.05
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let videoY = sin(t * 0.55) * 4.0
+            let recipeY = sin(t * 0.55 + 1.2) * 4.0
+            let videoTilt = cos(t * 0.42) * 1.6
+            let recipeTilt = cos(t * 0.42 + 0.8) * 1.6
+            let bridgePulse = (sin(t * 1.4) + 1) * 0.5
+            let dustPhase = (t * 0.7).truncatingRemainder(dividingBy: 1.0)
 
-            ZStack {
-                // Outer phone frame
-                RoundedRectangle(cornerRadius: w * 0.18, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color(hex: 0x1A1418), Color(hex: 0x070506)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .shadow(color: Color.black.opacity(0.28), radius: 30, y: 18)
-                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.18), radius: 26, y: 0)
+            HStack(spacing: 0) {
+                VideoPreviewCardArt()
+                    .frame(width: cardWidth, height: cardHeight)
+                    .offset(x: appeared ? 0 : -30, y: videoY)
+                    .rotation3DEffect(
+                        .degrees(videoTilt),
+                        axis: (x: 0, y: 1, z: 0),
+                        perspective: 0.6
+                    )
+                    .opacity(appeared ? 1 : 0)
+                    .animation(
+                        .spring(response: 0.7, dampingFraction: 0.78).delay(0.1),
+                        value: appeared
+                    )
 
-                // Inner bezel
-                RoundedRectangle(cornerRadius: w * 0.16, style: .continuous)
-                    .fill(Color.black)
-                    .padding(w * 0.022)
+                Spacer(minLength: 0)
+                    .frame(width: bridgeWidth)
+                    .overlay(
+                        TransformationBridge(
+                            pulse: bridgePulse,
+                            dustPhase: CGFloat(dustPhase),
+                            width: bridgeWidth
+                        )
+                        .opacity(appeared ? 1 : 0)
+                        .scaleEffect(appeared ? 1 : 0.5)
+                        .animation(
+                            .spring(response: 0.5, dampingFraction: 0.75).delay(0.25),
+                            value: appeared
+                        )
+                    )
 
-                // Screen content
-                PhoneScreen(sparklePulse: sparklePulse)
-                    .clipShape(RoundedRectangle(cornerRadius: w * 0.14, style: .continuous))
-                    .padding(w * 0.05)
-
-                // Dynamic island
-                Capsule(style: .continuous)
-                    .fill(Color.black)
-                    .frame(width: w * 0.34, height: h * 0.034)
-                    .offset(y: -h * 0.455)
-
-                // Subtle glass highlight on the frame
-                RoundedRectangle(cornerRadius: w * 0.18, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.22), Color.white.opacity(0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
+                MiniRecipeCardArt(width: cardWidth, height: cardHeight)
+                    .offset(x: appeared ? 0 : 30, y: recipeY)
+                    .rotation3DEffect(
+                        .degrees(recipeTilt),
+                        axis: (x: 0, y: 1, z: 0),
+                        perspective: 0.6
+                    )
+                    .opacity(appeared ? 1 : 0)
+                    .animation(
+                        .spring(response: 0.7, dampingFraction: 0.78).delay(0.18),
+                        value: appeared
                     )
             }
-            .frame(width: w, height: h)
-        }
-        .aspectRatio(1 / 2.05, contentMode: .fit)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
-                sparklePulse = true
-            }
+            .frame(maxWidth: .infinity)
         }
     }
 }
 
-private struct PhoneScreen: View {
-    let sparklePulse: Bool
+// MARK: - Video preview card (left)
 
+/// Simulated TikTok/Reel preview: dark gradient background, abstract
+/// blurred "kitchen" blobs, play icon, social handle and a duration
+/// chip. Communicates "vertical short-form video" without any emoji.
+private struct VideoPreviewCardArt: View {
     var body: some View {
-        GeometryReader { proxy in
-            let h = proxy.size.height
-            let w = proxy.size.width
+        ZStack {
+            // Dark moody backdrop (kitchen vibe).
+            LinearGradient(
+                colors: [
+                    Color(hex: 0x2A1810),
+                    Color(hex: 0x4A2818),
+                    Color(hex: 0x6B3220)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
+            // Abstract blurred color blobs — read as out-of-focus food.
+            Circle()
+                .fill(Color(hex: 0xF59E2B).opacity(0.55))
+                .frame(width: 80, height: 80)
+                .offset(x: -28, y: -32)
+                .blur(radius: 18)
+
+            Circle()
+                .fill(Color(hex: 0xC1452A).opacity(0.5))
+                .frame(width: 70, height: 70)
+                .offset(x: 32, y: 28)
+                .blur(radius: 16)
+
+            Circle()
+                .fill(Color(hex: 0x6BA13A).opacity(0.35))
+                .frame(width: 50, height: 50)
+                .offset(x: -20, y: 40)
+                .blur(radius: 14)
+
+            // Play glyph at center.
             ZStack {
-                Color(hex: 0xFFF9F1)
+                Circle()
+                    .fill(.white.opacity(0.18))
+                    .frame(width: 44, height: 44)
+                Circle()
+                    .stroke(.white.opacity(0.35), lineWidth: 1)
+                    .frame(width: 44, height: 44)
+                Image(systemName: "play.fill")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(.white)
+                    .offset(x: 1.5)
+            }
 
-                VStack(spacing: 0) {
-                    Spacer().frame(height: h * 0.07) // top notch padding
-
-                    // Source video chip
-                    HStack(spacing: 6) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 8, weight: .bold))
+            // Top chrome: source dot + duration.
+            VStack {
+                HStack {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 5, height: 5)
+                        Text("LIVE")
+                            .font(.system(size: 7.5, weight: .black, design: .rounded))
+                            .tracking(1.0)
                             .foregroundStyle(.white)
-                            .frame(width: 14, height: 14)
-                            .background(Circle().fill(Color.black.opacity(0.85)))
-                        Text("tiktok.com/@chef")
-                            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Color(hex: 0x4A3F36))
-                            .lineLimit(1)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
                     .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.white)
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color(hex: 0xE9DCC8), lineWidth: 0.5)
+                        Capsule().fill(Color.black.opacity(0.45))
                     )
 
-                    // Magic arrow
-                    VStack(spacing: 3) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(CooksyTheme.primaryAccent)
-                            .scaleEffect(sparklePulse ? 1.15 : 0.95)
-                        Image(systemName: "arrow.down")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(CooksyTheme.primaryAccent.opacity(0.7))
-                    }
-                    .padding(.top, 6)
-                    .padding(.bottom, 4)
+                    Spacer()
 
-                    // Recipe card
-                    RecipeCardMock()
-                        .padding(.horizontal, w * 0.06)
+                    Text("0:32")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule().fill(Color.black.opacity(0.45))
+                        )
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+
+                Spacer()
+            }
+
+            // Bottom chrome: avatar + handle.
+            VStack {
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: 0xFFB35A), Color(hex: 0xE76F2A)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            Circle().stroke(.white, lineWidth: 1)
+                        )
+                        .frame(width: 18, height: 18)
+
+                    Text("@chef.luna")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
 
                     Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 10)
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.25), lineWidth: 0.6)
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 18, y: 10)
     }
 }
 
-private struct RecipeCardMock: View {
+// MARK: - Recipe card (right)
+
+/// Compact recipe card with an orange header bar (no full pasta art —
+/// kept minimal to keep the right card visually paired with the video
+/// card on the left). Title + time chip + 3 ingredient rows.
+private struct MiniRecipeCardArt: View {
+    let width: CGFloat
+    let height: CGFloat
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Hero image
+            // Top warm band — communicates "cooking".
             ZStack {
                 LinearGradient(
-                    colors: [Color(hex: 0xF7B26A), Color(hex: 0xE76F2A)],
+                    colors: [
+                        Color(hex: 0xFFD9A8),
+                        Color(hex: 0xF5A056),
+                        Color(hex: 0xE76F2A)
+                    ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
 
-                // Plated dish silhouette
+                LinearGradient(
+                    colors: [Color.white.opacity(0.20), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .center
+                )
+
+                // Tiny stylised plate — nest of pasta evoked by 3 thin arcs.
                 ZStack {
                     Circle()
                         .fill(Color.white.opacity(0.22))
-                        .frame(width: 64, height: 64)
+                        .frame(width: 50, height: 50)
                     Circle()
-                        .fill(Color.white.opacity(0.30))
-                        .frame(width: 44, height: 44)
-                    ForEach(0..<6, id: \.self) { i in
-                        let angle = Double(i) / 6 * 2 * .pi
+                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                        .frame(width: 42, height: 42)
+                    ForEach(0..<3, id: \.self) { i in
+                        let size = CGFloat(14 + i * 8)
                         Circle()
-                            .fill(Color(hex: 0x6B8E3A).opacity(0.85))
-                            .frame(width: 6, height: 6)
-                            .offset(
-                                x: CGFloat(cos(angle)) * 16,
-                                y: CGFloat(sin(angle)) * 16
+                            .stroke(
+                                Color(hex: 0xFFF0D6).opacity(0.75 - Double(i) * 0.18),
+                                lineWidth: 1.4
                             )
+                            .frame(width: size, height: size)
                     }
                 }
 
+                // Time chip top-right.
                 VStack {
                     HStack {
                         Spacer()
                         HStack(spacing: 3) {
                             Image(systemName: "clock.fill")
-                                .font(.system(size: 7, weight: .bold))
+                                .font(.system(size: 7.5, weight: .bold))
                             Text("15 min")
-                                .font(.system(size: 8, weight: .bold, design: .rounded))
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.black.opacity(0.35)))
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.black.opacity(0.30))
+                        )
                     }
                     Spacer()
                 }
-                .padding(6)
+                .padding(7)
             }
-            .frame(height: 78)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(height: height * 0.42)
 
-            // Title
-            Text("Pasta au pesto")
-                .font(.system(size: 12, weight: .bold, design: .serif))
-                .foregroundStyle(Color(hex: 0x2A211B))
-                .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Pâtes au pesto")
+                    .font(.system(size: 13.5, weight: .bold, design: .serif))
+                    .foregroundStyle(Color(hex: 0x2A1B12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
-            HStack(spacing: 4) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 6, weight: .bold))
-                Text("2 pers.")
-                    .font(.system(size: 7.5, weight: .semibold, design: .rounded))
-                Circle()
-                    .fill(Color(hex: 0xC8B89D))
-                    .frame(width: 2, height: 2)
-                Text("Facile")
-                    .font(.system(size: 7.5, weight: .semibold, design: .rounded))
-            }
-            .foregroundStyle(Color(hex: 0x8A7A65))
-            .padding(.top, 2)
-
-            // Ingredients section
-            HStack(spacing: 4) {
                 Rectangle()
-                    .fill(CooksyTheme.primaryAccent)
-                    .frame(width: 2, height: 8)
-                    .clipShape(Capsule())
-                Text("Ingrédients")
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x2A211B))
-            }
-            .padding(.top, 8)
+                    .fill(Color(hex: 0xEFE3CE))
+                    .frame(height: 0.6)
+                    .padding(.vertical, 1)
 
-            VStack(alignment: .leading, spacing: 3) {
-                IngredientLine(emoji: "🍝", text: "200g de pâtes")
-                IngredientLine(emoji: "🌿", text: "30g de basilic frais")
-                IngredientLine(emoji: "🧀", text: "40g de parmesan")
-            }
-            .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    miniIngredient("200 g de pâtes")
+                    miniIngredient("30 g de basilic frais")
+                    miniIngredient("40 g de parmesan")
+                }
 
-            // Steps section
-            HStack(spacing: 4) {
-                Rectangle()
-                    .fill(CooksyTheme.primaryAccent)
-                    .frame(width: 2, height: 8)
-                    .clipShape(Capsule())
-                Text("Étapes")
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: 0x2A211B))
+                HStack(spacing: 3) {
+                    Text("+ 4 ingrédients")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 7, weight: .bold))
+                }
+                .foregroundStyle(CooksyTheme.primaryAccent)
+                .padding(.top, 1)
             }
-            .padding(.top, 6)
-
-            VStack(alignment: .leading, spacing: 3) {
-                StepLine(number: 1, text: "Cuire les pâtes")
-                StepLine(number: 2, text: "Mixer le pesto")
-            }
-            .padding(.top, 4)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 10)
         }
-        .padding(8)
+        .frame(width: width, height: height)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.white)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color(hex: 0xEFE3CE), lineWidth: 0.6)
         )
-        .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: Color.black.opacity(0.10), radius: 22, y: 14)
+        .shadow(color: CooksyTheme.primaryAccent.opacity(0.18), radius: 28, y: 0)
     }
-}
 
-private struct IngredientLine: View {
-    let emoji: String
-    let text: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text(emoji)
-                .font(.system(size: 8))
+    private func miniIngredient(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(CooksyTheme.primaryAccent)
+                .frame(width: 4, height: 4)
             Text(text)
-                .font(.system(size: 8, weight: .medium, design: .rounded))
-                .foregroundStyle(Color(hex: 0x4A3F36))
+                .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                .foregroundStyle(Color(hex: 0x3A2A1F))
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
     }
 }
 
-private struct StepLine: View {
-    let number: Int
-    let text: String
+// MARK: - Bridge between the two cards
+
+/// Pulsing orange capsule with a wand glyph, plus 3 magic-dust
+/// particles travelling left → right on a continuous loop. The bridge
+/// is the visual metaphor for the AI transformation.
+private struct TransformationBridge: View {
+    let pulse: Double
+    let dustPhase: CGFloat
+    let width: CGFloat
 
     var body: some View {
-        HStack(spacing: 5) {
-            Text("\(number)")
-                .font(.system(size: 7, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 12, height: 12)
-                .background(Circle().fill(CooksyTheme.primaryAccent))
-            Text(text)
-                .font(.system(size: 8, weight: .medium, design: .rounded))
-                .foregroundStyle(Color(hex: 0x4A3F36))
-                .lineLimit(1)
+        ZStack {
+            // Magic dust particles travelling across.
+            ForEach(0..<3, id: \.self) { i in
+                let phase = (dustPhase + CGFloat(i) * 0.33).truncatingRemainder(dividingBy: 1.0)
+                let progress = phase
+                let x = -width / 2 + width * progress
+                let y = sin(Double(progress) * .pi * 2) * 6
+                let opacity = sin(Double(progress) * .pi)
+
+                Circle()
+                    .fill(CooksyTheme.primaryAccentGlow)
+                    .frame(width: 4, height: 4)
+                    .offset(x: x, y: y)
+                    .opacity(opacity * 0.9)
+                    .blur(radius: 0.5)
+            }
+
+            // Soft halo behind the badge.
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            CooksyTheme.primaryAccentGlow.opacity(0.5 + pulse * 0.3),
+                            CooksyTheme.primaryAccentGlow.opacity(0)
+                        ],
+                        center: .center,
+                        startRadius: 4,
+                        endRadius: 30
+                    )
+                )
+                .frame(width: 60, height: 60)
+                .blur(radius: 6)
+
+            // Badge.
+            ZStack {
+                Circle()
+                    .fill(CooksyTheme.accentGradient)
+                    .frame(width: 36, height: 36)
+                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.45), radius: 10, y: 4)
+
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .scaleEffect(1.0 + CGFloat(pulse) * 0.06)
         }
     }
 }

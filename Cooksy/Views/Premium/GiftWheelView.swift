@@ -71,7 +71,7 @@ struct GiftWheelView: View {
 
                 cta
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 22)
             .padding(.bottom, 30)
 
             if showsConfetti {
@@ -159,69 +159,77 @@ struct GiftWheelView: View {
     // MARK: - Wheel
 
     private var wheel: some View {
-        ZStack {
-            // Outer ring — gives the wheel a polished frame.
-            Circle()
-                .fill(CooksyTheme.elevatedSurface)
-                .shadow(color: .black.opacity(0.08), radius: 24, y: 12)
-                .frame(width: 312, height: 312)
-                .overlay(
-                    Circle()
-                        .stroke(CooksyTheme.stroke, lineWidth: 6)
-                )
+        GeometryReader { geo in
+            let outerSize = min(geo.size.width - 8, 312)
+            let innerSize = outerSize * (280.0 / 312.0)
+            let hubSize = outerSize * (76.0 / 312.0)
+            let labelRadius = outerSize * (92.0 / 312.0)
+            let pointerWidth = outerSize * (28.0 / 312.0)
+            let pointerHeight = outerSize * (22.0 / 312.0)
+            let pointerOffset = -outerSize / 2
 
-            // Six pie slices.
             ZStack {
-                ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                    GiftWheelSliceShape(
-                        startAngle: angle(for: index),
-                        endAngle: angle(for: index + 1)
-                    )
-                    .fill(segment.color)
+                // Outer ring — gives the wheel a polished frame.
+                Circle()
+                    .fill(CooksyTheme.elevatedSurface)
+                    .shadow(color: .black.opacity(0.08), radius: 24, y: 12)
+                    .frame(width: outerSize, height: outerSize)
                     .overlay(
+                        Circle()
+                            .stroke(CooksyTheme.stroke, lineWidth: 6)
+                    )
+
+                // Six pie slices.
+                ZStack {
+                    ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
                         GiftWheelSliceShape(
                             startAngle: angle(for: index),
                             endAngle: angle(for: index + 1)
                         )
-                        .stroke(.white.opacity(0.95), lineWidth: 2)
+                        .fill(segment.color)
+                        .overlay(
+                            GiftWheelSliceShape(
+                                startAngle: angle(for: index),
+                                endAngle: angle(for: index + 1)
+                            )
+                            .stroke(.white.opacity(0.95), lineWidth: 2)
+                        )
+
+                        sliceLabel(segment, at: index, radius: labelRadius)
+                    }
+                }
+                .frame(width: innerSize, height: innerSize)
+                .clipShape(Circle())
+                .rotationEffect(.degrees(rotation))
+
+                // Center hub — anchors the wheel and hosts the spin button
+                // when idle.
+                Circle()
+                    .fill(CooksyTheme.background)
+                    .frame(width: hubSize, height: hubSize)
+                    .overlay(
+                        Circle()
+                            .stroke(CooksyTheme.stroke, lineWidth: 2)
+                    )
+                    .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
+                    .overlay(
+                        Image(systemName: phase == .won ? "sparkles" : "gift.fill")
+                            .font(.system(size: hubSize * 0.32, weight: .bold))
+                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
                     )
 
-                    sliceLabel(segment, at: index)
-                }
-            }
-            .frame(width: 280, height: 280)
-            .clipShape(Circle())
-            .rotationEffect(.degrees(rotation))
-
-            // Center hub — anchors the wheel and hosts the spin button
-            // when idle.
-            Circle()
-                .fill(CooksyTheme.background)
-                .frame(width: 76, height: 76)
-                .overlay(
-                    Circle()
-                        .stroke(CooksyTheme.stroke, lineWidth: 2)
-                )
-                .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
-                .overlay(
-                    Image(systemName: phase == .won ? "sparkles" : "gift.fill")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                )
-
-            // Pointer at the top of the wheel — fixed (not rotating).
-            // Slice 0 (the −25 %) sits centred at the top, so the
-            // pointer always lands on it once the rotation settles.
-            VStack {
+                // Pointer at the top of the wheel — fixed (not rotating).
+                // Slice 0 (the −25 %) sits centred at the top, so the
+                // pointer always lands on it once the rotation settles.
                 Triangle()
                     .fill(CooksyTheme.ctaOrangeDark)
-                    .frame(width: 28, height: 22)
+                    .frame(width: pointerWidth, height: pointerHeight)
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-                    .offset(y: -156)
-                Spacer()
+                    .offset(y: pointerOffset + pointerHeight / 2)
             }
-            .frame(width: 312, height: 312)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
+        .frame(height: 312)
     }
 
     private func angle(for index: Int) -> Angle {
@@ -234,10 +242,9 @@ struct GiftWheelView: View {
         return .degrees(degrees)
     }
 
-    private func sliceLabel(_ segment: GiftWheelSegment, at index: Int) -> some View {
+    private func sliceLabel(_ segment: GiftWheelSegment, at index: Int, radius: CGFloat) -> some View {
         let perSlice = 360.0 / Double(segments.count)
         let centreDegrees = -90.0 + perSlice * Double(index)
-        let radius: CGFloat = 92
 
         return VStack(spacing: 2) {
             if let sub = segment.subLabel {

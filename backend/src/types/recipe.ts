@@ -689,17 +689,11 @@ function stripLeadingIngredientMeasurement(value: string): string {
       ""
     )
     .replace(/^\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛]|a|an|one|un|une|two|deux|three|trois|half|demi)\s+/i, "")
-    // Orphan French measurement phrases left over by bad transcription, e.g.
-    // "À café le sel" (cuillère à café), "À soupe de mayonnaise", "Une pincée de sel".
-    // These slip through the numeric/unit match above because the quantity is missing.
-    .replace(
-      /^\s*(?:à|a)\s+(?:café|cafe|soupe|thé|the)\s+(?:de\s+|d['’]\s*|le\s+|la\s+|les\s+|l['’]\s*)?/i,
-      ""
-    )
-    .replace(
-      /^\s*(?:une?\s+)?(?:pincée|pincee|poignée|poignee|cuillerée|cuilleree|louche)\s+(?:de\s+|d['’]\s*)?/i,
-      ""
-    )
+    // Note: orphan French measurement phrases ("À café Sel", "À soupe huile",
+    // "Une pincée de paprika") used to be stripped here, but stripping
+    // discards the unit information entirely. We now leave them in place so
+    // cleanIngredientNameField (called next in sanitizeIngredientDraft) can
+    // both strip the prefix AND extract it as a unit value.
     .replace(/^\s*(?:de|du|des|d['’])\s+/i, "")
     .trim();
 }
