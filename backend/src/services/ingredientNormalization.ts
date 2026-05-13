@@ -537,6 +537,10 @@ const NAME_LEADING_UNIT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^cuilleres?\s+a\s+cafe\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
   [/^c\.?\s*a\.?\s*s\.?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
   [/^c\.?\s*a\.?\s*c\.?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
+  // Short forms without "à": `c.s`, `c.c`, `c s`, `c c`. Common on
+  // TikTok captions (e.g. "2 c.s de sauce soja sucrée").
+  [/^c\.?\s*s\.?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
+  [/^c\.?\s*c\.?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
   [/^cas\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],
   [/^cac\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à café"],
   [/^a\s+soupe\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "c. à soupe"],

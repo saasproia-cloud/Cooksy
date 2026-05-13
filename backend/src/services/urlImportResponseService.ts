@@ -92,8 +92,22 @@ export async function buildURLImportResponse(input: {
     const repairedRecipe = roundCountableIngredientQuantities(repairPerPortionRecipe(input.recipe));
     const recipeWithNutrition = await ensureRecipeNutrition(repairedRecipe);
     const title = stableTitle(recipeWithNutrition.title);
-    const ingredients = normalizeIngredients(recipeWithNutrition.ingredientDrafts, title);
-    const steps = ensureCompleteSteps(recipeWithNutrition, title, ingredients);
+    let ingredients = normalizeIngredients(recipeWithNutrition.ingredientDrafts, title);
+    let steps = ensureCompleteSteps(recipeWithNutrition, title, ingredients);
+    // Anti-hallucination: drop ingredients that aren't referenced in ANY
+    // step (unless protected by an explicit group). This catches the
+    // pattern seen in production where the LLM mixes ingredients from a
+    // sub-recipe mentioned in the description but not actually cooked
+    // (e.g. Chepalgash flatbread ingredients leaking into a Poulet Wrap).
+    const droppedNames = dropUnreferencedIngredients(ingredients, steps);
+    if (droppedNames.size > 0) {
+      ingredients = ingredients.filter((ing) => !droppedNames.has(ing.name));
+      steps = steps.map((step) => {
+        if (!step.ingredientRefs?.length) return step;
+        const filtered = step.ingredientRefs.filter((ref) => !droppedNames.has(ref));
+        return { ...step, ingredientRefs: filtered.length ? filtered : undefined };
+      });
+    }
     const nutrition = resolveNutrition(recipeWithNutrition);
 
     if (!title || !ingredients.length || !steps.length) {
@@ -206,7 +220,10 @@ function normalizeIngredients(
  * downstream nutrition divisor stays in sync.
  */
 function repairPerPortionRecipe(recipe: RecipeImportResult): RecipeImportResult {
-  const factor = detectPerPortionFactor(recipe.ingredientDrafts);
+  const factor = detectPerPortionFactor(
+    recipe.ingredientDrafts,
+    parseLeadingInteger(recipe.servingsText)
+  );
   if (factor === null) {
     return recipe;
   }
@@ -292,16 +309,52 @@ function roundCountableIngredientQuantities(recipe: RecipeImportResult): RecipeI
   return { ...recipe, ingredientDrafts: drafts };
 }
 
-function detectPerPortionFactor(ingredients: RecipeIngredientDraft[]): number | null {
+function detectPerPortionFactor(
+  ingredients: RecipeIngredientDraft[],
+  declaredServings: number | null
+): number | null {
+  // Count fractional signatures for each plausible divisor. Each pattern
+  // votes only when the value is small enough to plausibly be a
+  // per-portion amount (a 200 g ingredient with `.5` is just `200.5` —
+  // not the result of dividing).
   let thirdSignals = 0;
+  let halfSignals = 0;
+  let quarterSignals = 0;
+
   for (const ing of ingredients) {
     const value = parseRawAmount(ing.amount);
-    if (value !== null && looksLikeThirdDivision(value)) {
-      thirdSignals++;
-    }
+    if (value === null) continue;
+    if (looksLikeThirdDivision(value)) thirdSignals++;
+    if (looksLikeHalfDivision(value)) halfSignals++;
+    if (looksLikeQuarterDivision(value)) quarterSignals++;
   }
+
   if (thirdSignals >= 3) return 3;
+
+  // Halves are noisier — `0.5` legitimately appears in single-portion
+  // recipes ("1.5 c. à soupe", "0.5 citron"). Strong signal threshold is
+  // 4, but if the recipe explicitly says "1 portion" we relax to 3 since
+  // it's a strong tell that the AI per-portioned everything.
+  const halfThreshold = declaredServings !== null && declaredServings <= 1 ? 3 : 4;
+  if (halfSignals >= halfThreshold) return 2;
+
+  if (quarterSignals >= 3) return 4;
   return null;
+}
+
+function looksLikeHalfDivision(value: number): boolean {
+  if (value <= 0 || value > 10_000) return false;
+  const fractional = value - Math.floor(value);
+  return Math.abs(fractional - 0.5) < 0.02;
+}
+
+function looksLikeQuarterDivision(value: number): boolean {
+  if (value <= 0 || value > 10_000) return false;
+  const fractional = value - Math.floor(value);
+  return (
+    Math.abs(fractional - 0.25) < 0.02 ||
+    Math.abs(fractional - 0.75) < 0.02
+  );
 }
 
 function parseLeadingInteger(value: string | undefined): number | null {
@@ -970,6 +1023,77 @@ function capitalizeDisplay(name: string): string {
   }
 
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+/**
+ * Drop ingredients that are not referenced in ANY recipe step. The LLM
+ * occasionally inflates the ingredient list with items from a parallel
+ * sub-recipe mentioned in the social caption (e.g. the bread recipe
+ * mentioned alongside the wrap it accompanies) and the validator
+ * downstream only FLAGS this — it never removes. We remove
+ * defensively here, with two protections:
+ *   1. Ingredients tagged with a non-empty `display` text shorter than 4
+ *      chars are kept (they are usually salt/pepper/oil seasoning that
+ *      may be used implicitly).
+ *   2. We never drop more than a third of the ingredient list, to avoid
+ *      pathological cases where the steps are themselves wrong.
+ */
+function dropUnreferencedIngredients(
+  ingredients: URLImportSuccessResponse["data"]["ingredients"],
+  steps: URLImportSuccessResponse["data"]["steps"]
+): Set<string> {
+  if (!ingredients.length || !steps.length) return new Set();
+
+  const allStepText = steps
+    .map((step) => normalizeIngredientKey(step.description))
+    .join(" | ");
+  if (!allStepText) return new Set();
+
+  // Whitelist short basic seasonings that often go unmentioned in steps.
+  const BASIC_SEASONINGS = new Set([
+    "sel",
+    "poivre",
+    "salt",
+    "pepper",
+    "huile",
+    "oil",
+    "beurre",
+    "butter",
+    "sucre",
+    "sugar",
+    "eau",
+    "water"
+  ]);
+
+  const candidates: string[] = [];
+  for (const ing of ingredients) {
+    const normalized = normalizeIngredientKey(ing.name);
+    if (!normalized || BASIC_SEASONINGS.has(normalized)) continue;
+
+    const tokens = normalized.split(" ").filter((t) => t.length >= 4);
+    if (tokens.length === 0) continue;
+    const referenced = tokens.some((token) => allStepText.includes(token));
+    if (!referenced) {
+      candidates.push(ing.name);
+    }
+  }
+
+  // Cap the dropped set at one third of the ingredient list to avoid
+  // wiping out a legitimate recipe when the steps are themselves
+  // mismatched.
+  const cap = Math.max(1, Math.floor(ingredients.length / 3));
+  if (candidates.length > cap) {
+    console.warn(
+      `[dropUnreferencedIngredients] Found ${candidates.length} unreferenced ingredients but capping at ${cap}; steps may also be inaccurate.`
+    );
+    return new Set(candidates.slice(0, cap));
+  }
+  if (candidates.length > 0) {
+    console.warn(
+      `[dropUnreferencedIngredients] Removing ${candidates.length} unreferenced ingredient(s): ${candidates.join(", ")}`
+    );
+  }
+  return new Set(candidates);
 }
 
 function ingredientNamesForStep(

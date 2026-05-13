@@ -157,13 +157,43 @@ final class PurchaseService: NSObject, ObservableObject {
         var rounded = Decimal()
         var raw = perMonth
         NSDecimalRound(&rounded, &raw, 2, .plain)
+        return formatPrice(amount: rounded, product: product)
+    }
+
+    /// Annual storefront price with a local promotional discount applied,
+    /// formatted in the user's currency. Returns `nil` when no offering
+    /// is loaded yet — the caller falls back to the hardcoded EUR maths.
+    func discountedAnnualPriceString(percent: Int) -> String? {
+        guard percent > 0,
+              let product = currentOffering?.annual?.storeProduct else { return nil }
+        let multiplier = Decimal(100 - percent) / 100
+        var rounded = Decimal()
+        var raw = product.price * multiplier
+        NSDecimalRound(&rounded, &raw, 2, .plain)
+        return formatPrice(amount: rounded, product: product)
+    }
+
+    /// Per-month equivalent of the discounted annual price, in the user's
+    /// currency. Returns `nil` if the offering is not loaded yet.
+    func discountedAnnualMonthlyEquivalentString(percent: Int) -> String? {
+        guard percent > 0,
+              let product = currentOffering?.annual?.storeProduct else { return nil }
+        let multiplier = Decimal(100 - percent) / 100
+        let perMonth = (product.price * multiplier) / Decimal(12)
+        var rounded = Decimal()
+        var raw = perMonth
+        NSDecimalRound(&rounded, &raw, 2, .plain)
+        return formatPrice(amount: rounded, product: product)
+    }
+
+    private func formatPrice(amount: Decimal, product: StoreProduct) -> String? {
         if let formatter = product.priceFormatter {
-            return formatter.string(from: rounded as NSDecimalNumber)
+            return formatter.string(from: amount as NSDecimalNumber)
         }
         let fallback = NumberFormatter()
         fallback.numberStyle = .currency
         fallback.currencyCode = product.currencyCode
-        return fallback.string(from: rounded as NSDecimalNumber)
+        return fallback.string(from: amount as NSDecimalNumber)
     }
 
     // MARK: - Purchase

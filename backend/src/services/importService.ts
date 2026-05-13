@@ -210,9 +210,27 @@ export async function importFromUrl(input: {
   });
   const compilerResult = compileRecipeFromSources(compilerInput);
 
-  if (compilerResult.compilerUsed && !compilerResult.llmNeeded) {
+  // Compiler-first short-circuit: skip the LLM only when the compiler
+  // has VERY high confidence — at least 6 ingredients, 3 steps, and
+  // either an explicit section count >= 2 or a clearly named dish. This
+  // keeps the LLM as the default oracle: the compiler bypass exists only
+  // for the rare case where the caption is a fully-formatted blog-style
+  // recipe that the LLM cannot meaningfully improve.
+  const compilerIngredientCount = compilerResult.recipe?.ingredientDrafts?.length ?? 0;
+  const compilerStepCount = compilerResult.recipe?.stepDrafts?.length ?? 0;
+  const compilerSectionCount = new Set(
+    (compilerResult.recipe?.ingredientDrafts ?? [])
+      .map((i) => i.group?.trim() || "")
+      .filter(Boolean)
+  ).size;
+  const compilerHasHighConfidence =
+    compilerIngredientCount >= 6 &&
+    compilerStepCount >= 3 &&
+    (compilerSectionCount >= 2 || Boolean(compilerResult.recipe?.title?.trim()));
+
+  if (compilerResult.compilerUsed && !compilerResult.llmNeeded && compilerHasHighConfidence) {
     console.info(
-      `[importService] Compiler produced complete recipe (primary=${compilerResult.primarySource}, enriched=${compilerResult.usedEnrichment}) — skipping LLM for ${resolvedSourceURL}`
+      `[importService] Compiler produced high-confidence recipe (ingredients=${compilerIngredientCount}, steps=${compilerStepCount}, sections=${compilerSectionCount}) — skipping LLM for ${resolvedSourceURL}`
     );
 
     const compilerRecipe = {
@@ -829,6 +847,19 @@ export async function importFromUrl(input: {
     throw new RecipeImportNotFoodError("not_enough_info");
   }
 
+  // Final QA gate: after every retry, reject results that are too thin
+  // to be cookable. We'd rather show the user a clean error screen than
+  // ship a recipe with 2 vague ingredients and 1 generic step. The
+  // thresholds here are intentionally lenient — they only fire when the
+  // result is genuinely unusable, not when it's just a simple recipe.
+  const qaIssues = assessFinalRecipeQuality(bestValidatedRecipe);
+  if (qaIssues.length > 0) {
+    console.warn(
+      `[importService] QA gate rejected recipe for ${canonicalSourceURL}: ${qaIssues.join("; ")}`
+    );
+    throw new RecipeImportNotFoodError("not_enough_info");
+  }
+
   const finalizedRecipe = await finalizeImportedRecipe(bestValidatedRecipe, {
     skipNutrition: false
   });
@@ -862,6 +893,58 @@ export async function importFromUrl(input: {
     debug,
     ...(pipelineTrace ? { pipelineTrace } : {})
   };
+}
+
+/**
+ * Final quality assessment of a recipe before we ship it to the iOS
+ * client. Returns an empty array if the recipe is shippable, or a list
+ * of human-readable issues if not. Lenient thresholds — we only block
+ * results that are genuinely unusable.
+ */
+function assessFinalRecipeQuality(recipe: RecipeImportResult): string[] {
+  const issues: string[] = [];
+  const usableIngredients = recipe.ingredientDrafts.filter((i) => {
+    const name = i.name?.trim() ?? "";
+    return name.length >= 2 && /[a-zA-ZÀ-ÿ]/.test(name);
+  });
+  const usableSteps = recipe.stepDrafts.filter((s) => {
+    const detail = s.detail?.trim() ?? "";
+    return detail.length >= 12;
+  });
+
+  const title = recipe.title?.trim() ?? "";
+  if (!title || title.length < 3) {
+    issues.push("title missing or too short");
+  }
+
+  if (usableIngredients.length < 3) {
+    issues.push(`only ${usableIngredients.length} usable ingredients (need ≥3)`);
+  }
+
+  if (usableSteps.length < 3) {
+    issues.push(`only ${usableSteps.length} usable steps (need ≥3)`);
+  }
+
+  // Title must look like an actual dish, not a category placeholder or
+  // a CTA. Bare single-word category titles are flagged.
+  if (title) {
+    const titleKey = title.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+    const bareCategoryTitles = new Set([
+      "recette",
+      "recette importée",
+      "plat",
+      "dish",
+      "food",
+      "video",
+      "tiktok",
+      "instagram"
+    ]);
+    if (bareCategoryTitles.has(titleKey)) {
+      issues.push(`title is a bare category placeholder ("${title}")`);
+    }
+  }
+
+  return issues;
 }
 
 function shouldUseTranscriptionFallback(
@@ -3877,6 +3960,22 @@ type TranscriptionOptions = {
 // recognition of cooking-specific vocabulary (provolone, panko, gochujang,
 // cuillère à soupe) which directly translates into more precise ingredient
 // names and quantities in the final recipe.
+// Process-wide circuit breaker: when Google Speech-to-Text returns a
+// fatal config error (API not enabled, missing scope, billing not set
+// up…), we stop trying for the rest of the process lifetime. Avoids
+// spamming the logs and burning a second per request on a doomed call.
+let googleSpeechDisabledReason: string | null = null;
+
+function isFatalGoogleSpeechError(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!message) return null;
+  if (/PERMISSION_DENIED/i.test(message)) return "permission_denied";
+  if (/has not been used in project|api has not been enabled/i.test(message)) return "api_disabled";
+  if (/Could not load the default credentials|invalid_grant|invalid_client/i.test(message)) return "bad_credentials";
+  if (/billing/i.test(message)) return "billing_required";
+  return null;
+}
+
 async function transcribeAudioWithFallback(
   mediaUrl: string | undefined,
   options: TranscriptionOptions
@@ -3885,7 +3984,7 @@ async function transcribeAudioWithFallback(
     return null;
   }
 
-  if (providerStatus.googleSpeech) {
+  if (providerStatus.googleSpeech && !googleSpeechDisabledReason) {
     try {
       const googleTranscript = await transcribeWithGoogleFromUrl(mediaUrl, {
         mediaFetchTimeoutMs: options.mediaFetchTimeoutMs,
@@ -3898,9 +3997,17 @@ async function transcribeAudioWithFallback(
       }
       console.info("[transcription] provider=google result=empty, falling back to openAI");
     } catch (error) {
-      console.warn(
-        `[transcription] provider=google error=${(error as Error).message ?? String(error)}, falling back to openAI`
-      );
+      const fatal = isFatalGoogleSpeechError(error);
+      if (fatal) {
+        googleSpeechDisabledReason = fatal;
+        console.warn(
+          `[transcription] Google Speech-to-Text fatally disabled (${fatal}); using OpenAI Whisper exclusively for the rest of this process.`
+        );
+      } else {
+        console.warn(
+          `[transcription] provider=google error=${(error as Error).message ?? String(error)}, falling back to openAI`
+        );
+      }
     }
   }
 

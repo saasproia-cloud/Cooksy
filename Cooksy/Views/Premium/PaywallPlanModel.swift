@@ -135,14 +135,27 @@ extension PremiumPlan {
     /// Real price string from the StoreKit storefront — exactly matches
     /// what Apple will charge in the user's country / currency. Falls
     /// back to the hardcoded EUR formatting only when the offering
-    /// hasn't been fetched yet (cold start, no network). Never apply a
-    /// local discount on top of this string: Apple only honours the
-    /// promotional offers configured in App Store Connect.
+    /// hasn't been fetched yet (cold start, no network).
     var liveOrFallbackPriceString: String {
+        liveOrFallbackPriceString(discountPercent: nil)
+    }
+
+    /// Same as `liveOrFallbackPriceString`, but applies a local
+    /// promotional discount when provided (and the plan supports it).
+    /// Used to surface the cadeau −X % on the annual card so the user
+    /// sees the actual price they'll be billed via the matching
+    /// `GIFTxx` Promotional Offer at checkout.
+    func liveOrFallbackPriceString(discountPercent: Int?) -> String {
         switch self {
         case .monthly:
             return PurchaseService.shared.monthlyPriceString ?? formattedPrice()
         case .yearly:
+            if let percent = discountPercent, percent > 0 {
+                if let live = PurchaseService.shared.discountedAnnualPriceString(percent: percent) {
+                    return live
+                }
+                return formattedPrice(discountPercent: percent)
+            }
             return PurchaseService.shared.annualPriceString ?? formattedPrice()
         }
     }
@@ -151,7 +164,19 @@ extension PremiumPlan {
     /// price when available so it matches what Apple is going to bill.
     /// Returns `nil` for monthly plans.
     var liveOrFallbackMonthlyEquivalent: String? {
+        liveOrFallbackMonthlyEquivalent(discountPercent: nil)
+    }
+
+    /// Discount-aware variant — keeps the per-month figure consistent
+    /// with the headline price when a cadeau is active.
+    func liveOrFallbackMonthlyEquivalent(discountPercent: Int?) -> String? {
         guard self == .yearly else { return nil }
+        if let percent = discountPercent, percent > 0 {
+            if let live = PurchaseService.shared.discountedAnnualMonthlyEquivalentString(percent: percent) {
+                return live
+            }
+            return monthlyEquivalentString(discountPercent: percent)
+        }
         if let live = PurchaseService.shared.annualMonthlyEquivalentString {
             return live
         }

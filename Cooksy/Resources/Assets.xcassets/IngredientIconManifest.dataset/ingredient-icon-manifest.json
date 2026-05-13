@@ -164,7 +164,20 @@
       "fromage rape mexicain",
       "tranche de cheddar",
       "tranche de mozzarella",
-      "halloumi"
+      "halloumi",
+      "raclette",
+      "fromage raclette",
+      "fromage a raclette",
+      "fromage à raclette",
+      "fromages raclette",
+      "reblochon",
+      "tomme",
+      "tomme de savoie",
+      "munster",
+      "morbier",
+      "bleu",
+      "roquefort",
+      "fourme d ambert"
     ],
     "family": "cheese",
     "priority": 100
@@ -511,9 +524,15 @@
       "wrap",
       "wraps",
       "naan",
+      "naans",
+      "pain naan",
       "pita",
+      "pain pita",
       "flatbread",
-      "lavash"
+      "lavash",
+      "chapati",
+      "roti",
+      "focaccia"
     ],
     "family": "tortilla",
     "priority": 100

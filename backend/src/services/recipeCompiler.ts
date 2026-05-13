@@ -348,18 +348,37 @@ const SECTION_HEADER_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /^(?:marinade|sauce|pâte|pate|garniture|salade|montage|cuisson|dressage|assemblage|accompagnement|vinaigrette|farce|crème|sirop|gla[cç]age|dough|filling|salad|assembly|dressing|topping|glaze)\s*[:：]\s*.+/i, label: "_inline_" },
 ];
 
-// Structural header: a short line ending with ":" that's followed by
-// ingredient-like or list-like lines
-function isStructuralSectionHeader(line: string, nextLines: string[]): string | null {
-  // Pattern: "Word(s):" or "Word(s) :" with at most 4 words
-  const colonMatch = line.match(/^([A-Za-zÀ-ÿ\s'']{2,40})\s*[:：]\s*$/);
-  if (!colonMatch) return null;
+// Structural header: a short line — possibly prefixed by a bullet
+// (`•·*▪◦‣⁃-`) — followed by ingredient-like or list-like lines. We
+// require the colon ONLY when there is no bullet prefix; bullet-marked
+// headers like `• sauce raclette` or `•oignons caramélisés` are common
+// in TikTok captions and should still be treated as section starts.
+const BULLET_PREFIX_RE = /^[\s ]*[•·▪◦‣⁃*]+[\s ]*/u;
 
-  const label = colonMatch[1].trim();
+function isStructuralSectionHeader(line: string, nextLines: string[]): string | null {
+  const bulletStripped = line.replace(BULLET_PREFIX_RE, "").trim();
+  const hadBulletPrefix = bulletStripped !== line.trim();
+
+  // Pattern: short label, optional trailing colon. Colon required only
+  // when there is no bullet prefix (otherwise we'd flag any plain
+  // sentence as a section).
+  const colonOptional = hadBulletPrefix;
+  const headerPattern = colonOptional
+    ? /^([A-Za-zÀ-ÿ\s'']{2,40})\s*[:：]?\s*$/
+    : /^([A-Za-zÀ-ÿ\s'']{2,40})\s*[:：]\s*$/;
+  const headerMatch = bulletStripped.match(headerPattern);
+  if (!headerMatch) return null;
+
+  const label = headerMatch[1].trim();
+  if (!label) return null;
+  // Cap section labels at 4 words to avoid catching sentences.
+  const wordCount = label.split(/\s+/).filter(Boolean).length;
+  if (wordCount === 0 || wordCount > 4) return null;
+
   // Must be followed by at least 1 ingredient-like or list-like line
   const nextRelevant = nextLines.slice(0, 3);
   const hasListFollowing = nextRelevant.some(
-    (l) => looksLikeIngredientLine(l) || /^[-•*]\s/.test(l) || /^\d+[.)]\s/.test(l)
+    (l) => looksLikeIngredientLine(l) || /^[-•·*▪◦‣⁃]\s?/.test(l) || /^\d+[.)]\s/.test(l)
   );
   if (!hasListFollowing) return null;
 
@@ -389,8 +408,9 @@ function matchSectionHeader(line: string, nextLines: string[]): string | null {
 // --- Ingredient Detection ---
 
 const INGREDIENT_LINE_PATTERNS: RegExp[] = [
-  // "- 200g farine", "• 3 oeufs", "* sel"
-  /^[-•*]\s+/,
+  // "- 200g farine", "• 3 oeufs", "* sel", "·sel", "▪3 oignons"
+  // Accept any common bullet glyph with OR without a following space.
+  /^[-•·*▪◦‣⁃]\s*/u,
   // "200g farine", "3 oeufs", "1/2 c.à.s huile"
   /^\d+(?:[.,/]\d+)?\s*(?:g|kg|mg|ml|cl|dl|l|c\.\s*à\s*(?:s|c)|cas|cac|cuillère|pincée|sachet|tranche|gousse|tasse)\b/i,
   // Starting with a number followed by a word
@@ -465,15 +485,21 @@ function parseSections(lines: string[]): RecipeSection[] {
       currentSection = { name: sectionLabel, ingredients: [], steps: [] };
       mode = "ingredients"; // After a section header, expect ingredients first
 
-      // Handle inline header: "Sauce: crème, moutarde, citron"
-      const inlineContent = line.replace(/^[A-Za-zÀ-ÿ\s'']+[:：]\s*/, "").trim();
-      if (inlineContent) {
-        // Split inline content as comma-separated ingredients
-        const parts = inlineContent.split(/[,;]/).map((p) => p.trim()).filter(Boolean);
-        for (const part of parts) {
-          currentSection.ingredients.push(
-            parseIngredientFromLine(part, sectionLabel)
-          );
+      // Handle inline header: "Sauce: crème, moutarde, citron".
+      // Only triggers when the line genuinely has content after a colon —
+      // we used to misfire on bullet-prefixed labels like `•oignons
+      // caramélisés` whose label looked like inline content because the
+      // strip regex didn't match.
+      const colonIndex = line.search(/[:：]/);
+      if (colonIndex >= 0) {
+        const inlineContent = line.slice(colonIndex + 1).trim();
+        if (inlineContent) {
+          const parts = inlineContent.split(/[,;]/).map((p) => p.trim()).filter(Boolean);
+          for (const part of parts) {
+            currentSection.ingredients.push(
+              parseIngredientFromLine(part, sectionLabel)
+            );
+          }
         }
       }
       continue;
@@ -557,7 +583,9 @@ function parseSections(lines: string[]): RecipeSection[] {
 
 function parseIngredientFromLine(line: string, group: string): RecipeIngredientDraft {
   let cleaned = line
-    .replace(/^[-•*]\s+/, "")
+    // Accept any common bullet glyph with OR without a following space:
+    // `- 200g farine`, `•3 oeufs`, `·sel`, `▪ 1/2 c.s huile`, etc.
+    .replace(/^[-•·*▪◦‣⁃]\s*/u, "")
     .replace(/^\d+[.)]\s+/, "")
     .trim();
 

@@ -33,13 +33,20 @@ struct ExclusiveOfferView: View {
     /// `true` when the trial banner should be shown to the user.
     private var trialShown: Bool { trialEnabled && trialEligible }
 
-    /// Live monthly equivalent of the annual plan, formatted in the
-    /// user's currency. Always reflects what Apple will bill — never
-    /// adjusted for a fictional local discount. The string is just the
-    /// money amount (e.g. `"3,33 €"`); call sites add `/mois` themselves.
+    /// Live monthly equivalent of the discounted annual plan, formatted
+    /// in the user's currency. Reflects what Apple will bill via the
+    /// matching `GIFTxx` Promotional Offer — the gift discount is
+    /// applied locally so the headline matches checkout. The string is
+    /// just the money amount (e.g. `"2,50 €"`); call sites add `/mois`.
     private var monthlyEquivalent: String {
-        yearlyPlan.liveOrFallbackMonthlyEquivalent
-            ?? yearlyPlan.liveOrFallbackPriceString
+        yearlyPlan.liveOrFallbackMonthlyEquivalent(discountPercent: discountPercent)
+            ?? yearlyPlan.liveOrFallbackPriceString(discountPercent: discountPercent)
+    }
+
+    /// Live annual price with the gift discount applied. Drives the
+    /// plan card subtitle and the CTA copy.
+    private var discountedYearlyPriceString: String {
+        yearlyPlan.liveOrFallbackPriceString(discountPercent: discountPercent)
     }
 
     /// Same number with the `/mois` unit appended — used wherever the
@@ -117,26 +124,34 @@ struct ExclusiveOfferView: View {
 
     // MARK: - Background aura
 
+    /// The aura is a single 520×520 radial blob anchored at the top.
+    /// We host it inside `Color.clear` (which adopts whatever size the
+    /// parent ZStack proposes — i.e. the screen) and apply it via
+    /// `.overlay`, so the layout footprint stays at the screen width.
+    /// Without this wrapper the oversized circle would force the host
+    /// ZStack to ~520 pt wide, bleed the whole view past the screen
+    /// edges, and push the top-trailing close X out of the visible
+    /// area. Same root cause as the previous AppReviewView overflow.
     private var backgroundAura: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            CooksyTheme.primaryAccentSoft.opacity(0.55),
-                            CooksyTheme.primaryAccentSoft.opacity(0)
-                        ],
-                        center: .center,
-                        startRadius: 20,
-                        endRadius: 320
+        Color.clear
+            .overlay(
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                CooksyTheme.primaryAccentSoft.opacity(0.55),
+                                CooksyTheme.primaryAccentSoft.opacity(0)
+                            ],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 320
+                        )
                     )
-                )
-                .frame(width: 520, height: 520)
-                .offset(y: -200)
-                .blur(radius: 30)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+                    .frame(width: 520, height: 520)
+                    .offset(y: -200)
+                    .blur(radius: 30)
+            )
+            .clipped()
     }
 
     // MARK: - Title
@@ -494,7 +509,7 @@ struct ExclusiveOfferView: View {
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
                         .lineLimit(1)
-                    Text("\(yearlyPlan.liveOrFallbackPriceString)\(yearlyPlan.unitLabel)")
+                    Text("\(discountedYearlyPriceString)\(yearlyPlan.unitLabel)")
                         .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .lineLimit(1)
@@ -559,7 +574,7 @@ struct ExclusiveOfferView: View {
         if trialShown {
             return "Commencer mes \(trialDays) jours gratuits"
         }
-        return "S'abonner à \(yearlyPlan.liveOrFallbackPriceString)\(yearlyPlan.unitLabel)"
+        return "S'abonner à \(discountedYearlyPriceString)\(yearlyPlan.unitLabel)"
     }
 
     private var footer: some View {
