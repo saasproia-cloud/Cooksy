@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import Supabase
 
 enum CooksyBackendError: LocalizedError {
     case missingBaseURL
@@ -192,16 +193,21 @@ enum CooksyBackendService {
         let data: Data
         let response: URLResponse
 
+        // Inject the Supabase access token just before sending. This
+        // keeps the rest of the call sites synchronous and centralizes
+        // the auth header attachment in one place.
+        let authenticatedRequest = await attachAuthHeader(to: request)
+
         do {
             let requestStartedAt = Date()
-            if let urlString = request.url?.absoluteString {
+            if let urlString = authenticatedRequest.url?.absoluteString {
                 logger.debug(
                     "Backend request start t=\(requestStartedAt.timeIntervalSince1970, privacy: .public) url=\(urlString, privacy: .public)"
                 )
             } else {
                 logger.error("Attempted backend request with nil URL.")
             }
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await session.data(for: authenticatedRequest)
             let durationMs = Int(Date().timeIntervalSince(requestStartedAt) * 1000)
             logger.debug("Backend response received in \(durationMs)ms")
         } catch let error as URLError {
@@ -222,7 +228,7 @@ enum CooksyBackendService {
             throw CooksyBackendError.invalidResponse
         }
 
-        let responseURLString = httpResponse.url?.absoluteString ?? request.url?.absoluteString ?? "(nil)"
+        let responseURLString = httpResponse.url?.absoluteString ?? authenticatedRequest.url?.absoluteString ?? "(nil)"
         logger.debug(
             "Backend response \(httpResponse.statusCode) from \(responseURLString, privacy: .public)"
         )
@@ -258,6 +264,23 @@ enum CooksyBackendService {
         } catch {
             throw CooksyBackendError.invalidResponse
         }
+    }
+
+    /// Attaches the current Supabase access token as `Authorization:
+    /// Bearer …`. Returns the request unchanged if there is no session
+    /// — the backend will then surface a 401 which the UI handles like
+    /// any other error. We deliberately don't pre-empt the call here
+    /// because some endpoints (health, future public routes) don't
+    /// need auth.
+    private static func attachAuthHeader(to request: URLRequest) async -> URLRequest {
+        var enriched = request
+        do {
+            let session = try await SupabaseClientProvider.shared.auth.session
+            enriched.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+        } catch {
+            logger.debug("No active Supabase session — request will be unauthenticated.")
+        }
+        return enriched
     }
 
     private static func makeRequest(

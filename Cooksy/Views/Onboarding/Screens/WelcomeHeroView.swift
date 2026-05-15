@@ -29,60 +29,89 @@ struct WelcomeHeroView: View {
                 .ignoresSafeArea()
 
             GeometryReader { geo in
-                let breathing = max((geo.size.height - 760) / 2, 0)
-
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 28 + breathing)
-
-                    WelcomeLogoMark()
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : -8)
-                        .animation(.easeOut(duration: 0.55), value: appeared)
-
-                    Spacer(minLength: 18)
-
-                    WelcomeHeadline()
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 14)
-                        .animation(
-                            .spring(response: 0.55, dampingFraction: 0.85).delay(0.12),
-                            value: appeared
+                // Wrapped in a ScrollView so iPhone SE in XL Dynamic
+                // Type can't clip the CTA off-screen. The scroll is
+                // disabled on tall devices so the editorial spacing
+                // stays intact (no rubberband on iPhone 15 Pro Max).
+                ScrollView(.vertical, showsIndicators: false) {
+                    welcomeStack(in: geo)
+                        .frame(
+                            minHeight: geo.size.height,
+                            alignment: .top
                         )
-
-                    Spacer(minLength: 14)
-
-                    WelcomeSocialProofBadge()
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 10)
-                        .animation(.easeOut(duration: 0.5).delay(0.22), value: appeared)
-
-                    Spacer(minLength: 18)
-
-                    WelcomeReviewCard()
-                        .padding(.horizontal, 22)
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 16)
-                        .animation(
-                            .spring(response: 0.6, dampingFraction: 0.85).delay(0.32),
-                            value: appeared
-                        )
-
-                    Spacer(minLength: 20)
-
-                    WelcomeCTAStack(
-                        onContinue: onContinue,
-                        onExistingAccount: onExistingAccount
-                    )
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 12)
-                    .animation(.easeOut(duration: 0.5).delay(0.42), value: appeared)
-
-                    Color.clear.frame(height: 24)
+                        .frame(maxWidth: Layout.maxContentWidth)
+                        .frame(maxWidth: .infinity)
                 }
-                .frame(width: geo.size.width)
+                .scrollDisabled(geo.size.height >= 760)
             }
         }
         .onAppear { appeared = true }
+    }
+
+    /// The actual content stack — extracted so the body stays readable
+    /// and the ScrollView/VStack wiring is easy to scan.
+    @ViewBuilder
+    private func welcomeStack(in geo: GeometryProxy) -> some View {
+        let breathing = max((geo.size.height - 800) / 2, 0)
+
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 28 + breathing)
+
+            WelcomeLogoMark()
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : -8)
+                .animation(.easeOut(duration: 0.55), value: appeared)
+
+            Spacer(minLength: 18)
+
+            WelcomeHeadline()
+                .cooksyHorizontalPadding(for: geo)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 14)
+                .animation(
+                    .spring(response: 0.55, dampingFraction: 0.85).delay(0.12),
+                    value: appeared
+                )
+
+            Spacer(minLength: 18)
+
+            WelcomeBenefitTrio()
+                .cooksyHorizontalPadding(for: geo)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 12)
+                .animation(.easeOut(duration: 0.5).delay(0.18), value: appeared)
+
+            Spacer(minLength: 18)
+
+            WelcomeSocialProofBadge()
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 10)
+                .animation(.easeOut(duration: 0.5).delay(0.26), value: appeared)
+
+            Spacer(minLength: 14)
+
+            WelcomeReviewCard()
+                .cooksyHorizontalPadding(for: geo)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 16)
+                .animation(
+                    .spring(response: 0.6, dampingFraction: 0.85).delay(0.34),
+                    value: appeared
+                )
+
+            Spacer(minLength: 20)
+
+            WelcomeCTAStack(
+                onContinue: onContinue,
+                onExistingAccount: onExistingAccount
+            )
+            .cooksyHorizontalPadding(for: geo)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 12)
+            .animation(.easeOut(duration: 0.5).delay(0.44), value: appeared)
+
+            Color.clear.frame(height: 24)
+        }
     }
 }
 
@@ -141,23 +170,63 @@ private struct WelcomeLogoMark: View {
 
 private struct WelcomeHeadline: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Text("Une vidéo.\nUne recette.")
-                .font(.system(size: 36, weight: .bold, design: .serif))
+                .font(.cooksy(.displayLarge))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(-3)
-                .minimumScaleFactor(0.8)
-                .lineLimit(3)
-                .padding(.horizontal, 22)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("Transforme n'importe quel TikTok ou Reel en recette propre, prête à cuisiner.")
-                .font(.system(size: 14.5, weight: .medium, design: .rounded))
+                .font(.cooksy(.body))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 36)
+                .padding(.horizontal, 14)
         }
+    }
+}
+
+// MARK: - Benefit trio (new — product comprehension at a glance)
+
+/// Three concise value props shown right under the headline. Each line
+/// is a single SF Symbol + a short verb phrase, written in French
+/// premium tone (tutoiement, no jargon). Designed to read in <2s and
+/// dispel the "what does Cooksy actually do?" hesitation that pulls
+/// conversion down on the original Welcome.
+private struct WelcomeBenefitTrio: View {
+    private struct Benefit {
+        let symbol: String
+        let label: String
+    }
+
+    private let benefits: [Benefit] = [
+        Benefit(symbol: "wand.and.stars", label: "Aucune vidéo à regarder"),
+        Benefit(symbol: "list.bullet.rectangle", label: "Ingrédients & étapes exacts"),
+        Benefit(symbol: "bookmark.fill", label: "Sauvegarde illimitée")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(benefits, id: \.label) { benefit in
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(CooksyTheme.primaryAccentSoft.opacity(0.6))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: benefit.symbol)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                    }
+                    Text(benefit.label)
+                        .font(.cooksy(.body))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .frame(maxWidth: 320, alignment: .leading)
     }
 }
 
@@ -303,11 +372,13 @@ private struct WelcomeCTAStack: View {
                     Text("Se connecter")
                         .foregroundStyle(CooksyTheme.ctaOrangeDark)
                 }
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.cooksy(.caption))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 22)
+        // Horizontal padding is owned by the parent so the CTA scales
+        // with Layout.horizontalPadding(for:). Keeping it here would
+        // double-pad on small devices.
     }
 }
 

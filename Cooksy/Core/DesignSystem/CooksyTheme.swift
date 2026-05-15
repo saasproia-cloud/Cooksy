@@ -2,11 +2,15 @@ import SwiftUI
 import UIKit
 
 enum CooksyTheme {
-    static let background = Color(hex: 0xFFF6EA)
+    // Pre-launch palette adjustments (May 2026): nudged the background
+    // half a tone cooler (#F7F1E8) and warmed the accent toward a more
+    // vivid, conversion-friendly orange (#FF7A1A). The text and stroke
+    // tokens move with them so contrast ratios stay AA on body copy.
+    static let background = Color(hex: 0xF7F1E8)
     static let surface = Color(hex: 0xFFF9F1)
     static let elevatedSurface = Color(hex: 0xFFFDF8)
-    static let primaryAccent = Color(hex: 0xEA662A)
-    static let primaryAccentStrong = Color(hex: 0xC9471D)
+    static let primaryAccent = Color(hex: 0xFF7A1A)
+    static let primaryAccentStrong = Color(hex: 0xE55A0E)
     static let primaryAccentSoft = Color(hex: 0xFFD8BD)
     static let primaryAccentGlow = Color(hex: 0xF5B14E)
     static let secondaryAccent = Color(hex: 0x8A9BB5)
@@ -19,7 +23,7 @@ enum CooksyTheme {
     static let ctaOrange = primaryAccent
     static let ctaOrangeDark = primaryAccentStrong
     static let sparkleYellow = primaryAccentGlow
-    static let primaryText = Color(hex: 0x2B1A12)
+    static let primaryText = Color(hex: 0x2B1D16)
     static let secondaryText = Color(hex: 0x7A6554)
     static let stroke = Color(hex: 0xE7D6C3)
     static let softCloud = secondaryAccentSoft
@@ -54,7 +58,7 @@ enum CooksyTheme {
     )
 
     static let accentGradient = LinearGradient(
-        colors: [Color(hex: 0xF2852F), Color(hex: 0xD94B20)],
+        colors: [Color(hex: 0xFF8A2E), Color(hex: 0xE55A0E)],
         startPoint: .leading,
         endPoint: .trailing
     )

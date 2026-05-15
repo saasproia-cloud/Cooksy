@@ -68,7 +68,16 @@ const rawEnvSchema = z.object({
   APIFY_INSTAGRAM_ACTOR_ID: z.string().default("apify/instagram-api-scraper"),
   APIFY_PINTEREST_ACTOR_ID: z.string().default("devcake/pinterest-pin-scraping"),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
-  GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional()
+  GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional(),
+  // Supabase — required for user authentication, entitlements lookup,
+  // and RevenueCat webhook persistence. Without these, all
+  // /api/import/* endpoints will refuse to start.
+  SUPABASE_URL: z.string().default("YOUR_SUPABASE_URL"),
+  SUPABASE_ANON_KEY: z.string().default("YOUR_SUPABASE_ANON_KEY"),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().default("YOUR_SUPABASE_SERVICE_ROLE_KEY"),
+  // RevenueCat — shared secret configured in the RevenueCat dashboard
+  // for the Cooksy webhook. Used to authenticate incoming webhook calls.
+  REVENUECAT_WEBHOOK_SECRET: z.string().default("YOUR_REVENUECAT_WEBHOOK_SECRET")
 });
 
 const envSchema = z.object({
@@ -87,7 +96,11 @@ const envSchema = z.object({
   APIFY_INSTAGRAM_ACTOR_ID: z.string(),
   APIFY_PINTEREST_ACTOR_ID: z.string(),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
-  GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional()
+  GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional(),
+  SUPABASE_URL: z.string(),
+  SUPABASE_ANON_KEY: z.string(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string(),
+  REVENUECAT_WEBHOOK_SECRET: z.string()
 });
 
 function isConfigured(value: string): boolean {
@@ -129,7 +142,12 @@ export const providerStatus = {
   apify: isConfigured(env.APIFY_TOKEN),
   serpApi: isConfigured(env.SERPAPI_KEY),
   usda: isConfigured(env.USDA_API_KEY),
-  googleSpeech: isGoogleCredentialsReadable(env.GOOGLE_APPLICATION_CREDENTIALS)
+  googleSpeech: isGoogleCredentialsReadable(env.GOOGLE_APPLICATION_CREDENTIALS),
+  supabase:
+    isConfigured(env.SUPABASE_URL) &&
+    isConfigured(env.SUPABASE_ANON_KEY) &&
+    isConfigured(env.SUPABASE_SERVICE_ROLE_KEY),
+  revenueCatWebhook: isConfigured(env.REVENUECAT_WEBHOOK_SECRET)
 };
 
 export class BackendConfigurationError extends Error {
@@ -149,7 +167,9 @@ export function requireProvider(provider: keyof typeof providerStatus): void {
     apify: "APIFY_TOKEN",
     serpApi: "SERPAPI_KEY",
     usda: "USDA_API_KEY",
-    googleSpeech: "GOOGLE_APPLICATION_CREDENTIALS"
+    googleSpeech: "GOOGLE_APPLICATION_CREDENTIALS",
+    supabase: "SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY",
+    revenueCatWebhook: "REVENUECAT_WEBHOOK_SECRET"
   }[provider];
 
   throw new BackendConfigurationError(

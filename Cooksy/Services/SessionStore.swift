@@ -259,8 +259,17 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    /// Updates premium status locally and syncs the Supabase `is_premium` column.
-    /// Called after a successful RevenueCat purchase, restore, or status sync.
+    /// Updates premium status locally (optimistic UI) and re-fetches the
+    /// canonical row from Supabase.
+    ///
+    /// The DB column `profiles.is_premium` is **read-only for clients** —
+    /// the RLS policy blocks self-writes. The single trusted writer is
+    /// the backend's RevenueCat webhook, which receives the purchase
+    /// event from Apple via RevenueCat and flips the flag through a
+    /// `security definer` RPC. After a purchase completes locally we
+    /// just refresh our copy of the profile; the webhook usually wins
+    /// the race, but if it hasn't fired yet `loadProfile` will pick up
+    /// the new value on the next call.
     func setPremium(_ premium: Bool) async {
         guard let user = currentUser else { return }
 
@@ -268,19 +277,11 @@ final class SessionStore: ObservableObject {
         profile?.isPremium = premium
         ImportQuotaService.shared.isPremium = premium
 
-        do {
-            _ = try await client
-                .from("profiles")
-                .update(PremiumUpdatePayload(isPremium: premium))
-                .eq("id", value: user.id)
-                .execute()
-            await loadProfile(for: user.id)
-        } catch {
-            logger.error("setPremiumMock failed: \(error.localizedDescription, privacy: .public)")
-            lastErrorMessage = error.localizedDescription
-            // Revert optimistic update on failure.
-            await loadProfile(for: user.id)
-        }
+        // Re-sync from server-of-truth. If the webhook has landed by
+        // now, the profile reflects it; otherwise we'll catch it the
+        // next time `loadProfile` runs (e.g. on auth state change or
+        // explicit refresh).
+        await loadProfile(for: user.id)
     }
 
     // MARK: - Session / listener

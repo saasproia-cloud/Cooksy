@@ -4,6 +4,7 @@ import { env, providerStatus } from "../config/env.js";
 import { hasSuspiciousRecipeTitle } from "../types/recipe.js";
 import { fetchPageDocument } from "./generalPageService.js";
 import { hostFromUrl, normalizeWhitespace, platformFromUrl, safeUrl } from "../utils/text.js";
+import { assertSafeFetchUrl } from "../utils/urlSecurity.js";
 
 export type SocialContentSnapshot = {
   platform: "tiktok" | "instagram" | "pinterest";
@@ -588,6 +589,14 @@ function extractTikTokSubtitleUrls(item?: Record<string, unknown>): string[] {
 
 async function fetchSubtitleText(urls: string[], timeoutMs: number): Promise<string | undefined> {
   for (const url of urls) {
+    // TikTok subtitle URLs come from third-party JSON (TikTok's own
+    // page, but still attacker-influenced if the post is crafted). We
+    // validate them through the same SSRF guard as any other fetch.
+    const safeSubtitleUrl = await assertSafeFetchUrl(url).catch(() => null);
+    if (!safeSubtitleUrl) {
+      continue;
+    }
+
     const response = await fetch(url, {
       headers: {
         "user-agent": "Mozilla/5.0",

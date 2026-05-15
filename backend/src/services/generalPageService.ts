@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { parseHtmlPage, type HtmlPageSummary } from "../utils/html.js";
+import { assertSafeFetchUrl } from "../utils/urlSecurity.js";
 
 const DEFAULT_HEADERS = {
   "user-agent": "CooksyBot/1.0 (+https://cooksy.app)",
@@ -33,6 +34,10 @@ export async function fetchPageDocument(
     timeoutMs?: number;
   }
 ): Promise<HtmlPageDocument> {
+  // SSRF guard: parse + DNS resolve + reserved-range check. Any
+  // user-influenced URL must be vetted before we open a socket.
+  await assertSafeFetchUrl(url);
+
   const response = await fetch(url, {
     headers: DEFAULT_HEADERS,
     redirect: "follow",
@@ -60,6 +65,8 @@ export async function resolveRemoteURL(
     timeoutMs?: number;
   }
 ): Promise<string> {
+  await assertSafeFetchUrl(url);
+
   const fetchImpl = options?.fetchImpl ?? fetch;
   const response = await fetchImpl(url, {
     method: "GET",
@@ -96,6 +103,8 @@ export async function fetchRemoteFile(
     timeoutMs?: number;
   }
 ): Promise<RemoteFilePayload> {
+  await assertSafeFetchUrl(url);
+
   const response = await fetch(url, {
     headers: DEFAULT_HEADERS,
     redirect: "follow",

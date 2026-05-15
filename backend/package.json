@@ -17,7 +17,9 @@
   "dependencies": {
     "@fastify/cors": "^10.0.1",
     "@fastify/multipart": "^9.0.3",
+    "@fastify/rate-limit": "^10.3.0",
     "@google-cloud/speech": "^7.3.0",
+    "@supabase/supabase-js": "^2.105.4",
     "apify-client": "^2.12.6",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.7",
