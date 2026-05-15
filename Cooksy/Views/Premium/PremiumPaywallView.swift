@@ -78,84 +78,100 @@ struct PremiumPaywallView: View {
                 .ignoresSafeArea()
 
             GeometryReader { geo in
-                let breathing = max((geo.size.height - 760) / 2, 0)
+                let hPad = Layout.horizontalPadding(for: geo)
 
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 56 + breathing * 0.5)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // Top clearance for the sticky close button.
+                        Color.clear.frame(height: 60)
 
-                    PaywallLogoMark()
-
-                    Color.clear.frame(height: 14)
-
-                    PaywallHeadline(
-                        showGiftBadge: offers.shouldShowGiftPill
-                            && offers.giftHasBeenWon
-                            && offers.giftOfferIsActive,
-                        giftDiscountPercent: offers.giftDiscountPercent,
-                        onOpenGift: { showsExclusiveOffer = true }
-                    )
-                    .padding(.horizontal, 22)
-
-                    Color.clear.frame(height: 14)
-
-                    PaywallAwardBadge()
-
-                    Color.clear.frame(height: 16)
-
-                    if shouldShowGiftReminderBanner {
-                        PaywallGiftReminderBanner(
-                            isAlreadyWon: offers.giftHasBeenWon && offers.giftOfferIsActive,
-                            discountPercent: offers.giftDiscountPercent ?? 25,
-                            onTap: handleOpenGiftFromReminder,
-                            onDismiss: { giftReminderDismissed = true }
+                        // ── HERO ───────────────────────────────────────────
+                        PaywallLogoMark()
+                        Color.clear.frame(height: 12)
+                        PaywallHeadline(
+                            showGiftBadge: offers.shouldShowGiftPill
+                                && offers.giftHasBeenWon
+                                && offers.giftOfferIsActive,
+                            giftDiscountPercent: offers.giftDiscountPercent,
+                            onOpenGift: { showsExclusiveOffer = true }
                         )
-                        .padding(.horizontal, 22)
-                        .padding(.bottom, 12)
-                    }
+                        .padding(.horizontal, hPad)
+                        Color.clear.frame(height: 10)
+                        PaywallAwardBadge()
+                        Color.clear.frame(height: 20)
 
-                    PaywallReviewCard()
-                        .padding(.horizontal, 22)
+                        // ── CONTEXTUAL GIFT BLOCKS ─────────────────────────
+                        if shouldShowGiftReminderBanner {
+                            PaywallGiftReminderBanner(
+                                isAlreadyWon: offers.giftHasBeenWon && offers.giftOfferIsActive,
+                                discountPercent: offers.giftDiscountPercent ?? 25,
+                                onTap: handleOpenGiftFromReminder,
+                                onDismiss: { giftReminderDismissed = true }
+                            )
+                            .padding(.horizontal, hPad)
+                            .padding(.bottom, 12)
+                        }
 
-                    Spacer(minLength: 18)
+                        if offers.giftOfferIsActive {
+                            PaywallGiftStrip(
+                                discountPercent: activeGiftDiscountPercent,
+                                expiresAt: activeOfferExpiresAt
+                            )
+                            .padding(.horizontal, hPad)
+                            .padding(.bottom, 10)
+                        }
 
-                    if offers.giftOfferIsActive {
-                        PaywallGiftStrip(
-                            discountPercent: activeGiftDiscountPercent,
-                            expiresAt: activeOfferExpiresAt
+                        // ── PLAN CARDS ─────────────────────────────────────
+                        PaywallPlanRow(
+                            selectedPlan: $selectedPlan,
+                            trialDays: trialDays,
+                            trialEligible: purchaseService.isAnnualTrialEligible,
+                            giftActive: offers.giftOfferIsActive,
+                            giftDiscountPercent: activeGiftDiscountPercent,
+                            confettiTrigger: $confettiTrigger
                         )
-                        .padding(.horizontal, 22)
-                        .padding(.bottom, 10)
+                        .padding(.horizontal, hPad)
+
+                        Color.clear.frame(height: 16)
+
+                        // ── PRIMARY CTA ────────────────────────────────────
+                        PaywallContinueCTA(
+                            selectedPlan: selectedPlan,
+                            trialAvailable: trialAvailable,
+                            trialDays: trialDays,
+                            giftDiscountPercent: activeGiftDiscountPercent,
+                            isPurchasing: isPurchasing,
+                            onPurchase: handlePurchase
+                        )
+                        .padding(.horizontal, hPad)
+
+                        Color.clear.frame(height: 28)
+
+                        // ── FEATURE COMPARISON ─────────────────────────────
+                        PaywallFeatureComparisonView()
+                            .padding(.horizontal, hPad)
+
+                        Color.clear.frame(height: 20)
+
+                        // ── TRUST STRIP ────────────────────────────────────
+                        PaywallTrustStripView()
+                            .padding(.horizontal, hPad)
+
+                        Color.clear.frame(height: 28)
+
+                        // ── TESTIMONIALS ───────────────────────────────────
+                        PaywallReviewCard()
+                            .padding(.horizontal, hPad)
+
+                        Color.clear.frame(height: 16)
+
+                        // ── FOOTER ─────────────────────────────────────────
+                        PaywallFooterLinks(onRestore: handleRestore)
+
+                        Color.clear.frame(height: 32)
                     }
-
-                    PaywallPlanRow(
-                        selectedPlan: $selectedPlan,
-                        trialDays: trialDays,
-                        trialEligible: purchaseService.isAnnualTrialEligible,
-                        giftActive: offers.giftOfferIsActive,
-                        giftDiscountPercent: activeGiftDiscountPercent,
-                        confettiTrigger: $confettiTrigger
-                    )
-                    .padding(.horizontal, 22)
-
-                    Color.clear.frame(height: 16)
-
-                    PaywallContinueCTA(
-                        selectedPlan: selectedPlan,
-                        trialAvailable: trialAvailable,
-                        trialDays: trialDays,
-                        giftDiscountPercent: activeGiftDiscountPercent,
-                        isPurchasing: isPurchasing,
-                        onPurchase: handlePurchase
-                    )
-                    .padding(.horizontal, 22)
-
-                    Color.clear.frame(height: 10)
-
-                    PaywallFooterLinks(onRestore: handleRestore)
-
-                    Color.clear.frame(height: 18)
+                    .frame(width: geo.size.width)
                 }
-                .frame(width: geo.size.width)
             }
 
             IngredientConfetti(trigger: confettiTrigger)
@@ -803,7 +819,7 @@ private struct PaywallPlanRow: View {
                                 .font(.system(size: 9, weight: .black, design: .rounded))
                                 .tracking(0.6)
                         } else {
-                            Text("CHOIX DU CHEF")
+                            Text("ÉCONOMISEZ 58 %")
                                 .font(.system(size: 9, weight: .black, design: .rounded))
                                 .tracking(0.6)
                         }
@@ -873,7 +889,7 @@ private struct PaywallPlanRow: View {
             }
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
-            .frame(height: 192)
+            .frame(minHeight: 200)
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -982,7 +998,7 @@ private struct PaywallContinueCTA: View {
 
     private var ctaCopy: String {
         if selectedPlan == .yearly, trialAvailable {
-            return "Commencer · \(trialDays) j gratuits"
+            return "Démarrer l'essai gratuit"
         }
         return "Continuer"
     }
@@ -1032,18 +1048,16 @@ private struct PaywallFooterLinks: View {
 
 // MARK: - Offer timer capsule
 
-/// Live countdown rendered next to "CADEAU −X %". Reads from the same
-/// 24 h gift-offer expiry that drives the gift state machine, so the
-/// UI never drifts from discount eligibility.
+/// Neutral countdown capsule. The red-pulse "urgency" pattern was
+/// removed — it erodes trust on a premium surface. The timer is kept
+/// as a factual indicator of offer expiry without any alarm coloring.
 private struct PaywallOfferTimerCapsule: View {
     let expiresAt: Date
 
     @State private var now: Date = Date()
-    @State private var pulse: Bool = false
     private let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     private var remaining: TimeInterval { max(expiresAt.timeIntervalSince(now), 0) }
-    private var isUrgent: Bool { remaining < 3600 }
     private var label: String {
         let secs = Int(remaining)
         let h = secs / 3600
@@ -1064,20 +1078,8 @@ private struct PaywallOfferTimerCapsule: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 7)
         .padding(.vertical, 4)
-        .background(
-            Capsule().fill(isUrgent ? Color(hex: 0xE11D48) : Color(hex: 0x111827))
-        )
-        .scaleEffect(isUrgent && pulse ? 1.05 : 1.0)
-        .animation(
-            isUrgent
-            ? .easeInOut(duration: 0.7).repeatForever(autoreverses: true)
-            : .default,
-            value: pulse
-        )
-        .onReceive(timer) { date in
-            now = date
-            if isUrgent { pulse.toggle() }
-        }
+        .background(Capsule().fill(Color(hex: 0x111827)))
+        .onReceive(timer) { date in now = date }
     }
 }
 

@@ -211,7 +211,7 @@ struct BrowserImportView: View {
                 TextField(
                     "",
                     text: $viewModel.addressText,
-                    prompt: Text("Search for a recipe or paste a URL")
+                    prompt: Text("Cherche une recette ou colle un lien")
                         .foregroundStyle(CooksyTheme.secondaryText.opacity(0.92))
                 )
                     .font(.system(size: 20, weight: .medium, design: .rounded))

@@ -245,7 +245,7 @@ struct TrendingRecipePreviewView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 16, weight: .semibold))
-                        Text("Saved to library")
+                        Text("Enregistrée")
                             .font(.system(size: 15, weight: .bold, design: .rounded))
                     }
                     .foregroundStyle(CooksyTheme.accentWarm)
@@ -256,7 +256,7 @@ struct TrendingRecipePreviewView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 16, weight: .semibold))
-                            Text("Save to library")
+                            Text("Enregistrer")
                                 .font(.system(size: 15, weight: .bold, design: .rounded))
                         }
                         .foregroundStyle(.white)

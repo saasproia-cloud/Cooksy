@@ -106,19 +106,44 @@ const urlImportSchema = z.object({
   debug: z.boolean().optional()
 });
 
+// Base64 cap derived from the 12 MB photo limit: base64 inflates the
+// binary by ~4/3, so a 12 MB image lands at ~16 MB of base64 payload.
+// We pad to 20 MB to leave room for `data:image/...;base64,` prefixes
+// and JSON envelope overhead, while still rejecting clearly oversized
+// uploads at the schema layer (before the buffer reaches OpenAI).
+const MAX_IMAGE_BASE64_LENGTH = 20 * 1024 * 1024;
+
+// Allowed photo MIME types — JPEG / PNG / WebP cover every iOS export
+// path. Anything else is almost certainly a malformed client or an
+// attempt to push an unexpected payload through the vision model.
+const ALLOWED_PHOTO_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp"
+]);
+
 const textImportSchema = z.object({
-  text: z.string().min(1),
-  imageBase64: z.string().optional(),
+  text: z.string().min(1).max(50_000),
+  imageBase64: z
+    .string()
+    .max(MAX_IMAGE_BASE64_LENGTH, "Image trop volumineuse.")
+    .optional(),
   previewMode: z.boolean().optional(),
   sharedMode: z.boolean().optional()
 });
 
 const shoppingEnrichSchema = z.object({
-  items: z.array(z.object({
-    id: z.string(),
-    article: z.string().min(1),
-    category: z.string().optional()
-  })).min(1)
+  items: z
+    .array(
+      z.object({
+        id: z.string().max(200),
+        article: z.string().min(1).max(200),
+        category: z.string().max(100).optional()
+      })
+    )
+    .min(1)
+    .max(200)
 });
 
 app.get("/health", async () => {
@@ -221,23 +246,42 @@ app.post(
 app.post(
   "/api/import/photo",
   { preHandler: requireAuth },
-  async (request) => {
+  async (request, reply) => {
     await consumeImportSlot(request.user!.id);
     const parts = request.parts();
     let imageBuffer: Buffer | null = null;
+    let imageMimeType: string | null = null;
 
     for await (const part of parts) {
       if (part.type === "file" && part.fieldname === "image") {
+        // Validate the declared MIME type BEFORE buffering the file —
+        // the @fastify/multipart `fileSize` limit (12 MB) is the second
+        // line of defence. We reject anything outside the JPEG/PNG/WebP
+        // set so unexpected payloads (HEIC, GIF, SVG, octet-stream)
+        // never reach the vision model.
+        const declaredMime = (part.mimetype || "").toLowerCase();
+        if (!ALLOWED_PHOTO_MIME_TYPES.has(declaredMime)) {
+          reply.status(415);
+          return {
+            error: "unsupported_media_type",
+            message: "Seules les images JPEG, PNG et WebP sont acceptées."
+          };
+        }
+        imageMimeType = declaredMime === "image/jpg" ? "image/jpeg" : declaredMime;
         imageBuffer = await part.toBuffer();
       }
     }
 
-    if (!imageBuffer) {
-      throw new Error("No image file was provided.");
+    if (!imageBuffer || !imageMimeType) {
+      reply.status(400);
+      return {
+        error: "missing_image",
+        message: "Aucune image n'a été transmise."
+      };
     }
 
     return importFromPhoto({
-      imageDataUrl: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`
+      imageDataUrl: `data:${imageMimeType};base64,${imageBuffer.toString("base64")}`
     });
   }
 );

@@ -544,9 +544,9 @@ struct RecipeImportLoadingView: View {
     @State private var progressPhase: CGFloat = 0
 
     private let messages = [
-        "Reading the recipe…",
-        "Understanding the dish…",
-        "Almost there…"
+        "Lecture de la recette…",
+        "Analyse du plat…",
+        "Presque prêt…"
     ]
 
     var body: some View {
@@ -565,12 +565,12 @@ struct RecipeImportLoadingView: View {
 
                 // Title + subtitle
                 VStack(spacing: 10) {
-                    Text("Cooksy is preparing your recipe")
+                    Text("Cooksy prépare ta recette")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
                         .multilineTextAlignment(.center)
 
-                    Text("Sit back, this will only take a few seconds")
+                    Text("Détends-toi, ça ne prend que quelques secondes")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .multilineTextAlignment(.center)

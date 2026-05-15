@@ -119,7 +119,7 @@ struct RecipeLibraryScreen: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(CooksyTheme.secondaryText)
 
-            TextField("Search recipes...", text: $searchText)
+            TextField("Rechercher une recette…", text: $searchText)
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .textInputAutocapitalization(.never)

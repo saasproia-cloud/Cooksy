@@ -41,7 +41,7 @@ struct RootTabView: View {
                     )
                 }
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Accueil", systemImage: "house.fill")
                 }
                 .tag(AppTab.home)
 
@@ -49,7 +49,7 @@ struct RootTabView: View {
                     MealPlanView(store: recipeStore)
                 }
                 .tabItem {
-                    Label("Planner", systemImage: "calendar")
+                    Label("Menu", systemImage: "calendar")
                 }
                 .tag(AppTab.plan)
 
@@ -61,7 +61,7 @@ struct RootTabView: View {
                     )
                 }
                 .tabItem {
-                    Label("Library", systemImage: "book.closed")
+                    Label("Bibliothèque", systemImage: "book.closed")
                 }
                 .tag(AppTab.recipes)
 
@@ -69,7 +69,7 @@ struct RootTabView: View {
                     ProfileView()
                 }
                 .tabItem {
-                    Label("Plus", systemImage: "line.horizontal.3")
+                    Label("Profil", systemImage: "line.horizontal.3")
                 }
                 .tag(AppTab.more)
             }
@@ -508,9 +508,9 @@ private struct RootSharedImportOverlay: View {
     @State private var progressPhase: CGFloat = 0
 
     private let messages = [
-        "Reading the recipe…",
-        "Understanding the dish…",
-        "Almost there…"
+        "Lecture de la recette…",
+        "Analyse du plat…",
+        "Presque prêt…"
     ]
 
     var body: some View {
@@ -526,12 +526,12 @@ private struct RootSharedImportOverlay: View {
                     .offset(y: floatOffset)
 
                 VStack(spacing: 10) {
-                    Text("Cooksy is preparing your recipe")
+                    Text("Cooksy prépare ta recette")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
                         .multilineTextAlignment(.center)
 
-                    Text("Sit back, this will only take a few seconds")
+                    Text("Détends-toi, ça ne prend que quelques secondes")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .multilineTextAlignment(.center)

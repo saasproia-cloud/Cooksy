@@ -303,7 +303,7 @@ struct HomeView: View {
 
                 Spacer(minLength: 8)
 
-                Text("Import")
+                Text("Importer")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(CooksyTheme.ctaOrangeDark)
                     .padding(.horizontal, 14)
@@ -331,7 +331,7 @@ struct HomeView: View {
     private var recentImportsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Recent Imports")
+                Text("Imports récents")
                     .font(.system(size: 24, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
 
@@ -339,7 +339,7 @@ struct HomeView: View {
 
                 if viewModel.hasRecentImports {
                     Button(action: openRecipesTab) {
-                        Text("See all")
+                        Text("Voir tout")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(CooksyTheme.ctaOrangeDark)
                     }
@@ -791,11 +791,11 @@ private struct HomeRecentImportsEmptyState: View {
                 .foregroundStyle(CooksyTheme.secondaryText.opacity(0.5))
 
             VStack(spacing: 6) {
-                Text("No recipes yet")
+                Text("Aucune recette pour l'instant")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
 
-                Text("Import your first recipe from TikTok, Instagram or any link")
+                Text("Importe ta première recette depuis TikTok, Instagram ou n'importe quel lien")
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
@@ -803,7 +803,7 @@ private struct HomeRecentImportsEmptyState: View {
             }
 
             Button(action: onImport) {
-                Text("Import a recipe")
+                Text("Importer une recette")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(CooksyTheme.ctaOrangeDark)
                     .padding(.horizontal, 18)
