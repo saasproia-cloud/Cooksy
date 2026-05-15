@@ -129,6 +129,21 @@ app.get("/health", async () => {
   };
 });
 
+// Temporary diagnostic — confirms the SHA-256 of the configured
+// REVENUECAT_WEBHOOK_SECRET so we can compare against the value we
+// set in RevenueCat without ever exposing the secret itself. Remove
+// this endpoint once the webhook is verified end-to-end.
+app.get("/api/_debug/webhook-secret-fingerprint", async () => {
+  const { createHash } = await import("node:crypto");
+  const trimmed = env.REVENUECAT_WEBHOOK_SECRET.trim();
+  return {
+    raw_length: env.REVENUECAT_WEBHOOK_SECRET.length,
+    trimmed_length: trimmed.length,
+    sha256_first_8: createHash("sha256").update(env.REVENUECAT_WEBHOOK_SECRET).digest("hex").slice(0, 8),
+    sha256_trimmed_first_8: createHash("sha256").update(trimmed).digest("hex").slice(0, 8)
+  };
+});
+
 // Read-only entitlement view. iOS uses it to render the import counter
 // badge ("3 / 5 imports cette semaine") without consuming a slot.
 app.get("/api/me/entitlement", { preHandler: requireAuth }, async (request) => {
