@@ -210,7 +210,8 @@ struct WelcomeHeroView: View {
     // MARK: - CTA
 
     private func ctaButton(width: CGFloat) -> some View {
-        Button(action: {
+        let buttonWidth = min(width - 20, 320)
+        return Button(action: {
             OnboardingHaptics.medium()
             onContinue()
         }) {
@@ -221,7 +222,7 @@ struct WelcomeHeroView: View {
                     .font(.system(size: 13, weight: .bold))
             }
             .foregroundStyle(.white)
-            .frame(width: width, height: 52)
+            .frame(width: buttonWidth, height: 50)
             .background(
                 Capsule(style: .continuous)
                     .fill(CooksyTheme.accentGradient)
@@ -230,7 +231,7 @@ struct WelcomeHeroView: View {
                 Capsule(style: .continuous)
                     .stroke(.white.opacity(0.22), lineWidth: 1)
             )
-            .shadow(color: CooksyTheme.primaryAccent.opacity(0.42), radius: 18, y: 10)
+            .shadow(color: CooksyTheme.primaryAccent.opacity(0.28), radius: 8, y: 4)
         }
         .buttonStyle(CooksyTheme.pressScale())
     }
