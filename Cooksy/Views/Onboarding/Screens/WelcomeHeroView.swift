@@ -30,15 +30,14 @@ struct WelcomeHeroView: View {
 
             GeometryReader { geo in
                 let hPadding = Layout.horizontalPadding(for: geo)
-                let contentWidth = min(geo.size.width - hPadding * 2, Layout.maxContentWidth)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     welcomeStack(in: geo)
-                        .frame(width: contentWidth)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                        .frame(maxWidth: Layout.maxContentWidth)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, hPadding)
                         .frame(minHeight: geo.size.height, alignment: .top)
                 }
-                .frame(width: geo.size.width)
                 .scrollDisabled(geo.size.height >= 760)
             }
         }

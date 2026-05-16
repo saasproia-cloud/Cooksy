@@ -82,7 +82,6 @@ struct PremiumPaywallView: View {
 
             GeometryReader { geo in
                 let hPad = Layout.horizontalPadding(for: geo)
-                let safeWidth = max(geo.size.width - hPad * 2, 240)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 18) {
@@ -136,11 +135,11 @@ struct PremiumPaywallView: View {
 
                         Color.clear.frame(height: 18)
                     }
-                    .frame(width: min(safeWidth, Layout.maxContentWidth))
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: Layout.maxContentWidth)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, hPad)
                     .frame(minHeight: geo.size.height, alignment: .top)
                 }
-                .frame(width: geo.size.width)
             }
 
             IngredientConfetti(trigger: confettiTrigger)
@@ -491,10 +490,12 @@ private struct PaywallReviewCard: View {
                     reviewCard(review)
                         .padding(.horizontal, 2)
                         .padding(.bottom, 4)
+                        .frame(maxWidth: .infinity)
                         .tag(i)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(maxWidth: .infinity)
             .frame(height: 108)
             .clipped()
             .onChange(of: index) { _, _ in
@@ -781,6 +782,7 @@ private struct PaywallPlanColumn: View {
             )
             .scaleEffect(isSelected ? 1.01 : 1.0)
         }
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(plan.title), \(priceText)\(plan.unitLabel)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
