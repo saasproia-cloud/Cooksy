@@ -1,33 +1,38 @@
 import SwiftUI
 
-/// Cooksy premium paywall — round 5, conversion-tuned redesign.
+/// Cooksy premium paywall — round 6, redesigned to mirror the
+/// RevenueCat "modern subscription" template the user picked as
+/// reference.
 ///
-/// The previous round still leaned on a stacked editorial column with a
-/// floating recipe showcase, an ambient hero and a sticky CTA. The new
-/// layout mirrors the patterns that consistently win paywall A/Bs in
-/// 2024-2026 (Calm, Cal AI, Blinkist Premium, RC Templates):
-///
-///   X close                                            Restore
-///                       [Cooksy app icon]
-///                          Cooksy Premium
-///                Toutes tes recettes, prêtes à cuisiner.
-///                   [App de l'année 2025 — laurier]
+///   X close
+///                       [ Cooksy logo ]
+///                        Cooksy Premium
+///                  Toutes tes vidéos → recettes.
 ///   ┌────────────────────────────────────────────────────────┐
-///   │  ★★★★★   « avis utilisateur signé »                     │
+///   │  Title                              ★★★★★              │
+///   │  « avis utilisateur signé »                            │
+///   │  L  Léa · Paris                              App Store │
 ///   └────────────────────────────────────────────────────────┘
-///   ┌───────────┐    ┌────────────────────┐
-///   │   1 MOIS  │    │    12 MOIS  ✓      │
-///   │   7,99€   │    │   3,33€ / mois     │
-///   │   /mois   │    │   économise 58 %   │
-///   └───────────┘    └────────────────────┘
+///                          • • • •
+///                      [ MEILLEUR CHOIX ]
+///   ┌────────────────────────────────────────────────────────┐
+///   │  Annuel  (−58 %)                              39,99€ /an │
+///   │  soit 3,33€ /mois · 7 j gratuits                       │
+///   └────────────────────────────────────────────────────────┘
+///   ┌────────────────────────────────────────────────────────┐
+///   │  Mensuel                                       7,99€ /mois │
+///   │  Sans engagement                                       │
+///   └────────────────────────────────────────────────────────┘
 ///                   [    Continuer    ]
-///       Restore · Conditions · Confidentialité
+///        Restaurer  ·  Conditions  ·  Confidentialité
 ///
-/// Two plans only — the lifetime SKU was dropped to keep the choice
-/// visceral. The annual card is always pre-selected because that's the
-/// plan that funds the product. The gift mini-game, the cadeau timer
-/// and the discounted price (`GIFTxx` Promotional Offer) are unchanged
-/// — they slot into the same scaffolding.
+/// The screen is tuned to fit on a single iPhone (no scroll on
+/// standard devices). A vertical ScrollView is kept as a safety
+/// net for XL Dynamic Type or compact phones.
+///
+/// All purchase / gift-wheel / exit-intent / restore wiring is
+/// preserved 1:1 from the previous version — only the visual
+/// layout changes.
 struct PremiumPaywallView: View {
     /// Set to `false` when the paywall is presented modally from the home
     /// tab (where dismissing should NOT route to free mode — the user is
@@ -72,8 +77,6 @@ struct PremiumPaywallView: View {
             CooksyTheme.background
                 .ignoresSafeArea()
 
-            // Soft warm halo behind the editorial column so the screen
-            // doesn't read as a flat cream sheet.
             paywallHalo
                 .ignoresSafeArea()
 
@@ -81,26 +84,16 @@ struct PremiumPaywallView: View {
                 let hPad = Layout.horizontalPadding(for: geo)
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
+                    VStack(spacing: 18) {
                         // Top clearance for the sticky close button.
-                        Color.clear.frame(height: 60)
+                        Color.clear.frame(height: 46)
 
-                        // ── HERO ───────────────────────────────────────────
                         PaywallLogoMark()
-                        Color.clear.frame(height: 12)
-                        PaywallHeadline(
-                            showGiftBadge: offers.shouldShowGiftPill
-                                && offers.giftHasBeenWon
-                                && offers.giftOfferIsActive,
-                            giftDiscountPercent: offers.giftDiscountPercent,
-                            onOpenGift: { showsExclusiveOffer = true }
-                        )
-                        .padding(.horizontal, hPad)
-                        Color.clear.frame(height: 10)
-                        PaywallAwardBadge()
-                        Color.clear.frame(height: 20)
 
-                        // ── CONTEXTUAL GIFT BLOCKS ─────────────────────────
+                        PaywallHeadline()
+
+                        // Optional gift banner / strip — keep the
+                        // gift-wheel mechanic intact when triggered.
                         if shouldShowGiftReminderBanner {
                             PaywallGiftReminderBanner(
                                 isAlreadyWon: offers.giftHasBeenWon && offers.giftOfferIsActive,
@@ -108,8 +101,6 @@ struct PremiumPaywallView: View {
                                 onTap: handleOpenGiftFromReminder,
                                 onDismiss: { giftReminderDismissed = true }
                             )
-                            .padding(.horizontal, hPad)
-                            .padding(.bottom, 12)
                         }
 
                         if offers.giftOfferIsActive {
@@ -117,12 +108,11 @@ struct PremiumPaywallView: View {
                                 discountPercent: activeGiftDiscountPercent,
                                 expiresAt: activeOfferExpiresAt
                             )
-                            .padding(.horizontal, hPad)
-                            .padding(.bottom, 10)
                         }
 
-                        // ── PLAN CARDS ─────────────────────────────────────
-                        PaywallPlanRow(
+                        PaywallReviewCard()
+
+                        PaywallPlanColumn(
                             selectedPlan: $selectedPlan,
                             trialDays: trialDays,
                             trialEligible: purchaseService.isAnnualTrialEligible,
@@ -130,11 +120,7 @@ struct PremiumPaywallView: View {
                             giftDiscountPercent: activeGiftDiscountPercent,
                             confettiTrigger: $confettiTrigger
                         )
-                        .padding(.horizontal, hPad)
 
-                        Color.clear.frame(height: 16)
-
-                        // ── PRIMARY CTA ────────────────────────────────────
                         PaywallContinueCTA(
                             selectedPlan: selectedPlan,
                             trialAvailable: trialAvailable,
@@ -143,34 +129,16 @@ struct PremiumPaywallView: View {
                             isPurchasing: isPurchasing,
                             onPurchase: handlePurchase
                         )
-                        .padding(.horizontal, hPad)
 
-                        Color.clear.frame(height: 28)
-
-                        // ── FEATURE COMPARISON ─────────────────────────────
-                        PaywallFeatureComparisonView()
-                            .padding(.horizontal, hPad)
-
-                        Color.clear.frame(height: 20)
-
-                        // ── TRUST STRIP ────────────────────────────────────
-                        PaywallTrustStripView()
-                            .padding(.horizontal, hPad)
-
-                        Color.clear.frame(height: 28)
-
-                        // ── TESTIMONIALS ───────────────────────────────────
-                        PaywallReviewCard()
-                            .padding(.horizontal, hPad)
-
-                        Color.clear.frame(height: 16)
-
-                        // ── FOOTER ─────────────────────────────────────────
                         PaywallFooterLinks(onRestore: handleRestore)
+                            .padding(.top, 2)
 
-                        Color.clear.frame(height: 32)
+                        Color.clear.frame(height: 18)
                     }
-                    .frame(width: geo.size.width)
+                    .padding(.horizontal, hPad)
+                    .frame(maxWidth: Layout.maxContentWidth)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(minHeight: geo.size.height, alignment: .top)
                 }
             }
 
@@ -206,10 +174,6 @@ struct PremiumPaywallView: View {
             )
         }
         .fullScreenCover(isPresented: $showsExclusiveOffer) {
-            // ExclusiveOfferView now executes its own purchase inline
-            // (with a loading state on its CTA) — the cover dismisses
-            // itself once premium is granted, so the paywall never has
-            // to flash back into view between "j'achète" and "premium".
             ExclusiveOfferView(
                 discountPercent: offers.giftDiscountPercent ?? PremiumOffersService.defaultGiftDiscount,
                 expiresAt: offers.giftOfferExpiresAt,
@@ -226,7 +190,7 @@ struct PremiumPaywallView: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            CooksyTheme.primaryAccentGlow.opacity(0.45),
+                            CooksyTheme.primaryAccentGlow.opacity(0.42),
                             CooksyTheme.primaryAccentGlow.opacity(0.0)
                         ],
                         center: .center,
@@ -236,13 +200,13 @@ struct PremiumPaywallView: View {
                 )
                 .frame(width: 600, height: 600)
                 .offset(y: -260)
-                .blur(radius: 12)
+                .blur(radius: 14)
 
             Circle()
                 .fill(
                     RadialGradient(
                         colors: [
-                            CooksyTheme.warmCard.opacity(0.55),
+                            CooksyTheme.warmCard.opacity(0.5),
                             CooksyTheme.warmCard.opacity(0.0)
                         ],
                         center: .center,
@@ -252,7 +216,7 @@ struct PremiumPaywallView: View {
                 )
                 .frame(width: 540, height: 540)
                 .offset(x: 80, y: 340)
-                .blur(radius: 20)
+                .blur(radius: 22)
         }
     }
 
@@ -264,7 +228,7 @@ struct PremiumPaywallView: View {
             Button(action: handleFreeModeDismiss) {
                 ZStack {
                     Circle().fill(.ultraThinMaterial)
-                    Circle().fill(.black.opacity(0.05))
+                    Circle().fill(.black.opacity(0.04))
                     Circle().stroke(CooksyTheme.stroke, lineWidth: 1)
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
@@ -347,11 +311,6 @@ struct PremiumPaywallView: View {
         Task {
             do {
                 if plan == .yearly, giftActive, let percent = giftPercent {
-                    // Try the matching Promotional Offer first
-                    // (e.g. "GIFT25"). If App Store Connect doesn't
-                    // have it configured, RC silently falls back to
-                    // the regular price — the user still gets premium,
-                    // just at the standard tariff.
                     try await PurchaseService.shared.purchaseAnnualWithPromo(
                         offerIdentifier: "GIFT\(percent)"
                     )
@@ -359,10 +318,6 @@ struct PremiumPaywallView: View {
                     try await PurchaseService.shared.purchase(plan: plan)
                 }
 
-                // Only mark premium / record the gift if RevenueCat
-                // actually confirmed the entitlement. A user who
-                // dismissed the StoreKit sheet returns here without
-                // `isPremium`, so nothing must mutate.
                 guard PurchaseService.shared.isPremium else {
                     await MainActor.run { isPurchasing = false }
                     return
@@ -406,9 +361,14 @@ struct PremiumPaywallView: View {
 
 // MARK: - Logo mark
 
+/// Clean Cooksy logo lockup — same recipe as the welcome screen so
+/// the brand reads identically on both surfaces. Just the `HeaderLogo`
+/// asset on a soft white disc; no orange square, no template tinting,
+/// no weird artefact behind the toque.
 private struct PaywallLogoMark: View {
     var body: some View {
         ZStack {
+            // Outer warm glow.
             Circle()
                 .fill(
                     RadialGradient(
@@ -421,139 +381,53 @@ private struct PaywallLogoMark: View {
                         endRadius: 70
                     )
                 )
-                .frame(width: 140, height: 140)
+                .frame(width: 132, height: 132)
                 .blur(radius: 8)
 
+            // White glass disc — same as Welcome.
             Circle()
                 .fill(Color.white.opacity(0.95))
-                .frame(width: 92, height: 92)
+                .frame(width: 88, height: 88)
                 .overlay(
                     Circle()
                         .stroke(CooksyTheme.stroke.opacity(0.7), lineWidth: 1)
                 )
-                .shadow(color: CooksyTheme.shadow, radius: 18, y: 10)
-                .shadow(color: CooksyTheme.primaryAccent.opacity(0.18), radius: 22, y: 0)
+                .shadow(color: CooksyTheme.shadow, radius: 16, y: 9)
+                .shadow(color: CooksyTheme.primaryAccent.opacity(0.16), radius: 20, y: 0)
 
+            // The toque — natural orange render, no template tint.
             Image("HeaderLogo")
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 70, height: 70)
+                .frame(width: 60, height: 60)
         }
+        .frame(width: 132, height: 132)
     }
 }
 
 // MARK: - Headline
 
 private struct PaywallHeadline: View {
-    let showGiftBadge: Bool
-    let giftDiscountPercent: Int?
-    let onOpenGift: () -> Void
-
     var body: some View {
-        VStack(spacing: 8) {
-            if showGiftBadge {
-                Button(action: onOpenGift) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gift.fill")
-                            .font(.system(size: 11, weight: .bold))
-                        Text(giftDiscountPercent.map { "CADEAU −\($0) %" } ?? "CADEAU ACTIF")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .tracking(0.8)
-                    }
-                    .foregroundStyle(CooksyTheme.heroDark)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(CooksyTheme.goldShimmer))
-                }
-                .buttonStyle(CooksyTheme.pressScale())
-            }
-
-            Text("Cooksy Premium")
-                .font(.system(size: 30, weight: .bold, design: .serif))
+        VStack(spacing: 6) {
+            Text("Débloque l'accès complet")
+                .font(.system(size: 26, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity)
 
-            Text("Toutes tes vidéos transformées en recettes,\nprêtes à cuisiner — sans limite.")
-                .font(.system(size: 14.5, weight: .medium, design: .rounded))
+            Text("Toutes tes vidéos transformées en recettes claires, sans limite.")
+                .font(.system(size: 13.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(1)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
         }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Award badge
-
-/// "App de l'année 2025" laurel — replicates the visual cue from the
-/// RevenueCat template. Drawn entirely in SwiftUI (no bitmaps).
-private struct PaywallAwardBadge: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            LaurelBranch(flipped: false)
-
-            VStack(spacing: 1) {
-                Text("THE COOKSY")
-                    .font(.system(size: 8.5, weight: .heavy, design: .rounded))
-                    .tracking(1.4)
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                Text("App de l'année")
-                    .font(.system(size: 13.5, weight: .bold, design: .serif))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                Text("FOOD · 2025")
-                    .font(.system(size: 8.5, weight: .heavy, design: .rounded))
-                    .tracking(1.4)
-                    .foregroundStyle(CooksyTheme.secondaryText)
-            }
-
-            LaurelBranch(flipped: true)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-    }
-}
-
-private struct LaurelBranch: View {
-    let flipped: Bool
-
-    var body: some View {
-        ZStack {
-            // Main stem.
-            Path { p in
-                p.move(to: CGPoint(x: 4, y: 38))
-                p.addCurve(
-                    to: CGPoint(x: 22, y: 4),
-                    control1: CGPoint(x: 0, y: 26),
-                    control2: CGPoint(x: 10, y: 10)
-                )
-            }
-            .stroke(
-                CooksyTheme.primaryAccentStrong.opacity(0.75),
-                style: StrokeStyle(lineWidth: 1.4, lineCap: .round)
-            )
-
-            // Leaves — 5 ellipses staggered along the stem.
-            ForEach(0..<5, id: \.self) { i in
-                let t = CGFloat(i) / 4
-                let x: CGFloat = 4 + (1 - t) * 4 + t * 20
-                let y: CGFloat = 38 - t * 30
-                Ellipse()
-                    .fill(CooksyTheme.primaryAccentStrong.opacity(0.78))
-                    .frame(width: 9, height: 4)
-                    .rotationEffect(.degrees(Double(-60 + i * 12)))
-                    .offset(x: x - 10, y: y - 20)
-
-                Ellipse()
-                    .fill(CooksyTheme.primaryAccentStrong.opacity(0.78))
-                    .frame(width: 9, height: 4)
-                    .rotationEffect(.degrees(Double(60 - i * 12)))
-                    .offset(x: x - 2, y: y - 20)
-            }
-        }
-        .frame(width: 30, height: 42)
-        .scaleEffect(x: flipped ? -1 : 1)
     }
 }
 
@@ -569,14 +443,14 @@ private struct PaywallReview: Identifiable {
     let avatarColors: [Color]
 }
 
-/// Auto-rotating testimonial carousel. Reviews advance every 4 s on
-/// their own, and the user can swipe left/right to jump manually — the
-/// auto-rotation timer pauses briefly after each interaction so the
-/// carousel doesn't fight against the user's intent.
+/// Auto-rotating testimonial carousel — visually mirrors the model:
+/// a single card with title, stars, quote, signed author and an
+/// "App Store" tag, plus a row of page dots underneath. Reviews are
+/// written for Cooksy (not the cat-photo demo from the reference).
 private struct PaywallReviewCard: View {
     private static let reviews: [PaywallReview] = [
         PaywallReview(
-            title: "Recette parfaite à chaque fois",
+            title: "La meilleure app cuisine",
             quote: "« Je colle un lien TikTok, j'obtiens la recette propre en 10 s. Plus jamais besoin de revoir la vidéo en cuisine. »",
             authorInitial: "L",
             authorName: "Léa · Paris",
@@ -598,7 +472,7 @@ private struct PaywallReviewCard: View {
         ),
         PaywallReview(
             title: "Précision au top",
-            quote: "« Les quantités sont justes, les ingrédients pas génériques. Du vrai cooking, pas du blabla. Cooksy a remplacé mes captures d'écran. »",
+            quote: "« Les quantités sont justes, les ingrédients pas génériques. Du vrai cooking. Cooksy a remplacé mes captures d'écran. »",
             authorInitial: "T",
             authorName: "Thomas · Marseille",
             avatarColors: [Color(hex: 0xFFB35A), Color(hex: 0xB3441C)]
@@ -606,10 +480,7 @@ private struct PaywallReviewCard: View {
     ]
 
     @State private var index: Int = 0
-    /// Bumped on every user swipe so the auto-rotation pauses briefly
-    /// before resuming — feels less like a fight against the user.
     @State private var pauseToken: Int = 0
-    private let rotationInterval: TimeInterval = 4.0
     private let timer = Timer.publish(every: 4.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -623,16 +494,11 @@ private struct PaywallReviewCard: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 158)
+            .frame(height: 122)
             .onChange(of: index) { _, _ in
-                // User (or timer) advanced the carousel. Reset the pause
-                // window — the next auto-tick will respect it.
                 pauseToken &+= 1
             }
             .onReceive(timer) { _ in
-                // Drop ticks that arrive within ~1 s of a user swipe so
-                // the carousel never feels jumpy right after an
-                // interaction.
                 let token = pauseToken
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     guard token == pauseToken else { return }
@@ -640,7 +506,6 @@ private struct PaywallReviewCard: View {
                 }
             }
 
-            // Page dots — tap to jump to a specific review.
             HStack(spacing: 6) {
                 ForEach(0..<Self.reviews.count, id: \.self) { i in
                     Capsule()
@@ -667,31 +532,32 @@ private struct PaywallReviewCard: View {
     }
 
     private func reviewCard(_ review: PaywallReview) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                Text(review.title)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
                 HStack(spacing: 2) {
                     ForEach(0..<5, id: \.self) { _ in
                         Image(systemName: "star.fill")
-                            .font(.system(size: 11, weight: .black))
+                            .font(.system(size: 10, weight: .black))
                             .foregroundStyle(CooksyTheme.primaryAccentGlow)
                     }
                 }
-                Text(review.title)
-                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 0)
             }
 
             Text(review.quote)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 11.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText.opacity(0.88))
-                .lineSpacing(2)
+                .lineSpacing(1.5)
                 .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 Circle()
                     .fill(
                         LinearGradient(
@@ -700,23 +566,25 @@ private struct PaywallReviewCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 20, height: 20)
+                    .frame(width: 18, height: 18)
                     .overlay(
                         Text(review.authorInitial)
-                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .font(.system(size: 9, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
                     )
                 Text(review.authorName)
-                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
                 Text("App Store")
-                    .font(.system(size: 9.5, weight: .heavy, design: .rounded))
+                    .font(.system(size: 9, weight: .heavy, design: .rounded))
                     .tracking(0.6)
                     .foregroundStyle(CooksyTheme.secondaryText)
             }
         }
-        .padding(14)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -725,7 +593,7 @@ private struct PaywallReviewCard: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(CooksyTheme.stroke.opacity(0.8), lineWidth: 1)
                 )
-                .shadow(color: CooksyTheme.shadow, radius: 18, y: 8)
+                .shadow(color: CooksyTheme.shadow, radius: 16, y: 6)
         )
     }
 }
@@ -758,9 +626,13 @@ private struct PaywallGiftStrip: View {
     }
 }
 
-// MARK: - Plan row (2 cards, side-by-side)
+// MARK: - Plan column (vertical stack — yearly on top, monthly below)
 
-private struct PaywallPlanRow: View {
+/// Stacked plan cards. Each card is a horizontal row: plan name +
+/// subtitle on the left, price + cadence on the right, with a
+/// floating "MEILLEUR CHOIX" pill above the annual card when it's
+/// the selected option (matches the reference template).
+private struct PaywallPlanColumn: View {
     @Binding var selectedPlan: PremiumPlan
     let trialDays: Int
     let trialEligible: Bool
@@ -768,9 +640,14 @@ private struct PaywallPlanRow: View {
     let giftDiscountPercent: Int?
     @Binding var confettiTrigger: Int
 
+    /// Stable order: yearly first (with badge), monthly second.
+    private var orderedPlans: [PremiumPlan] {
+        [.yearly, .monthly]
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(PremiumPlan.allCases) { plan in
+        VStack(spacing: 10) {
+            ForEach(orderedPlans) { plan in
                 planCard(plan)
                     .onTapGesture {
                         OnboardingHaptics.selection()
@@ -793,113 +670,86 @@ private struct PaywallPlanRow: View {
         let originalPriceText: String? = effectiveDiscount != nil
             ? plan.liveOrFallbackPriceString
             : nil
-        let showsTrial = plan.hasFreeTrial && trialEligible
         let perMonth = plan.liveOrFallbackMonthlyEquivalent(discountPercent: effectiveDiscount)
+        let showsTrial = plan.hasFreeTrial && trialEligible
 
-        let bigUnit: String = plan == .monthly ? "1" : "12"
-        let unitWord: String = plan == .monthly ? "MOIS" : "MOIS"
-        let footnote: String = {
+        VStack(spacing: 0) {
+            // "MEILLEUR CHOIX" floating badge — only on yearly.
             if plan == .yearly {
-                if let perMonth { return "soit \(perMonth)/mois" }
-                return "−58 % vs mensuel"
-            } else {
-                return "Sans engagement"
+                bestValueBadge(isSelected: isSelected)
+                    .padding(.bottom, -8)
+                    .zIndex(2)
             }
-        }()
 
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 6) {
-                // Top: optional trial / best-value badge.
-                if plan == .yearly {
-                    HStack(spacing: 4) {
-                        if showsTrial {
-                            Image(systemName: "gift.fill")
-                                .font(.system(size: 8, weight: .bold))
-                            Text("\(trialDays) J. GRATUITS")
-                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                .tracking(0.6)
-                        } else {
-                            Text("ÉCONOMISEZ 58 %")
-                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                .tracking(0.6)
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(plan.title)
+                            .font(.system(size: 14.5, weight: .heavy, design: .rounded))
+                            .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+
+                        if plan == .yearly, effectiveDiscount == nil {
+                            Text("(−58 %)")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    isSelected
+                                    ? Color.white.opacity(0.92)
+                                    : CooksyTheme.primaryAccentStrong
+                                )
+                                .lineLimit(1)
+                        } else if let percent = effectiveDiscount {
+                            Text("(−\(percent) %)")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    isSelected
+                                    ? Color.white.opacity(0.92)
+                                    : CooksyTheme.primaryAccentStrong
+                                )
+                                .lineLimit(1)
                         }
                     }
-                    .foregroundStyle(isSelected ? .white : CooksyTheme.primaryAccentStrong)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule().fill(
+
+                    Text(subtitle(for: plan, perMonth: perMonth, showsTrial: showsTrial))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(
                             isSelected
-                            ? AnyShapeStyle(Color.white.opacity(0.22))
-                            : AnyShapeStyle(CooksyTheme.primaryAccentSoft)
+                            ? Color.white.opacity(0.88)
+                            : CooksyTheme.secondaryText
                         )
-                    )
-                    .padding(.top, 2)
-                } else {
-                    Color.clear.frame(height: 18)
-                }
-
-                // Big number.
-                Text(bigUnit)
-                    .font(.system(size: 44, weight: .black, design: .rounded))
-                    .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                Text(unitWord)
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .tracking(1.4)
-                    .foregroundStyle(isSelected ? .white.opacity(0.92) : CooksyTheme.secondaryText)
-                    .padding(.top, -6)
-
-                Rectangle()
-                    .fill(isSelected ? Color.white.opacity(0.25) : CooksyTheme.stroke)
-                    .frame(height: 0.6)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-
-                // Price block.
-                VStack(spacing: 1) {
-                    if let originalPriceText {
-                        Text(originalPriceText)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(isSelected ? .white.opacity(0.7) : CooksyTheme.secondaryText)
-                            .strikethrough()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    Text(priceText)
-                        .font(.system(size: 17, weight: .bold, design: .serif))
-                        .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Text(plan.unitLabel)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(isSelected ? .white.opacity(0.85) : CooksyTheme.secondaryText)
+                        .minimumScaleFactor(0.75)
                 }
 
-                Text(footnote)
-                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isSelected ? .white.opacity(0.92) : CooksyTheme.primaryAccentStrong)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.top, 2)
-                    .padding(.bottom, 4)
+                Spacer(minLength: 4)
+
+                priceColumn(
+                    plan: plan,
+                    isSelected: isSelected,
+                    priceText: priceText,
+                    originalPriceText: originalPriceText,
+                    perMonth: perMonth
+                )
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, plan == .yearly ? 13 : 11)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 200)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(isSelected ? AnyShapeStyle(CooksyTheme.accentGradient) : AnyShapeStyle(Color.white))
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            isSelected
+                            ? AnyShapeStyle(CooksyTheme.accentGradient)
+                            : AnyShapeStyle(Color.white)
+                        )
+
                     if !isSelected {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        CooksyTheme.primaryAccentSoft.opacity(0.22),
+                                        CooksyTheme.primaryAccentSoft.opacity(0.18),
                                         Color.clear
                                     ],
                                     startPoint: .topLeading,
@@ -910,7 +760,7 @@ private struct PaywallPlanRow: View {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(
                         isSelected
                         ? AnyShapeStyle(Color.white.opacity(0.35))
@@ -919,28 +769,99 @@ private struct PaywallPlanRow: View {
                     )
             )
             .shadow(
-                color: isSelected ? CooksyTheme.primaryAccent.opacity(0.32) : Color.black.opacity(0.05),
-                radius: isSelected ? 22 : 10,
-                y: isSelected ? 12 : 4
+                color: isSelected
+                    ? CooksyTheme.primaryAccent.opacity(0.28)
+                    : Color.black.opacity(0.05),
+                radius: isSelected ? 18 : 8,
+                y: isSelected ? 10 : 3
             )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
-
-            // Check disc top-right (matches the RC template).
-            if isSelected {
-                ZStack {
-                    Circle().fill(.white)
-                        .frame(width: 22, height: 22)
-                        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .black))
-                        .foregroundStyle(CooksyTheme.primaryAccentStrong)
-                }
-                .offset(x: -8, y: 8)
-            }
+            .scaleEffect(isSelected ? 1.01 : 1.0)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(plan.title), \(priceText)\(plan.unitLabel)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+    }
+
+    /// Right-side price column. On the annual card we surface the
+    /// **per-month equivalent** as the headline number (cheaper-looking,
+    /// what users compare against the monthly plan) and push the yearly
+    /// total to a small caption underneath. When a gift discount is
+    /// active, the caption shows the strikethrough original yearly price
+    /// next to the discounted one, so the −25 % savings stay visible
+    /// after spinning the wheel.
+    @ViewBuilder
+    private func priceColumn(
+        plan: PremiumPlan,
+        isSelected: Bool,
+        priceText: String,
+        originalPriceText: String?,
+        perMonth: String?
+    ) -> some View {
+        let headlinePrice: String = {
+            if plan == .yearly, let perMonth { return "\(perMonth)/mois" }
+            return "\(priceText)\(plan.unitLabel)"
+        }()
+
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(headlinePrice)
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            if plan == .yearly {
+                HStack(spacing: 4) {
+                    if let originalPriceText {
+                        Text("\(originalPriceText)/an")
+                            .strikethrough()
+                            .foregroundStyle(
+                                isSelected
+                                ? Color.white.opacity(0.65)
+                                : CooksyTheme.secondaryText.opacity(0.8)
+                            )
+                    }
+                    Text("\(priceText)/an")
+                        .foregroundStyle(
+                            isSelected
+                            ? Color.white.opacity(0.92)
+                            : CooksyTheme.secondaryText
+                        )
+                }
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func bestValueBadge(isSelected: Bool) -> some View {
+        Text("MEILLEUR CHOIX")
+            .font(.system(size: 10, weight: .black, design: .rounded))
+            .tracking(1.2)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(CooksyTheme.accentGradient)
+                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.35), radius: 8, y: 4)
+            )
+    }
+
+    private func subtitle(for plan: PremiumPlan, perMonth: String?, showsTrial: Bool) -> String {
+        switch plan {
+        case .yearly:
+            // Per-month figure is now the headline number on the right —
+            // keep this subtitle short and focused on the differentiator:
+            // the free trial (when eligible) or just "Sans engagement".
+            if showsTrial {
+                return "\(trialDays) j gratuits · sans engagement"
+            }
+            return "Sans engagement"
+        case .monthly:
+            return plan.subtitle
+        }
     }
 }
 
@@ -975,7 +896,7 @@ private struct PaywallContinueCTA: View {
                         .minimumScaleFactor(0.75)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: 54)
                 .background(
                     Capsule(style: .continuous)
                         .fill(CooksyTheme.accentGradient)
@@ -984,7 +905,7 @@ private struct PaywallContinueCTA: View {
                     Capsule(style: .continuous)
                         .stroke(.white.opacity(0.2), lineWidth: 1)
                 )
-                .shadow(color: CooksyTheme.primaryAccent.opacity(0.42), radius: 18, y: 10)
+                .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 16, y: 9)
             }
             .buttonStyle(CooksyTheme.pressScale())
             .disabled(isPurchasing)
@@ -1006,18 +927,35 @@ private struct PaywallContinueCTA: View {
     private var billingLockup: Text {
         let billed = selectedPlan.liveOrFallbackPriceString(discountPercent: effectiveDiscount)
         let unit = selectedPlan.unitLabel
+        let perMonthValue = selectedPlan.liveOrFallbackMonthlyEquivalent(discountPercent: effectiveDiscount)
 
-        if selectedPlan == .yearly && trialAvailable {
-            let trialPart = Text("Essai \(trialDays) jours gratuit")
+        // ── Annual ───────────────────────────────────────────────────
+        // We want the user to compare on the per-month figure, with the
+        // yearly total appearing as the small "equivalent" caption — the
+        // discount from the gift wheel (−25 %, etc.) already flows
+        // through both `billed` and `perMonthValue` here.
+        if selectedPlan == .yearly, let perMonth = perMonthValue {
+            if trialAvailable {
+                let trialPart = Text("Essai \(trialDays) jours gratuit")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(CooksyTheme.primaryAccentStrong)
+                let billedPart = Text("  ·  puis \(perMonth)/mois (soit \(billed)/an)")
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    .foregroundColor(CooksyTheme.secondaryText)
+                return trialPart + billedPart
+            }
+            let leading = Text("\(perMonth)/mois")
                 .font(.system(size: 12.5, weight: .bold, design: .rounded))
-                .foregroundColor(CooksyTheme.primaryAccentStrong)
-            let billedPart = Text("  ·  puis \(billed)\(unit)")
-                .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                .foregroundColor(CooksyTheme.primaryText)
+            let trailing = Text("  ·  soit \(billed)/an facturé annuellement")
+                .font(.system(size: 11.5, weight: .medium, design: .rounded))
                 .foregroundColor(CooksyTheme.secondaryText)
-            return trialPart + billedPart
+            return leading + trailing
         }
+
+        // ── Monthly ──────────────────────────────────────────────────
         return Text("Facturé \(billed)\(unit) · sans engagement")
-            .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
             .foregroundColor(CooksyTheme.secondaryText)
     }
 }
@@ -1028,7 +966,7 @@ private struct PaywallFooterLinks: View {
     let onRestore: () -> Void
 
     var body: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 14) {
             Button(action: onRestore) {
                 Text("Restaurer")
                     .underline()

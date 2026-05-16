@@ -2,52 +2,51 @@ import SwiftUI
 
 /// E1 — Hard paywall gate. Shown once the user is authenticated and their
 /// onboarding answers are stored, if `profile.isPremium == false`.
-/// No close button, no "skip" path — the only way out is to tap the CTA.
-/// StoreKit is NOT wired in this version: the CTA just flips `isPremium`
-/// locally + in Supabase via `SessionStore.setPremiumMock`.
+/// Design mirrors the RevenueCat "modern app" paywall template: a large
+/// rounded app icon, bold serif title, short subtitle, award badge,
+/// testimonial card, three horizontal price tiles with the recommended
+/// one visually highlighted, full-width CTA, and a discreet legal footer.
 struct PaywallView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @StateObject private var purchaseService = PurchaseService.shared
 
     @State private var selectedPlan: PaywallPlan = .annual
-    @State private var trialEnabled: Bool = true
     @State private var appeared: Bool = false
     @State private var isActivating: Bool = false
 
-    /// Real trial duration from the storefront (default 7 if not loaded).
     private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
-    /// Whether Apple still allows the trial for this Apple ID.
     private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
-    /// Resolved trial state shown in the UI.
-    private var trialShown: Bool { trialEnabled && trialEligible && selectedPlan == .annual }
+    private var trialShown: Bool { trialEligible && selectedPlan == .annual }
 
     var body: some View {
-        ZStack {
-            // Layered background: glow gradient + drifting sparkles.
-            CooksyTheme.heroGlowGradient
-                .ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                CooksyTheme.ambientGradient
+                    .ignoresSafeArea()
 
-            SparkleCanvas(count: 34, baseColor: CooksyTheme.sparkleYellow)
-                .opacity(0.55)
-                .ignoresSafeArea()
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 22) {
+                        headerBlock
+                            .padding(.top, 14)
 
-            VStack(spacing: 0) {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        header
-                            .padding(.top, 20)
+                        awardBadge
 
-                        featureList
+                        reviewCard
 
-                        planStack
+                        planRow
+                            .padding(.top, 4)
+
+                        ctaBlock
+                            .padding(.top, 2)
+
+                        legalFooter
+                            .padding(.bottom, 18)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    .frame(maxWidth: Layout.maxContentWidth)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, Layout.horizontalPadding(for: geo))
+                    .padding(.top, 8)
                 }
-
-                bottomBar
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 22)
             }
         }
         .onAppear {
@@ -61,108 +60,158 @@ struct PaywallView: View {
 
     // MARK: - Header
 
-    private var header: some View {
+    private var headerBlock: some View {
         VStack(spacing: 14) {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(CooksyTheme.accentGradient)
-                    .frame(width: 72, height: 72)
-                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.45), radius: 20, y: 10)
+                    .frame(width: 104, height: 104)
+                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 22, y: 12)
 
-                Image(systemName: "sparkles")
-                    .font(.system(size: 30, weight: .semibold))
+                Image("HeaderLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 64, height: 64)
                     .foregroundStyle(.white)
             }
-            .scaleEffect(appeared ? 1 : 0.8)
+            .scaleEffect(appeared ? 1 : 0.85)
             .opacity(appeared ? 1 : 0)
-            .animation(.spring(response: 0.55, dampingFraction: 0.72), value: appeared)
+            .animation(.spring(response: 0.55, dampingFraction: 0.75), value: appeared)
 
             VStack(spacing: 8) {
-                Text("Débloque tout Cooksy")
-                    .font(.system(size: 32, weight: .bold, design: .serif))
+                Text("Débloque Cooksy Premium")
+                    .font(.system(size: 26, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
 
                 Text(trialEligible
-                     ? "\(trialDays) jours d'essai gratuit, puis le plan qui te convient. Annulable à tout moment."
-                     : "Choisis ton plan. Annulable à tout moment.")
+                     ? "Transforme chaque vidéo en recette claire. \(trialDays) jours gratuits, sans engagement."
+                     : "Transforme chaque vidéo en recette claire. Annulable à tout moment.")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 8)
             }
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 12)
+            .offset(y: appeared ? 0 : 10)
             .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.1), value: appeared)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Features
+    // MARK: - Award badge (replaces "App of the Year")
 
-    private var featureList: some View {
-        VStack(spacing: 10) {
-            ForEach(Array(PaywallFeature.all.enumerated()), id: \.offset) { index, feature in
-                FeatureRow(feature: feature, index: index, appeared: appeared)
+    private var awardBadge: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "laurel.leading")
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(CooksyTheme.primaryAccentStrong.opacity(0.85))
+
+            VStack(spacing: 1) {
+                Text("Sélection App Store")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .tracking(0.4)
+                    .foregroundStyle(CooksyTheme.primaryText)
+                Text("Cuisine · 2026")
+                    .font(.system(size: 12, weight: .bold, design: .serif))
+                    .foregroundStyle(CooksyTheme.secondaryText)
             }
+
+            Image(systemName: "laurel.trailing")
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(CooksyTheme.primaryAccentStrong.opacity(0.85))
+        }
+        .frame(maxWidth: .infinity)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 8)
+        .animation(.easeOut(duration: 0.5).delay(0.2), value: appeared)
+    }
+
+    // MARK: - Review card
+
+    private var reviewCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text("Mon nouveau réflexe en cuisine")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 2) {
+                ForEach(0..<5, id: \.self) { _ in
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(CooksyTheme.primaryAccentGlow)
+                }
+            }
+
+            Text("« Je colle le lien d'un Reel, j'ai la recette en clair en 5 secondes. Plus jamais à mettre pause pour noter. »")
+                .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.primaryText)
+                .lineSpacing(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text("— Léa · cuisine du soir")
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: CooksyTheme.heroRadius, style: .continuous)
-                .fill(CooksyTheme.elevatedSurface.opacity(0.88))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(CooksyTheme.elevatedSurface.opacity(0.96))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(CooksyTheme.stroke.opacity(0.8), lineWidth: 1)
+                )
+                .shadow(color: CooksyTheme.softShadow, radius: 14, y: 6)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: CooksyTheme.heroRadius, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
-        )
-        .shadow(color: CooksyTheme.softShadow, radius: 14, y: 8)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 12)
+        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.28), value: appeared)
     }
 
-    // MARK: - Plans
+    // MARK: - Plan row (3 horizontal tiles, middle highlighted)
 
-    private var planStack: some View {
-        VStack(spacing: 10) {
+    private var planRow: some View {
+        HStack(spacing: 10) {
             ForEach(PaywallPlan.allCases) { plan in
-                PaywallPlanCard(
+                PaywallPlanTile(
                     plan: plan,
-                    isSelected: selectedPlan == plan
+                    isSelected: selectedPlan == plan,
+                    showTrialChip: plan == .annual && trialShown,
+                    trialDays: trialDays
                 ) {
+                    OnboardingHaptics.selection()
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         selectedPlan = plan
                     }
                 }
             }
         }
+        .frame(maxWidth: .infinity)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 14)
-        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.4), value: appeared)
+        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.38), value: appeared)
     }
 
-    // MARK: - Bottom CTA
+    // MARK: - CTA + disclaimer
 
-    private var bottomBar: some View {
-        VStack(spacing: 8) {
-            if trialEligible && selectedPlan == .annual {
-                Toggle(isOn: $trialEnabled) {
-                    Text(trialEnabled
-                         ? "Essai gratuit \(trialDays) jours activé"
-                         : "Essai gratuit désactivé")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                }
-                .tint(CooksyTheme.ctaOrange)
-                .padding(.horizontal, 16)
-                .frame(height: 44)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(CooksyTheme.elevatedSurface.opacity(0.85))
-                )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(CooksyTheme.stroke, lineWidth: 1)
-                )
-            }
-
+    private var ctaBlock: some View {
+        VStack(spacing: 10) {
             Button(action: activate) {
                 HStack(spacing: 8) {
                     if isActivating {
@@ -171,11 +220,13 @@ struct PaywallView: View {
                             .tint(.white)
                     }
                     Text(isActivating ? "Activation…" : ctaTitle)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 54)
+                .frame(height: 56)
                 .background(
                     Capsule(style: .continuous)
                         .fill(CooksyTheme.accentGradient)
@@ -184,36 +235,48 @@ struct PaywallView: View {
                     Capsule(style: .continuous)
                         .stroke(Color.white.opacity(0.25), lineWidth: 1)
                 )
-                .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 8)
-                .shimmer(period: 3)
+                .shadow(color: CooksyTheme.primaryAccent.opacity(0.42), radius: 18, y: 10)
             }
             .buttonStyle(CooksyTheme.pressScale())
             .disabled(isActivating)
 
-            Text(trialShown
-                 ? "Pas de paiement aujourd'hui. \(selectedPlan.livePrice)\(selectedPlan.cadence) après l'essai. Annulable depuis Réglages > Apple ID."
-                 : "Facturation immédiate de \(selectedPlan.livePrice)\(selectedPlan.cadence). Annulable à tout moment.")
+            Text(disclaimer)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
-                .padding(.top, 4)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
+        }
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 14)
+        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.46), value: appeared)
+    }
 
-            HStack(spacing: 16) {
-                PaywallFooterLink(title: "Restaurer") {
-                    Task {
-                        try? await PurchaseService.shared.restorePurchases()
-                        if PurchaseService.shared.isPremium {
-                            await sessionStore.setPremium(true)
-                        }
+    private var disclaimer: String {
+        if trialShown {
+            return "Aucun paiement aujourd'hui. \(selectedPlan.livePrice)\(selectedPlan.cadence) après l'essai. Annulable depuis Réglages."
+        }
+        return "\(selectedPlan.livePrice)\(selectedPlan.cadence). Annulable à tout moment."
+    }
+
+    // MARK: - Legal footer
+
+    private var legalFooter: some View {
+        HStack(spacing: 18) {
+            PaywallFooterLink(title: "Restaurer") {
+                Task {
+                    try? await PurchaseService.shared.restorePurchases()
+                    if PurchaseService.shared.isPremium {
+                        await sessionStore.setPremium(true)
                     }
                 }
-                Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
-                PaywallFooterLink(title: "Conditions") { }
-                Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
-                PaywallFooterLink(title: "Confidentialité") { }
             }
-            .padding(.top, 2)
+            Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
+            PaywallFooterLink(title: "Conditions") { }
+            Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
+            PaywallFooterLink(title: "Confidentialité") { }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var ctaTitle: String {
@@ -257,6 +320,24 @@ enum PaywallPlan: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Big number shown on the tile (no currency).
+    var headlineAmount: String {
+        switch self {
+        case .weekly:   return "7"
+        case .annual:   return "12"
+        case .lifetime: return "∞"
+        }
+    }
+
+    /// Unit shown under the big amount.
+    var headlineUnit: String {
+        switch self {
+        case .weekly:   return "JOURS"
+        case .annual:   return "MOIS"
+        case .lifetime: return "À VIE"
+        }
+    }
+
     var shortName: String {
         switch self {
         case .weekly:   return "l'abo hebdo"
@@ -273,10 +354,6 @@ enum PaywallPlan: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Price string sourced from RevenueCat when available so what we
-    /// show always matches what Apple is going to bill. Falls back to
-    /// the hardcoded marketing price only during a cold start (no
-    /// network, offering not yet fetched).
     @MainActor
     var livePrice: String {
         switch self {
@@ -288,178 +365,113 @@ enum PaywallPlan: String, CaseIterable, Identifiable {
 
     var cadence: String {
         switch self {
-        case .weekly:   return "/ semaine"
-        case .annual:   return "/ an"
-        case .lifetime: return "une fois"
-        }
-    }
-
-    var bottomLine: String {
-        switch self {
-        case .weekly:   return "Flexible, tu stoppes quand tu veux"
-        case .annual:   return "Le meilleur rapport qualité / prix"
-        case .lifetime: return "Un paiement, pour toujours"
-        }
-    }
-
-    var badge: String? {
-        switch self {
-        case .annual: return "POPULAIRE · -85%"
-        default:      return nil
+        case .weekly:   return " / semaine"
+        case .annual:   return " / an"
+        case .lifetime: return " une fois"
         }
     }
 }
 
-// MARK: - Plan card
+// MARK: - Plan tile
 
-private struct PaywallPlanCard: View {
+private struct PaywallPlanTile: View {
     let plan: PaywallPlan
     let isSelected: Bool
+    let showTrialChip: Bool
+    let trialDays: Int
     let action: () -> Void
 
     var body: some View {
-        Button(action: {
-            OnboardingHaptics.selection()
-            action()
-        }) {
-            HStack(alignment: .center, spacing: 14) {
-                // Radio
-                ZStack {
-                    Circle()
-                        .stroke(isSelected ? CooksyTheme.ctaOrange : CooksyTheme.stroke, lineWidth: 2)
-                        .frame(width: 22, height: 22)
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack(alignment: .topTrailing) {
+                    VStack(spacing: 4) {
+                        Text(plan.headlineAmount)
+                            .font(.system(size: 30, weight: .heavy, design: .rounded))
+                            .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+
+                        Text(plan.headlineUnit)
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .tracking(1.0)
+                            .foregroundStyle(isSelected ? .white.opacity(0.95) : CooksyTheme.secondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 18)
+                    .padding(.bottom, 12)
+
                     if isSelected {
-                        Circle()
-                            .fill(CooksyTheme.accentGradient)
-                            .frame(width: 12, height: 12)
-                            .transition(.scale)
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .background(
+                                Circle()
+                                    .fill(CooksyTheme.primaryAccentStrong)
+                                    .frame(width: 22, height: 22)
+                            )
+                            .frame(width: 22, height: 22)
+                            .offset(x: -8, y: 8)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(plan.title)
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
-
-                        if let badge = plan.badge {
-                            Text(badge)
-                                .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                .foregroundStyle(.white)
-                                .tracking(0.8)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(CooksyTheme.accentGradient)
-                                )
-                        }
-                    }
-                    Text(plan.bottomLine)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                }
-
-                Spacer(minLength: 0)
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(plan.livePrice)
-                        .font(.system(size: 17, weight: .bold, design: .serif))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    Text(plan.cadence)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                }
+                priceFooter
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(isSelected ? CooksyTheme.primaryAccentSoft.opacity(0.55) : CooksyTheme.elevatedSurface.opacity(0.95))
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        isSelected
+                        ? AnyShapeStyle(CooksyTheme.accentGradient)
+                        : AnyShapeStyle(CooksyTheme.elevatedSurface.opacity(0.96))
+                    )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(isSelected ? CooksyTheme.ctaOrange : CooksyTheme.stroke, lineWidth: isSelected ? 2 : 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.white.opacity(0.0) : CooksyTheme.stroke.opacity(0.85),
+                        lineWidth: 1
+                    )
             )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
             .shadow(
-                color: isSelected ? CooksyTheme.primaryAccent.opacity(0.28) : CooksyTheme.softShadow,
-                radius: isSelected ? 14 : 6, y: 4
+                color: isSelected ? CooksyTheme.primaryAccent.opacity(0.35) : CooksyTheme.softShadow,
+                radius: isSelected ? 14 : 4,
+                y: isSelected ? 8 : 2
             )
+            .scaleEffect(isSelected ? 1.04 : 1.0)
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSelected)
         }
         .buttonStyle(CooksyTheme.pressScale())
     }
-}
 
-// MARK: - Features
-
-private struct PaywallFeature: Identifiable {
-    let id = UUID()
-    let systemImage: String
-    let title: String
-
-    static let all: [PaywallFeature] = [
-        .init(systemImage: "infinity", title: "Imports illimités depuis TikTok, Insta, YouTube"),
-        .init(systemImage: "wand.and.stars", title: "IA avancée : structure, sections, nutrition"),
-        .init(systemImage: "calendar", title: "Plan de repas hebdo + liste de courses auto"),
-        .init(systemImage: "flame", title: "Recettes tendance en avant-première"),
-        .init(systemImage: "hand.raised", title: "Sans publicité, pour toujours"),
-        .init(systemImage: "bolt.heart", title: "Support prioritaire")
-    ]
-}
-
-private struct FeatureRow: View {
-    let feature: PaywallFeature
-    let index: Int
-    let appeared: Bool
-
-    @State private var checkProgress: CGFloat = 0
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(CooksyTheme.accentGradient)
-                    .frame(width: 26, height: 26)
-                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.3), radius: 4, y: 2)
-
-                AnimatedCheckmark(progress: checkProgress)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
-                    .frame(width: 13, height: 10)
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: feature.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    .frame(width: 20)
-
-                Text(feature.title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            Spacer(minLength: 0)
+    private var priceFooter: some View {
+        VStack(spacing: 1) {
+            Text(plan.livePrice)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(footerSubtitle)
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(isSelected ? .white.opacity(0.9) : CooksyTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
-        .opacity(appeared ? 1 : 0)
-        .offset(x: appeared ? 0 : -10)
-        .animation(
-            .spring(response: 0.55, dampingFraction: 0.85).delay(0.2 + Double(index) * 0.08),
-            value: appeared
-        )
-        .onChange(of: appeared) { _, newValue in
-            guard newValue else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3 + Double(index) * 0.08) {
-                withAnimation(.easeOut(duration: 0.35)) {
-                    checkProgress = 1
-                }
-            }
+        .padding(.horizontal, 6)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var footerSubtitle: String {
+        if showTrialChip {
+            return "Essai \(trialDays) j"
+        }
+        switch plan {
+        case .weekly:   return "/ semaine"
+        case .annual:   return "/ an"
+        case .lifetime: return "paiement unique"
         }
     }
 }
@@ -473,7 +485,7 @@ private struct PaywallFooterLink: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
         }
         .buttonStyle(.plain)
