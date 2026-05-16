@@ -52,9 +52,23 @@ function materializeGoogleCredentialsFromInlineJSON(): void {
 
 materializeGoogleCredentialsFromInlineJSON();
 
+// Railway (and some CI runners) inject env vars as empty strings when the
+// variable is declared but unset. `z.enum().default()` only fires when the
+// value is `undefined`, so an empty string would slip through to the enum
+// validator and crash the boot. Coerce "" → undefined for the enum fields
+// before validation so the `.default()` actually kicks in.
+const emptyToUndefined = (value: unknown): unknown =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
 const rawEnvSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
+  NODE_ENV: z.preprocess(
+    emptyToUndefined,
+    z.enum(["development", "test", "production"]).default("production")
+  ),
+  APP_ENV: z.preprocess(
+    emptyToUndefined,
+    z.enum(["development", "staging", "production"]).default("production")
+  ),
   PORT: z.coerce.number().int().positive().default(3000),
   OPENAI_API_KEY: z.string().default("YOUR_OPENAI_API_KEY"),
   APIFY_TOKEN: z.string().default("YOUR_APIFY_TOKEN"),
