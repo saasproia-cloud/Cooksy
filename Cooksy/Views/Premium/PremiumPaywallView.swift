@@ -525,6 +525,7 @@ private struct PaywallReviewCard: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func advance() {
@@ -660,6 +661,7 @@ private struct PaywallPlanColumn: View {
                     }
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

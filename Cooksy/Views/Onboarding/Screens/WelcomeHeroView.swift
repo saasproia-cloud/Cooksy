@@ -276,6 +276,11 @@ private struct WelcomeSocialProofBadge: View {
 /// and signs it with a believable reviewer handle.
 private struct WelcomeReviewCard: View {
     var body: some View {
+        cardContent
+            .frame(maxWidth: .infinity)
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 2) {
                 ForEach(0..<5, id: \.self) { _ in
@@ -382,9 +387,7 @@ private struct WelcomeCTAStack: View {
             }
             .buttonStyle(.plain)
         }
-        // Horizontal padding is owned by the parent so the CTA scales
-        // with Layout.horizontalPadding(for:). Keeping it here would
-        // double-pad on small devices.
+        .frame(maxWidth: .infinity)
     }
 }
 
