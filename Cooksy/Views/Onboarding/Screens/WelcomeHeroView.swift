@@ -1,22 +1,12 @@
 import SwiftUI
 
-/// A1 — Welcome hero (conversion-tuned redesign).
+/// A1 — Welcome hero (rewritten from scratch).
 ///
-/// The first impression of Cooksy. Built for a single goal: maximize the
-/// share of users who tap "Commencer". The layout follows the highest-
-/// converting onboarding patterns shipped by Cal AI, Blinkist, Headspace
-/// and Duolingo Super:
-///
-///   1. App identity (logo + wordmark) anchored at the top so the user
-///      instantly recognizes where they are.
-///   2. A single bold editorial promise — the headline owns the screen.
-///   3. Concrete social proof (rating + downloads + signed review) so the
-///      user trusts the product before tapping anything.
-///   4. ONE primary CTA. No competing actions, no decisions to make.
-///      A tertiary "Déjà un compte ?" link sits below for returning users.
-///
-/// Everything is drawn in SwiftUI — perfectly crisp on every Retina
-/// display and resilient to dynamic type / iPhone SE width.
+/// Layout rule: ALL children use a HARD width computed from the
+/// GeometryReader (`.frame(width:)`). Nothing uses
+/// `.frame(maxWidth: .infinity)` — it's the source of the bleed bug
+/// on iPhone 17 Pro where the parent VStack shrinks to its tightest
+/// child and infinity-width siblings escape both screen edges.
 struct WelcomeHeroView: View {
     let onContinue: () -> Void
     let onExistingAccount: () -> Void
@@ -24,19 +14,54 @@ struct WelcomeHeroView: View {
     @State private var appeared = false
 
     var body: some View {
-        ZStack {
-            AnimatedAmbientBackground()
-                .ignoresSafeArea()
+        GeometryReader { geo in
+            let hPad: CGFloat = geo.size.width < 380 ? 20 : 26
+            let contentWidth = min(geo.size.width - hPad * 2, 440)
 
-            GeometryReader { geo in
-                let hPadding = Layout.horizontalPadding(for: geo)
+            ZStack {
+                AnimatedAmbientBackground()
+                    .ignoresSafeArea()
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    welcomeStack(in: geo)
-                        .frame(maxWidth: Layout.maxContentWidth)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, hPadding)
-                        .frame(minHeight: geo.size.height, alignment: .top)
+                    VStack(spacing: 0) {
+                        Spacer().frame(height: 28)
+
+                        logoMark
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : -8)
+
+                        Spacer().frame(height: 22)
+
+                        titleBlock(width: contentWidth)
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 12)
+
+                        Spacer().frame(height: 26)
+
+                        benefitsList(width: contentWidth)
+                            .opacity(appeared ? 1 : 0)
+
+                        Spacer(minLength: 20)
+
+                        ratingPill
+                            .opacity(appeared ? 1 : 0)
+
+                        Spacer(minLength: 22)
+
+                        ctaButton(width: contentWidth)
+                            .opacity(appeared ? 1 : 0)
+
+                        Spacer().frame(height: 12)
+
+                        loginLink
+                            .opacity(appeared ? 1 : 0)
+
+                        Spacer().frame(height: 24)
+                    }
+                    .frame(width: contentWidth)
+                    .frame(maxWidth: geo.size.width, alignment: .center)
+                    .frame(minHeight: geo.size.height, alignment: .top)
+                    .animation(.easeOut(duration: 0.55), value: appeared)
                 }
                 .scrollDisabled(geo.size.height >= 760)
             }
@@ -44,83 +69,9 @@ struct WelcomeHeroView: View {
         .onAppear { appeared = true }
     }
 
-    /// The actual content stack — extracted so the body stays readable
-    /// and the ScrollView/VStack wiring is easy to scan.
-    ///
-    /// All children inherit the `contentWidth` defined by the parent,
-    /// so none of them needs its own horizontal padding. This is what
-    /// guarantees the review card and CTA can never overflow horizontally.
-    @ViewBuilder
-    private func welcomeStack(in geo: GeometryProxy) -> some View {
-        let breathing = max((geo.size.height - 800) / 2, 0)
+    // MARK: - Logo
 
-        VStack(spacing: 0) {
-            Color.clear.frame(maxWidth: .infinity).frame(height: 28 + breathing)
-
-            WelcomeLogoMark()
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : -8)
-                .animation(.easeOut(duration: 0.55), value: appeared)
-
-            Spacer(minLength: 18)
-
-            WelcomeHeadline()
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 14)
-                .animation(
-                    .spring(response: 0.55, dampingFraction: 0.85).delay(0.12),
-                    value: appeared
-                )
-
-            Spacer(minLength: 18)
-
-            WelcomeBenefitTrio()
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 12)
-                .animation(.easeOut(duration: 0.5).delay(0.18), value: appeared)
-
-            Spacer(minLength: 18)
-
-            WelcomeSocialProofBadge()
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 10)
-                .animation(.easeOut(duration: 0.5).delay(0.26), value: appeared)
-
-            Spacer(minLength: 14)
-
-            WelcomeReviewCard()
-                .padding(.horizontal, 4)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 16)
-                .animation(
-                    .spring(response: 0.6, dampingFraction: 0.85).delay(0.34),
-                    value: appeared
-                )
-
-            Spacer(minLength: 20)
-
-            WelcomeCTAStack(
-                onContinue: onContinue,
-                onExistingAccount: onExistingAccount
-            )
-            .padding(.horizontal, 4)
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 12)
-            .animation(.easeOut(duration: 0.5).delay(0.44), value: appeared)
-
-            Color.clear.frame(height: 24)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Logo mark (top)
-
-/// Wordmark + glowing icon disc. The icon uses the same `HeaderLogo`
-/// asset shipped with the app — keeps brand consistency with the
-/// header bar inside the product.
-private struct WelcomeLogoMark: View {
-    var body: some View {
+    private var logoMark: some View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
@@ -152,50 +103,39 @@ private struct WelcomeLogoMark: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 64, height: 64)
+                    .frame(width: 60, height: 60)
             }
-            .frame(width: 140, height: 140)
 
             Text("Cooksy")
-                .font(.system(size: 18, weight: .semibold, design: .serif))
-                .tracking(0.8)
+                .font(.system(size: 17, weight: .semibold, design: .serif))
+                .tracking(0.6)
                 .foregroundStyle(CooksyTheme.primaryText.opacity(0.85))
         }
     }
-}
 
-// MARK: - Headline
+    // MARK: - Title
 
-private struct WelcomeHeadline: View {
-    var body: some View {
+    private func titleBlock(width: CGFloat) -> some View {
         VStack(spacing: 10) {
             Text("Une vidéo.\nUne recette.")
-                .font(.cooksy(.displayLarge))
+                .font(.system(size: 34, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
-                .lineSpacing(-3)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity)
+                .lineSpacing(-2)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Text("Transforme n'importe quel TikTok ou Reel en recette propre, prête à cuisiner.")
-                .font(.cooksy(.body))
+            Text("Transforme n'importe quel TikTok ou Reel\nen recette propre, prête à cuisiner.")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 14)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: width)
     }
-}
 
-// MARK: - Benefit trio (new — product comprehension at a glance)
+    // MARK: - Benefits
 
-/// Three concise value props shown right under the headline. Each line
-/// is a single SF Symbol + a short verb phrase, written in French
-/// premium tone (tutoiement, no jargon). Designed to read in <2s and
-/// dispel the "what does Cooksy actually do?" hesitation that pulls
-/// conversion down on the original Welcome.
-private struct WelcomeBenefitTrio: View {
     private struct Benefit {
         let symbol: String
         let label: String
@@ -207,44 +147,43 @@ private struct WelcomeBenefitTrio: View {
         Benefit(symbol: "bookmark.fill", label: "Sauvegarde illimitée")
     ]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func benefitsList(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
             ForEach(benefits, id: \.label) { benefit in
                 HStack(spacing: 12) {
                     ZStack {
                         Circle()
                             .fill(CooksyTheme.primaryAccentSoft.opacity(0.6))
-                            .frame(width: 28, height: 28)
+                            .frame(width: 30, height: 30)
                         Image(systemName: benefit.symbol)
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(CooksyTheme.primaryAccentStrong)
                     }
                     Text(benefit.label)
-                        .font(.cooksy(.body))
+                        .font(.system(size: 14.5, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
-                    Spacer(minLength: 0)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
         }
-        .frame(maxWidth: 320, alignment: .leading)
+        .frame(width: min(width, 280), alignment: .leading)
     }
-}
 
-// MARK: - Social proof badge (rating + downloads)
+    // MARK: - Rating pill
 
-private struct WelcomeSocialProofBadge: View {
-    var body: some View {
-        HStack(spacing: 10) {
+    private var ratingPill: some View {
+        HStack(spacing: 8) {
             HStack(spacing: 2) {
                 ForEach(0..<5, id: \.self) { _ in
                     Image(systemName: "star.fill")
-                        .font(.system(size: 11, weight: .black))
+                        .font(.system(size: 10, weight: .black))
                         .foregroundStyle(CooksyTheme.primaryAccentGlow)
                 }
             }
 
             Text("4,9")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
 
             Circle()
@@ -252,7 +191,7 @@ private struct WelcomeSocialProofBadge: View {
                 .frame(width: 3, height: 3)
 
             Text("+12 000 cuisiniers")
-                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
         }
         .padding(.horizontal, 14)
@@ -264,129 +203,54 @@ private struct WelcomeSocialProofBadge: View {
                     Capsule(style: .continuous)
                         .stroke(CooksyTheme.stroke.opacity(0.8), lineWidth: 1)
                 )
-                .shadow(color: CooksyTheme.softShadow, radius: 10, y: 4)
+                .shadow(color: CooksyTheme.softShadow, radius: 8, y: 3)
         )
     }
-}
 
-// MARK: - Review card
+    // MARK: - CTA
 
-/// Compact testimonial card — names a concrete pain point Cooksy solves
-/// and signs it with a believable reviewer handle.
-private struct WelcomeReviewCard: View {
-    var body: some View {
-        cardContent
-            .frame(maxWidth: .infinity)
+    private func ctaButton(width: CGFloat) -> some View {
+        Button(action: {
+            OnboardingHaptics.medium()
+            onContinue()
+        }) {
+            HStack(spacing: 7) {
+                Text("Commencer")
+                    .font(.system(size: 15.5, weight: .bold, design: .rounded))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: width, height: 52)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.accentGradient)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(.white.opacity(0.22), lineWidth: 1)
+            )
+            .shadow(color: CooksyTheme.primaryAccent.opacity(0.42), radius: 18, y: 10)
+        }
+        .buttonStyle(CooksyTheme.pressScale())
     }
 
-    private var cardContent: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 2) {
-                ForEach(0..<5, id: \.self) { _ in
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundStyle(CooksyTheme.primaryAccentGlow)
-                }
-                Spacer(minLength: 4)
-                Text("App Store")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .tracking(0.5)
+    // MARK: - Login link
+
+    private var loginLink: some View {
+        Button(action: {
+            OnboardingHaptics.selection()
+            onExistingAccount()
+        }) {
+            HStack(spacing: 4) {
+                Text("Déjà un compte ?")
                     .foregroundStyle(CooksyTheme.secondaryText)
-                    .lineLimit(1)
+                Text("Se connecter")
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
             }
-
-            Text("« Enfin une app qui lit la vidéo à ma place. Je colle le lien, je cuisine. »")
-                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-                .lineSpacing(1)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: 0xFFB35A), Color(hex: 0xE76F2A)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 18, height: 18)
-                    .overlay(
-                        Text("L")
-                            .font(.system(size: 9, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-                    )
-                Text("Léa · cuisine du soir")
-                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 0)
-            }
+            .font(.system(size: 13, weight: .semibold, design: .rounded))
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.92))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(CooksyTheme.stroke.opacity(0.8), lineWidth: 1)
-                )
-                .shadow(color: CooksyTheme.shadow, radius: 16, y: 8)
-        )
-    }
-}
-
-// MARK: - CTA stack
-
-private struct WelcomeCTAStack: View {
-    let onContinue: () -> Void
-    let onExistingAccount: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Button(action: {
-                OnboardingHaptics.medium()
-                onContinue()
-            }) {
-                HStack(spacing: 6) {
-                    Text("Commencer")
-                        .font(.system(size: 14.5, weight: .bold, design: .rounded))
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 12.5, weight: .bold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(CooksyTheme.accentGradient)
-                )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(.white.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 16, y: 9)
-            }
-            .buttonStyle(CooksyTheme.pressScale())
-
-            Button(action: {
-                OnboardingHaptics.selection()
-                onExistingAccount()
-            }) {
-                HStack(spacing: 4) {
-                    Text("Déjà un compte ?")
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                    Text("Se connecter")
-                        .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                }
-                .font(.cooksy(.caption))
-            }
-            .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
     }
 }
 
