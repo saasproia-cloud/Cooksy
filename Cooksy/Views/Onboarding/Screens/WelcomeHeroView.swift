@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// A1 — Welcome hero (rewritten from scratch).
+/// A1 — Welcome hero (final version).
 ///
-/// Layout rule: ALL children use a HARD width computed from the
-/// GeometryReader (`.frame(width:)`). Nothing uses
-/// `.frame(maxWidth: .infinity)` — it's the source of the bleed bug
-/// on iPhone 17 Pro where the parent VStack shrinks to its tightest
-/// child and infinity-width siblings escape both screen edges.
+/// Mirrors the exact layout pattern used by AppReviewView, which is the
+/// only onboarding screen that has historically rendered correctly on
+/// iPhone 17 Pro: no ScrollView, GeometryReader → VStack → `.frame(maxWidth: 380)`
+/// → `.frame(maxWidth: .infinity)` → `.padding(.horizontal, X)`. The
+/// ScrollView wrapper was the actual source of the asymmetric layout —
+/// `.frame(maxWidth: .infinity, alignment: .center)` does not propagate
+/// the expected width inside a ScrollView, and content drifts off-centre.
 struct WelcomeHeroView: View {
     let onContinue: () -> Void
     let onExistingAccount: () -> Void
@@ -14,56 +16,50 @@ struct WelcomeHeroView: View {
     @State private var appeared = false
 
     var body: some View {
-        GeometryReader { geo in
-            let hPad: CGFloat = geo.size.width < 380 ? 20 : 26
-            let contentWidth = min(geo.size.width - hPad * 2, 440)
+        ZStack {
+            AnimatedAmbientBackground()
+                .ignoresSafeArea()
 
-            ZStack {
-                AnimatedAmbientBackground()
-                    .ignoresSafeArea()
+            GeometryReader { geo in
+                let hPad = Layout.horizontalPadding(for: geo)
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        Spacer().frame(height: 28)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 24)
 
-                        logoMark
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : -8)
+                    logoMark
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : -8)
 
-                        Spacer().frame(height: 22)
+                    Spacer(minLength: 18)
 
-                        titleBlock(width: contentWidth)
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 12)
+                    titleBlock
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
 
-                        Spacer().frame(height: 26)
+                    Spacer(minLength: 22)
 
-                        benefitsList(width: contentWidth)
-                            .opacity(appeared ? 1 : 0)
+                    benefitsList
+                        .opacity(appeared ? 1 : 0)
 
-                        Spacer(minLength: 20)
+                    Spacer(minLength: 18)
 
-                        ratingPill
-                            .opacity(appeared ? 1 : 0)
+                    ratingPill
+                        .opacity(appeared ? 1 : 0)
 
-                        Spacer(minLength: 22)
+                    Spacer(minLength: 24)
 
-                        ctaButton(width: contentWidth)
-                            .opacity(appeared ? 1 : 0)
+                    ctaButton
+                        .opacity(appeared ? 1 : 0)
 
-                        Spacer().frame(height: 12)
-
-                        loginLink
-                            .opacity(appeared ? 1 : 0)
-
-                        Spacer().frame(height: 24)
-                    }
-                    .frame(width: contentWidth)
-                    .frame(maxWidth: geo.size.width, alignment: .center)
-                    .frame(minHeight: geo.size.height, alignment: .top)
-                    .animation(.easeOut(duration: 0.55), value: appeared)
+                    loginLink
+                        .padding(.top, 14)
+                        .padding(.bottom, 18)
+                        .opacity(appeared ? 1 : 0)
                 }
-                .scrollDisabled(geo.size.height >= 760)
+                .frame(maxWidth: 380)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, hPad)
+                .animation(.easeOut(duration: 0.55), value: appeared)
             }
         }
         .onAppear { appeared = true }
@@ -115,7 +111,7 @@ struct WelcomeHeroView: View {
 
     // MARK: - Title
 
-    private func titleBlock(width: CGFloat) -> some View {
+    private var titleBlock: some View {
         VStack(spacing: 10) {
             Text("Une vidéo.\nUne recette.")
                 .font(.system(size: 34, weight: .bold, design: .serif))
@@ -131,7 +127,6 @@ struct WelcomeHeroView: View {
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: width)
     }
 
     // MARK: - Benefits
@@ -147,7 +142,7 @@ struct WelcomeHeroView: View {
         Benefit(symbol: "bookmark.fill", label: "Sauvegarde illimitée")
     ]
 
-    private func benefitsList(width: CGFloat) -> some View {
+    private var benefitsList: some View {
         VStack(alignment: .leading, spacing: 11) {
             ForEach(benefits, id: \.label) { benefit in
                 HStack(spacing: 12) {
@@ -167,7 +162,6 @@ struct WelcomeHeroView: View {
                 }
             }
         }
-        .frame(width: min(width, 280), alignment: .leading)
     }
 
     // MARK: - Rating pill
@@ -209,20 +203,20 @@ struct WelcomeHeroView: View {
 
     // MARK: - CTA
 
-    private func ctaButton(width: CGFloat) -> some View {
-        let buttonWidth = min(width - 20, 320)
-        return Button(action: {
+    private var ctaButton: some View {
+        Button(action: {
             OnboardingHaptics.medium()
             onContinue()
         }) {
             HStack(spacing: 7) {
                 Text("Commencer")
-                    .font(.system(size: 15.5, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                 Image(systemName: "arrow.right")
                     .font(.system(size: 13, weight: .bold))
             }
             .foregroundStyle(.white)
-            .frame(width: buttonWidth, height: 50)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
             .background(
                 Capsule(style: .continuous)
                     .fill(CooksyTheme.accentGradient)
@@ -231,7 +225,7 @@ struct WelcomeHeroView: View {
                 Capsule(style: .continuous)
                     .stroke(.white.opacity(0.22), lineWidth: 1)
             )
-            .shadow(color: CooksyTheme.primaryAccent.opacity(0.28), radius: 8, y: 4)
+            .shadow(color: CooksyTheme.primaryAccent.opacity(0.32), radius: 10, y: 5)
         }
         .buttonStyle(CooksyTheme.pressScale())
     }
