@@ -494,7 +494,8 @@ private struct PaywallReviewCard: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 122)
+            .frame(height: 108)
+            .clipped()
             .onChange(of: index) { _, _ in
                 pauseToken &+= 1
             }
@@ -532,32 +533,32 @@ private struct PaywallReviewCard: View {
     }
 
     private func reviewCard(_ review: PaywallReview) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
                 Text(review.title)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
-                HStack(spacing: 2) {
+                HStack(spacing: 1.5) {
                     ForEach(0..<5, id: \.self) { _ in
                         Image(systemName: "star.fill")
-                            .font(.system(size: 10, weight: .black))
+                            .font(.system(size: 9, weight: .black))
                             .foregroundStyle(CooksyTheme.primaryAccentGlow)
                     }
                 }
             }
 
             Text(review.quote)
-                .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                .font(.system(size: 10.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText.opacity(0.88))
-                .lineSpacing(1.5)
+                .lineSpacing(1)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(
                         LinearGradient(
@@ -566,25 +567,25 @@ private struct PaywallReviewCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 18, height: 18)
+                    .frame(width: 16, height: 16)
                     .overlay(
                         Text(review.authorInitial)
-                            .font(.system(size: 9, weight: .black, design: .rounded))
+                            .font(.system(size: 8.5, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
                     )
                 Text(review.authorName)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
                 Text("App Store")
-                    .font(.system(size: 9, weight: .heavy, design: .rounded))
-                    .tracking(0.6)
+                    .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                    .tracking(0.5)
                     .foregroundStyle(CooksyTheme.secondaryText)
             }
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -681,18 +682,18 @@ private struct PaywallPlanColumn: View {
                     .zIndex(2)
             }
 
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         Text(plan.title)
-                            .font(.system(size: 14.5, weight: .heavy, design: .rounded))
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
 
                         if plan == .yearly, effectiveDiscount == nil {
                             Text("(−58 %)")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
                                 .foregroundStyle(
                                     isSelected
                                     ? Color.white.opacity(0.92)
@@ -701,7 +702,7 @@ private struct PaywallPlanColumn: View {
                                 .lineLimit(1)
                         } else if let percent = effectiveDiscount {
                             Text("(−\(percent) %)")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
                                 .foregroundStyle(
                                     isSelected
                                     ? Color.white.opacity(0.92)
@@ -712,7 +713,7 @@ private struct PaywallPlanColumn: View {
                     }
 
                     Text(subtitle(for: plan, perMonth: perMonth, showsTrial: showsTrial))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(
                             isSelected
                             ? Color.white.opacity(0.88)
@@ -732,8 +733,8 @@ private struct PaywallPlanColumn: View {
                     perMonth: perMonth
                 )
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, plan == .yearly ? 13 : 11)
+            .padding(.horizontal, 12)
+            .padding(.vertical, plan == .yearly ? 10 : 9)
             .frame(maxWidth: .infinity)
             .background(
                 ZStack {
@@ -802,12 +803,12 @@ private struct PaywallPlanColumn: View {
             return "\(priceText)\(plan.unitLabel)"
         }()
 
-        VStack(alignment: .trailing, spacing: 2) {
+        VStack(alignment: .trailing, spacing: 1) {
             Text(headlinePrice)
-                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .font(.system(size: 13.5, weight: .heavy, design: .rounded))
                 .foregroundStyle(isSelected ? .white : CooksyTheme.primaryText)
                 .lineLimit(1)
-                .minimumScaleFactor(0.78)
+                .minimumScaleFactor(0.7)
 
             if plan == .yearly {
                 HStack(spacing: 4) {
@@ -827,9 +828,9 @@ private struct PaywallPlanColumn: View {
                             : CooksyTheme.secondaryText
                         )
                 }
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .minimumScaleFactor(0.8)
             }
         }
     }

@@ -93,6 +93,7 @@ struct WelcomeHeroView: View {
             Spacer(minLength: 14)
 
             WelcomeReviewCard()
+                .padding(.horizontal, 4)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : 16)
                 .animation(
@@ -106,6 +107,7 @@ struct WelcomeHeroView: View {
                 onContinue: onContinue,
                 onExistingAccount: onExistingAccount
             )
+            .padding(.horizontal, 4)
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : 12)
             .animation(.easeOut(duration: 0.5).delay(0.44), value: appeared)
@@ -277,29 +279,29 @@ private struct WelcomeSocialProofBadge: View {
 /// and signs it with a believable reviewer handle.
 private struct WelcomeReviewCard: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 2) {
                 ForEach(0..<5, id: \.self) { _ in
                     Image(systemName: "star.fill")
-                        .font(.system(size: 10, weight: .black))
+                        .font(.system(size: 9, weight: .black))
                         .foregroundStyle(CooksyTheme.primaryAccentGlow)
                 }
                 Spacer(minLength: 4)
                 Text("App Store")
-                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                    .tracking(0.6)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .tracking(0.5)
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .lineLimit(1)
             }
 
             Text("« Enfin une app qui lit la vidéo à ma place. Je colle le lien, je cuisine. »")
-                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
-                .lineSpacing(1.5)
+                .lineSpacing(1)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(
                         LinearGradient(
@@ -308,21 +310,21 @@ private struct WelcomeReviewCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 20, height: 20)
+                    .frame(width: 18, height: 18)
                     .overlay(
                         Text("L")
-                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .font(.system(size: 9, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
                     )
                 Text("Léa · cuisine du soir")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
             }
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -348,15 +350,15 @@ private struct WelcomeCTAStack: View {
                 OnboardingHaptics.medium()
                 onContinue()
             }) {
-                HStack(spacing: 7) {
+                HStack(spacing: 6) {
                     Text("Commencer")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 14.5, weight: .bold, design: .rounded))
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 12.5, weight: .bold))
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(height: 46)
                 .background(
                     Capsule(style: .continuous)
                         .fill(CooksyTheme.accentGradient)
