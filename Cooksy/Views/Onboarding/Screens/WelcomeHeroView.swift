@@ -29,10 +29,6 @@ struct WelcomeHeroView: View {
                 .ignoresSafeArea()
 
             GeometryReader { geo in
-                // The horizontal padding is applied ONCE here on the
-                // outer container — never on individual children — so
-                // nothing in the stack can ever escape the safe content
-                // area, even at large Dynamic Type or on narrow phones.
                 let hPadding = Layout.horizontalPadding(for: geo)
                 let contentWidth = min(geo.size.width - hPadding * 2, Layout.maxContentWidth)
 
@@ -42,6 +38,7 @@ struct WelcomeHeroView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .frame(minHeight: geo.size.height, alignment: .top)
                 }
+                .frame(width: geo.size.width)
                 .scrollDisabled(geo.size.height >= 760)
             }
         }

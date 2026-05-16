@@ -82,6 +82,7 @@ struct PremiumPaywallView: View {
 
             GeometryReader { geo in
                 let hPad = Layout.horizontalPadding(for: geo)
+                let safeWidth = max(geo.size.width - hPad * 2, 240)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 18) {
@@ -135,11 +136,11 @@ struct PremiumPaywallView: View {
 
                         Color.clear.frame(height: 18)
                     }
-                    .padding(.horizontal, hPad)
-                    .frame(maxWidth: Layout.maxContentWidth)
+                    .frame(width: min(safeWidth, Layout.maxContentWidth))
                     .frame(maxWidth: .infinity, alignment: .center)
                     .frame(minHeight: geo.size.height, alignment: .top)
                 }
+                .frame(width: geo.size.width)
             }
 
             IngredientConfetti(trigger: confettiTrigger)
