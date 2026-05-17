@@ -480,32 +480,25 @@ private struct PaywallReviewCard: View {
     ]
 
     @State private var index: Int = 0
-    @State private var pauseToken: Int = 0
     private let timer = Timer.publish(every: 4.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 8) {
-            TabView(selection: $index) {
+            // Crossfade carousel — replaces TabView(.page) which
+            // bleeds past its SwiftUI frame because UIPageViewController
+            // hardcodes page width to UIScreen.main.bounds. Pure SwiftUI
+            // ZStack with opacity transitions stays inside the parent.
+            ZStack {
                 ForEach(Array(Self.reviews.enumerated()), id: \.element.id) { i, review in
                     reviewCard(review)
-                        .padding(.horizontal, 2)
-                        .padding(.bottom, 4)
-                        .frame(maxWidth: .infinity)
-                        .tag(i)
+                        .opacity(i == index ? 1 : 0)
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(maxWidth: .infinity)
             .frame(height: 108)
-            .clipped()
-            .onChange(of: index) { _, _ in
-                pauseToken &+= 1
-            }
             .onReceive(timer) { _ in
-                let token = pauseToken
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    guard token == pauseToken else { return }
-                    advance()
+                withAnimation(.easeInOut(duration: 0.45)) {
+                    index = (index + 1) % Self.reviews.count
                 }
             }
 
@@ -527,12 +520,6 @@ private struct PaywallReviewCard: View {
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func advance() {
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
-            index = (index + 1) % Self.reviews.count
-        }
     }
 
     private func reviewCard(_ review: PaywallReview) -> some View {
