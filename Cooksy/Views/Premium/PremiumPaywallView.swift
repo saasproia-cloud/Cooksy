@@ -35,6 +35,9 @@ struct PremiumPaywallView: View {
     @State private var hasTriggeredExitIntent: Bool = false
     /// Drives the subtle breathing animation on the annual card.
     @State private var pulse: Bool = false
+    /// Legal sheets (Conditions / Confidentialité) presented from footer.
+    @State private var showsTermsSheet: Bool = false
+    @State private var showsPrivacySheet: Bool = false
 
     private var trialAvailable: Bool {
         selectedPlan.hasFreeTrial && purchaseService.isAnnualTrialEligible
@@ -124,6 +127,16 @@ struct PremiumPaywallView: View {
             withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
                 pulse = true
             }
+            // Always refresh offerings when the paywall opens so a cold
+            // start that missed the first fetch (no network, sandbox not
+            // yet authed) doesn't lock the user into "Offre indisponible".
+            Task { await PurchaseService.shared.fetchOfferings() }
+        }
+        .sheet(isPresented: $showsTermsSheet) {
+            NavigationStack { TermsOfServiceView() }
+        }
+        .sheet(isPresented: $showsPrivacySheet) {
+            NavigationStack { PrivacyPolicyView() }
         }
         .fullScreenCover(isPresented: $showsGiftWheel) {
             GiftMiniGameHost(
@@ -175,19 +188,21 @@ struct PremiumPaywallView: View {
         if allowsFreeModeDismiss {
             Button(action: handleFreeModeDismiss) {
                 ZStack {
-                    Circle().fill(.ultraThinMaterial)
-                    Circle().fill(.black.opacity(0.04))
-                    Circle().stroke(CooksyTheme.stroke, lineWidth: 1)
+                    Circle().fill(Color.white.opacity(0.95))
+                    Circle().stroke(CooksyTheme.stroke.opacity(0.9), lineWidth: 1)
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 14, weight: .heavy))
                         .foregroundStyle(CooksyTheme.primaryText)
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: 38, height: 38)
+                .shadow(color: Color.black.opacity(0.08), radius: 8, y: 3)
+                // Larger hit area than the visible circle.
                 .contentShape(Circle())
+                .frame(width: 48, height: 48)
             }
             .buttonStyle(.plain)
-            .padding(.leading, 18)
-            .padding(.top, 10)
+            .padding(.leading, 14)
+            .padding(.top, 6)
             .accessibilityLabel("Fermer et rester en gratuit")
         }
     }
@@ -562,12 +577,13 @@ struct PremiumPaywallView: View {
                     .underline()
             }
             Circle().fill(CooksyTheme.stroke).frame(width: 2.5, height: 2.5)
-            Button("Conditions") {}
+            Button("Conditions") { showsTermsSheet = true }
             Circle().fill(CooksyTheme.stroke).frame(width: 2.5, height: 2.5)
-            Button("Confidentialité") {}
+            Button("Confidentialité") { showsPrivacySheet = true }
         }
         .font(.system(size: 10.5, weight: .semibold, design: .rounded))
         .foregroundStyle(CooksyTheme.secondaryText.opacity(0.85))
+        .buttonStyle(.plain)
     }
 
     // MARK: - Derived state
@@ -622,6 +638,14 @@ struct PremiumPaywallView: View {
         let giftPercent = offers.giftDiscountPercent
 
         Task {
+            // If the offering isn't loaded yet (first cold start, network
+            // not ready, sandbox just authed), refetch BEFORE trying to
+            // buy so the user doesn't hit "Offre indisponible" on what's
+            // really a race condition.
+            if PurchaseService.shared.currentOffering == nil {
+                await PurchaseService.shared.fetchOfferings()
+            }
+
             do {
                 if plan == .yearly, giftActive, let percent = giftPercent {
                     try await PurchaseService.shared.purchaseAnnualWithPromo(
@@ -647,10 +671,25 @@ struct PremiumPaywallView: View {
             } catch {
                 await MainActor.run {
                     isPurchasing = false
-                    purchaseError = error.localizedDescription
+                    purchaseError = friendlyPurchaseErrorMessage(error)
                 }
             }
         }
+    }
+
+    /// Translates RevenueCat/StoreKit failures into actionable copy.
+    /// "Offres indisponibles" alone is opaque — usually means RC couldn't
+    /// load the offering (no network, sandbox tester not signed in, or
+    /// products not yet approved in App Store Connect). The retry hint
+    /// keeps the user from rage-quitting on a transient error.
+    private func friendlyPurchaseErrorMessage(_ error: Error) -> String {
+        let raw = error.localizedDescription
+        if raw.localizedCaseInsensitiveContains("offre")
+            || raw.localizedCaseInsensitiveContains("offering")
+            || raw.localizedCaseInsensitiveContains("package") {
+            return "Les offres n'ont pas pu être chargées. Vérifie ta connexion, puis réessaie. Si le problème persiste, déconnecte-toi de l'App Store puis reconnecte-toi avec ton compte sandbox."
+        }
+        return raw
     }
 
     private func handleRestore() {
