@@ -137,30 +137,17 @@ struct HomeView: View {
             )
         }
         .fullScreenCover(isPresented: $showsPaywallFromBadge) {
-            NavigationStack {
-                PremiumPaywallView(
-                    allowsFreeModeDismiss: false,
-                    showsGiftReminder: paywallShowsGiftReminder,
-                    onDismissToFreeMode: { showsPaywallFromBadge = false },
-                    onOpenGiftFromReminder: {
-                        showsPaywallFromBadge = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                            showsGiftWheel = true
-                        }
-                    }
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: { showsPaywallFromBadge = false }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(CooksyTheme.elevatedSurface))
-                        }
+            PremiumPaywallView(
+                allowsFreeModeDismiss: true,
+                showsGiftReminder: paywallShowsGiftReminder,
+                onDismissToFreeMode: { showsPaywallFromBadge = false },
+                onOpenGiftFromReminder: {
+                    showsPaywallFromBadge = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showsGiftWheel = true
                     }
                 }
-            }
+            )
         }
         .sheet(isPresented: $showsQuotaInfo) {
             WeeklyImportsSheet(

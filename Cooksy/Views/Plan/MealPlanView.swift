@@ -879,6 +879,14 @@ private struct PlannerRecipeThumbnail: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
+                        // `.scaledToFill()` lets the image overflow its
+                        // proposed size to preserve aspect ratio. Without
+                        // `.clipped()` here, the overflow renders OUTSIDE
+                        // the 56×56 box and leaks into surrounding rows —
+                        // that's the "huge image, half invisible" bug on
+                        // imported recipes whose intrinsic size is large.
+                        .frame(width: 56, height: 56)
+                        .clipped()
                 } else {
                     AsyncImage(url: heroImageURL) { phase in
                         switch phase {
@@ -886,10 +894,13 @@ private struct PlannerRecipeThumbnail: View {
                             image
                                 .resizable()
                                 .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipped()
                         default:
                             fallback
                         }
                     }
+                    .frame(width: 56, height: 56)
                 }
             } else {
                 fallback

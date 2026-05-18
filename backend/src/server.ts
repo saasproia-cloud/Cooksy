@@ -288,7 +288,21 @@ app.post(
 
 app.post(
   "/api/shopping/enrich",
-  { preHandler: requireAuth },
+  {
+    preHandler: requireAuth,
+    // Tight per-route ceiling. The global limit (30 req/min) was wide
+    // enough that an authenticated user could send 30 × 200 items =
+    // 6000 SerpAPI / Wikipedia lookups per minute — each one billable.
+    // 5/min × 200 items still covers any realistic shopping-list size
+    // (the iOS app calls this once per recipe import) while putting
+    // a hard ceiling on the worst-case spend.
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 minute"
+      }
+    }
+  },
   async (request) => {
     const body = shoppingEnrichSchema.parse(request.body);
     return {

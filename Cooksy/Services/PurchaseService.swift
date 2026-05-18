@@ -53,9 +53,18 @@ final class PurchaseService: NSObject, ObservableObject {
 
     // MARK: - Private
 
-    /// Sandbox key — replace with the live key before App Store submission.
-    /// Find it in RevenueCat Dashboard → Project Settings → API Keys → Public app SDK key.
-    private static let apiKey = "appl_XyhiKYHcCHxYVpnLlnoqOokWWEu"
+    /// Sandbox-only fallback used when Info.plist has no `RevenueCatAPIKey`.
+    /// In production builds the value MUST come from Info.plist (set in the
+    /// build config or replaced before App Store submission). Find the live
+    /// key in RevenueCat Dashboard → Project Settings → API Keys → Public
+    /// app SDK key (starts with `appl_`).
+    private static let sandboxFallbackKey = "appl_XyhiKYHcCHxYVpnLlnoqOokWWEu"
+
+    private static var resolvedAPIKey: String {
+        let raw = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? sandboxFallbackKey : trimmed
+    }
 
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "PurchaseService")
 
@@ -66,8 +75,12 @@ final class PurchaseService: NSObject, ObservableObject {
     /// Call once from `CooksyApp.init()` before any other RC call.
     func configure() {
         Purchases.logLevel = .warn
-        Purchases.configure(withAPIKey: Self.apiKey)
+        let key = Self.resolvedAPIKey
+        Purchases.configure(withAPIKey: key)
         Purchases.shared.delegate = self
+        if key == Self.sandboxFallbackKey {
+            logger.warning("[RC] Using sandbox fallback API key — set RevenueCatAPIKey in Info.plist with the live key before App Store submission.")
+        }
     }
 
     // MARK: - User identity
@@ -113,6 +126,13 @@ final class PurchaseService: NSObject, ObservableObject {
     /// gates at billing time), and `.ineligible` / `.noIntroOfferExists`
     /// as not eligible — when this returns false the paywall hides the
     /// trial promise instead of disappointing the user at checkout.
+    ///
+    /// We layer our own anti-abuse cooldown on top of Apple's eligibility:
+    /// if the user already started a trial and let it lapse (no payment),
+    /// we block free-trial UI for `Self.trialCooldownDuration` even though
+    /// Apple itself technically still considers them eligible for a
+    /// promo intro offer on a separate product. Prevents the
+    /// "create new Apple ID every 7 days" exploit.
     func refreshTrialEligibility() async {
         guard let id = currentOffering?.annual?.storeProduct.productIdentifier else {
             isAnnualTrialEligible = false
@@ -120,7 +140,75 @@ final class PurchaseService: NSObject, ObservableObject {
         }
         let result = await Purchases.shared.checkTrialOrIntroDiscountEligibility(productIdentifiers: [id])
         let status = result[id]?.status
-        isAnnualTrialEligible = (status == .eligible || status == .unknown)
+        let appleEligible = (status == .eligible || status == .unknown)
+
+        // Detect "abandoned trial": we recorded a trial start in the
+        // past, the recorded window has elapsed, and the user is no
+        // longer premium → they didn't convert. Burn the cooldown.
+        promoteAbandonedTrialToCooldownIfNeeded()
+
+        isAnnualTrialEligible = appleEligible && !isInTrialAbuseCooldown
+    }
+
+    // MARK: - Trial abuse cooldown
+
+    /// Length of our local cooldown after a user starts a free trial
+    /// and lets it expire without paying. Apple's eligibility check
+    /// alone allows re-trial via different product/account, so we add
+    /// this local gate to discourage abuse.
+    static let trialCooldownDuration: TimeInterval = 60 * 86_400 // 60 d
+
+    /// Maximum plausible duration of a single trial. Used to decide
+    /// whether a recorded `trialStartedAt` should be treated as
+    /// "still in flight" or "abandoned". 30 d covers Apple's typical
+    /// 7-d/14-d/30-d trial windows comfortably.
+    private static let trialMaxWindow: TimeInterval = 30 * 86_400
+
+    private let trialStartedAtKey = "cooksy.trial.startedAt"
+    private let trialCooldownUntilKey = "cooksy.trial.cooldownUntil"
+
+    /// True when the user is in our local anti-abuse cooldown after
+    /// having started a free trial that didn't convert to a paid sub.
+    /// The paywall reads this in tandem with `isAnnualTrialEligible`
+    /// and falls back to "no trial, regular price" copy.
+    var isInTrialAbuseCooldown: Bool {
+        guard let until = UserDefaults.standard.object(forKey: trialCooldownUntilKey) as? Date else {
+            return false
+        }
+        return until > Date()
+    }
+
+    /// Stamp "trial just started". Called from the paywall's purchase
+    /// completion handler when `isInTrial == true` so we have a baseline
+    /// for the abuse detection on subsequent app launches.
+    func recordTrialStarted() {
+        UserDefaults.standard.set(Date(), forKey: trialStartedAtKey)
+        // Clear any stale cooldown — the user has clearly re-engaged
+        // with a new trial (Apple let them through).
+        UserDefaults.standard.removeObject(forKey: trialCooldownUntilKey)
+        logger.info("Trial started — recorded baseline at \(Date(), privacy: .public)")
+    }
+
+    /// Heuristic: if we previously recorded a trial start, more time
+    /// has passed than a single trial window can plausibly run, AND
+    /// the user is currently NOT premium, the trial must have been
+    /// cancelled / expired without conversion. Stamp the cooldown
+    /// window and clear the start anchor.
+    ///
+    /// Called from `refreshTrialEligibility()` so the check happens
+    /// at every cold start without needing a webhook listener.
+    private func promoteAbandonedTrialToCooldownIfNeeded() {
+        guard let startedAt = UserDefaults.standard.object(forKey: trialStartedAtKey) as? Date else {
+            return
+        }
+        let elapsed = Date().timeIntervalSince(startedAt)
+        guard elapsed > Self.trialMaxWindow, !isPremium else {
+            return
+        }
+        let cooldownUntil = Date().addingTimeInterval(Self.trialCooldownDuration)
+        UserDefaults.standard.set(cooldownUntil, forKey: trialCooldownUntilKey)
+        UserDefaults.standard.removeObject(forKey: trialStartedAtKey)
+        logger.info("Abandoned trial detected — trial UI blocked until \(cooldownUntil, privacy: .public)")
     }
 
     private func refreshDerivedFromOffering() {
@@ -132,6 +220,14 @@ final class PurchaseService: NSObject, ObservableObject {
         annualMonthlyEquivalentString = computeMonthlyEquivalent(annualProduct: annualProduct)
 
         annualTrialDays = extractTrialDays(annualProduct: annualProduct)
+
+        // Loud diagnostic — surfaces in Xcode console at every offering
+        // refresh so we can confirm whether RevenueCat is wiring the
+        // *regular* annual (cooksy_premium_yearly) or the discounted
+        // gift product (cooksy_premium_yearly_gift) into the annual
+        // package. If the latter sneaks in, the paywall would show
+        // 29.99 € on first view even before the gift wheel runs.
+        logger.info("[paywall-diag] annual=\(annualProduct?.productIdentifier ?? "nil", privacy: .public) price=\(self.annualPriceString ?? "nil", privacy: .public) monthly=\(monthlyProduct?.productIdentifier ?? "nil", privacy: .public)")
     }
 
     private func extractTrialDays(annualProduct: StoreProduct?) -> Int? {
@@ -220,11 +316,44 @@ final class PurchaseService: NSObject, ObservableObject {
     /// reduced amount; otherwise we silently fall back to the regular
     /// price so the user still gets premium even without a real promo
     /// configured server-side.
+    /// Product ID of the discounted annual subscription that's surfaced
+    /// when the user wins the gift wheel. Priced at 29,99 € (vs 39,99 €
+    /// for the regular annual), it bypasses Apple's Promotional Offer
+    /// API entirely — so the discount applies to *every* user, not just
+    /// returning subscribers.
+    static let giftYearlyProductID = "cooksy_premium_yearly_gift"
+
     func purchaseAnnualWithPromo(offerIdentifier: String) async throws {
+        // Strategy: purchase the dedicated 29,99 € product
+        // `cooksy_premium_yearly_gift`. This sidesteps Apple's rule
+        // that Promotional Offers only apply to existing/expired
+        // subscribers — new users on the wheel get the discount too.
+        //
+        // We still keep the Promotional Offer path below as a fallback
+        // in case the gift product isn't yet provisioned in RevenueCat
+        // (e.g. fresh sandbox builds before the user has rebuilt the
+        // .storekit file).
+        let giftProducts = await Purchases.shared.products([Self.giftYearlyProductID])
+        if let giftProduct = giftProducts.first {
+            isLoading = true
+            defer { isLoading = false }
+            let result = try await Purchases.shared.purchase(product: giftProduct)
+            guard !result.userCancelled else { return }
+            syncStatus(from: result.customerInfo)
+            return
+        }
+
+        logger.warning("Gift product \(Self.giftYearlyProductID, privacy: .public) not found — attempting Promotional Offer fallback")
+
         guard let offering = currentOffering,
               let pkg = offering.annual else { throw PurchaseError.packageNotFound }
 
         let product = pkg.storeProduct
+
+        // Promotional Offer path — only works for users who have had a
+        // prior subscription (Apple's restriction). For brand-new users
+        // Apple returns AMS 3903; we then fall back to the regular price
+        // after a small delay so StoreKit can release the UI anchor.
         if let discount = product.discounts.first(where: { $0.offerIdentifier == offerIdentifier }) {
             do {
                 let promoOffer = try await Purchases.shared.promotionalOffer(
@@ -239,6 +368,7 @@ final class PurchaseService: NSObject, ObservableObject {
                 return
             } catch {
                 logger.warning("Promo offer \(offerIdentifier, privacy: .public) failed (\(error.localizedDescription, privacy: .public)) — falling back to regular annual price")
+                try? await Task.sleep(nanoseconds: 600_000_000)
             }
         } else {
             logger.info("No promo offer \(offerIdentifier, privacy: .public) configured on annual product — using regular price")
@@ -250,6 +380,47 @@ final class PurchaseService: NSObject, ObservableObject {
     /// onboarding paywall which has its own plan enum).
     func purchaseAnnual() async throws {
         try await purchase(plan: .yearly)
+    }
+
+    /// Force `isPremium` to `true` and persist a server-side refresh in
+    /// the background. Use this immediately after a StoreKit purchase
+    /// has *succeeded* (no `userCancelled`, no error) so the UI can
+    /// react instantly — without waiting for RevenueCat's webhook /
+    /// CustomerInfo poll to confirm.
+    ///
+    /// Two practical reasons this exists:
+    ///   • RevenueCat's `Purchases.shared.purchase(...)` returns a
+    ///     `CustomerInfo` that *should* reflect the new entitlement,
+    ///     but in sandbox/test environments the entitlement is
+    ///     sometimes still empty for ~1–2 s while RC's backend catches
+    ///     up. Without this method the paywall would stay open until
+    ///     the next CustomerInfo refresh, and the user has to background
+    ///     the app to unstick it.
+    ///   • Even in production, network jitter between StoreKit success
+    ///     and RC's server can produce the same race. Trusting the
+    ///     transaction success is correct UX — the worst case is that
+    ///     we grant premium for a few seconds before the server-side
+    ///     entitlement lands (which it always does, otherwise StoreKit
+    ///     would have reported failure).
+    func forcePremiumAfterPurchase() async {
+        isPremium = true
+        // Best-effort: pull the latest CustomerInfo so any other
+        // downstream consumers (sessionStore, RootView) see the
+        // server-confirmed value as soon as it's available.
+        do {
+            let info = try await Purchases.shared.customerInfo()
+            syncStatus(from: info)
+            // syncStatus may have flipped isPremium back to false if RC
+            // is still catching up — reinforce the optimistic value so
+            // the UI doesn't flicker. The next CustomerInfo refresh will
+            // confirm it for real.
+            if !isPremium {
+                isPremium = true
+                logger.info("RC entitlement not yet active after purchase — keeping optimistic isPremium=true")
+            }
+        } catch {
+            logger.warning("RC customerInfo refresh after purchase failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Restore

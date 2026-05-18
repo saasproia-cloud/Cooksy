@@ -907,6 +907,38 @@ async function requestStructuredRecipeFromOpenAI(input: {
   return sanitizeRecipeImport(parsed);
 }
 
+// Concurrency gate for ffmpeg transcodes.
+//
+// Each transcribed import writes ~40 MB of video + ~25 MB of decoded
+// audio to /tmp and spawns a ffmpeg process. Unbounded concurrency on
+// a single Railway instance (~512 MB – 8 GB RAM depending on plan)
+// risks OOM when many imports land at once. Cap at 4 in-flight
+// transcodes and queue the rest — the average ffmpeg run completes
+// in 2–6 s so the queue drains quickly. Surplus callers simply await
+// their slot instead of failing.
+const FFMPEG_MAX_CONCURRENCY = 4;
+let ffmpegInFlight = 0;
+const ffmpegWaiters: Array<() => void> = [];
+
+async function acquireFfmpegSlot(): Promise<void> {
+  if (ffmpegInFlight < FFMPEG_MAX_CONCURRENCY) {
+    ffmpegInFlight += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    ffmpegWaiters.push(() => {
+      ffmpegInFlight += 1;
+      resolve();
+    });
+  });
+}
+
+function releaseFfmpegSlot(): void {
+  ffmpegInFlight -= 1;
+  const next = ffmpegWaiters.shift();
+  if (next) next();
+}
+
 async function extractAudio(
   sourcePath: string,
   destinationPath: string,
@@ -918,23 +950,28 @@ async function extractAudio(
     throw new Error("ffmpeg-static is not available.");
   }
 
-  await execFileAsync(ffmpegPath, [
-    "-y",
-    "-i",
-    sourcePath,
-    "-vn",
-    "-ac",
-    "1",
-    "-ar",
-    "16000",
-    "-t",
-    String(options?.maxDurationSeconds ?? 300),
-    "-c:a",
-    "aac",
-    "-b:a",
-    "96k",
-    destinationPath
-  ]);
+  await acquireFfmpegSlot();
+  try {
+    await execFileAsync(ffmpegPath, [
+      "-y",
+      "-i",
+      sourcePath,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-t",
+      String(options?.maxDurationSeconds ?? 300),
+      "-c:a",
+      "aac",
+      "-b:a",
+      "96k",
+      destinationPath
+    ]);
+  } finally {
+    releaseFfmpegSlot();
+  }
 }
 
 async function resolveNormalizationImageDataUrl(

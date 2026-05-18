@@ -356,6 +356,13 @@ private struct RecipeRowHero: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
+                        // Constrain + clip BEFORE bubbling up so overflow
+                        // from `.scaledToFill()` doesn't leak past the
+                        // rounded frame (imported recipes have large
+                        // intrinsic sizes and would otherwise overlap
+                        // neighbouring rows).
+                        .frame(width: 72, height: 72)
+                        .clipped()
                 } else {
                     AsyncImage(url: heroImageURL) { phase in
                         switch phase {
@@ -363,10 +370,13 @@ private struct RecipeRowHero: View {
                             image
                                 .resizable()
                                 .scaledToFill()
+                                .frame(width: 72, height: 72)
+                                .clipped()
                         default:
                             fallbackTile
                         }
                     }
+                    .frame(width: 72, height: 72)
                 }
             } else {
                 fallbackTile

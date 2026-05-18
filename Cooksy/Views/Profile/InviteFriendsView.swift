@@ -1,24 +1,39 @@
 import SwiftUI
 import UIKit
+import Contacts
+import ContactsUI
+import MessageUI
 
 /// "Inviter des amis" rewards page.
 ///
-/// Free-plan users earn a permanent **+1 weekly import** by inviting
-/// 5 friends. We only credit an invite when the system share sheet
-/// reports a **completed** share (the user actually picked Messages /
-/// Mail / WhatsApp / etc. and tapped Send). Cancelling the share sheet
-/// does NOT count — see `InviteShareSheet` below.
+/// Free-plan users earn a permanent **+1 weekly import** when they invite
+/// 5 *unique* friends via SMS.
 ///
-/// After the bonus unlocks the page stays accessible: users can keep
-/// sharing (it just doesn't grant additional slots, since the cap is
-/// `1` extra import).
+/// Anti-cheat:
+/// - The invitation flow is **contact-picker → Messages**, so we know
+///   exactly who the invite was sent to and can dedup by phone number.
+/// - Multi-selecting 5 contacts at once correctly credits 5 (one per
+///   recipient).
+/// - Re-sending to a recipient who is already credited grants nothing.
+/// - The "Send" callback only fires when iOS reports `MessageComposeResult.sent`
+///   — opening Messages and cancelling does NOT count.
+///
+/// Premium users see a "vous êtes déjà premium" notice. They can still
+/// invite (sharing is always welcome) but the bonus is irrelevant since
+/// they already have unlimited imports.
 struct InviteFriendsView: View {
+    @EnvironmentObject private var sessionStore: SessionStore
     @StateObject private var rewards = InviteRewardService.shared
-    @State private var showsShareSheet = false
-    @State private var sentToast: Bool = false
+
+    @State private var showsContactPicker = false
+    @State private var pendingRecipients: [String] = []
+    @State private var showsMessageComposer = false
+    @State private var toast: ToastKind?
+    @State private var showsCannotSendAlert = false
 
     private static let totalSteps = InviteRewardService.invitesNeededForBonus
 
+    private var isPremium: Bool { sessionStore.isPremium }
     private var progress: Int { rewards.invitesProgress }
     private var bonusUnlocked: Bool { rewards.bonusUnlocked }
 
@@ -39,14 +54,23 @@ struct InviteFriendsView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 22) {
-                    heroCard
-                    progressCard
-                    if bonusUnlocked {
-                        unlockedCelebrationCard
+                    if isPremium {
+                        premiumNoticeCard
                     }
+
+                    heroCard
+
+                    if !isPremium {
+                        progressCard
+                        if bonusUnlocked {
+                            unlockedCelebrationCard
+                        }
+                    }
+
                     rewardExplainerCard
                     shareButton
-                    Text("Une invitation est comptée seulement quand le message est réellement envoyé. Tu peux continuer à inviter des amis même après avoir débloqué ton bonus.")
+
+                    Text("Chaque ami n'est compté qu'une seule fois. L'invitation est créditée uniquement quand le message est réellement envoyé via Messages.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .multilineTextAlignment(.center)
@@ -58,70 +82,78 @@ struct InviteFriendsView: View {
                 .padding(.bottom, 100)
             }
 
-            if sentToast {
-                ComingSoonToast(message: "Invitation envoyée 🎉")
+            if let toast {
+                ComingSoonToast(message: toast.message)
                     .padding(.bottom, 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .navigationTitle("Inviter des amis")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showsShareSheet) {
-            InviteShareSheet(
-                items: [inviteText],
-                onCompletion: { activityType, completed in
-                    // Only count the invite when the user actually sent the
-                    // message (Messages, Mail, WhatsApp, etc. tapped Send).
-                    // - Cancelling → completed == false, ignored.
-                    // - Copying the link → completed == true but the
-                    //   activityType is `.copyToPasteboard`; that's not an
-                    //   invite to a real person, so we skip it. Same for
-                    //   the other "self-action" types in the deny-list.
-                    guard completed else { return }
-                    guard Self.activityCountsAsInvite(activityType) else { return }
-                    OnboardingHaptics.medium()
-                    rewards.recordInvite()
-                    showSentToast()
-                }
+        .sheet(isPresented: $showsContactPicker) {
+            ContactsPicker(onSelect: handleContactsPicked)
+                .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showsMessageComposer) {
+            MessageComposer(
+                recipients: pendingRecipients,
+                body: inviteText,
+                onResult: handleComposerResult
             )
+            .ignoresSafeArea()
+        }
+        .alert("Messages indisponible", isPresented: $showsCannotSendAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Ton appareil ne peut pas envoyer de SMS. Connecte-toi à un iPhone avec iMessage ou un forfait SMS pour inviter tes amis.")
         }
     }
 
-    /// Activity types that complete successfully but don't represent a
-    /// real invitation to another person. We deny-list these (rather than
-    /// allow-listing Messages/Mail/etc.) so third-party share extensions
-    /// like WhatsApp, Telegram, Signal, Discord, Snapchat, etc. — whose
-    /// activity types are arbitrary bundle identifiers — keep counting.
-    private static func activityCountsAsInvite(_ type: UIActivity.ActivityType?) -> Bool {
-        guard let type else {
-            // `nil` happens when the share sheet auto-dismisses without
-            // an explicit choice. Don't count.
-            return false
-        }
-        let denied: Set<UIActivity.ActivityType> = [
-            .copyToPasteboard,        // "Copier" — link only, no recipient
-            .saveToCameraRoll,
-            .print,
-            .assignToContact,
-            .addToReadingList,
-            .openInIBooks,
-            .markupAsPDF
-        ]
-        return !denied.contains(type)
-    }
+    // MARK: - Premium notice
 
-    private func showSentToast() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            sentToast = true
-        }
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            await MainActor.run {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    sentToast = false
-                }
+    private var premiumNoticeCard: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CooksyTheme.goldShimmer)
+                    .frame(width: 42, height: 42)
+                    .shadow(color: Color(hex: 0xF5B14E).opacity(0.35), radius: 6, y: 2)
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(.white)
             }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Tu es déjà Cooksy Plus 👑")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                Text("Tu as déjà les importations illimitées — le bonus invitation ne te concerne pas, mais tu peux toujours partager Cooksy avec tes amis.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(CooksyTheme.warmCard)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: 0xF5B14E).opacity(0.55),
+                            Color(hex: 0xFFE0A0).opacity(0.4)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
     }
 
     // MARK: - Hero
@@ -144,12 +176,16 @@ struct InviteFriendsView: View {
             }
 
             VStack(spacing: 6) {
-                Text("Débloque un éclair bonus")
+                Text(isPremium
+                     ? "Partage Cooksy à tes amis"
+                     : "Débloque un éclair bonus")
                     .font(.system(size: 22, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .multilineTextAlignment(.center)
 
-                Text("Invite 5 amis pour gagner **1 importation supplémentaire chaque semaine**, à vie.")
+                Text(isPremium
+                     ? "Fais découvrir Cooksy autour de toi. Tes amis pourront importer leurs vidéos préférées en deux minutes."
+                     : "Invite 5 amis pour gagner **1 importation supplémentaire chaque semaine**, à vie.")
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
@@ -271,18 +307,20 @@ struct InviteFriendsView: View {
 
             explainerRow(
                 index: 1,
-                title: "Partage Cooksy",
-                subtitle: "Touche le bouton ci-dessous pour envoyer une invitation à un ami."
+                title: "Choisis tes amis",
+                subtitle: "Sélectionne un ou plusieurs contacts depuis ton carnet d'adresses."
             )
             explainerRow(
                 index: 2,
-                title: "Atteins 5 invitations",
-                subtitle: "Chaque partage compte pour une invitation."
+                title: "Envoie l'invitation par SMS",
+                subtitle: "Messages s'ouvre avec ton invitation pré-remplie. Tu peux la modifier puis taper Envoyer."
             )
             explainerRow(
                 index: 3,
-                title: "Reçois ton éclair bonus",
-                subtitle: "+1 importation par semaine, débloquée à vie."
+                title: isPremium ? "Tu fais découvrir Cooksy" : "Reçois ton éclair bonus",
+                subtitle: isPremium
+                    ? "Tes amis débloquent leur cuisine vidéo, et toi tu gardes tes importations illimitées."
+                    : "Une invitation = un ami unique. Au 5ème ami, +1 importation par semaine, à vie."
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -325,14 +363,11 @@ struct InviteFriendsView: View {
     // MARK: - Share button
 
     private var shareButton: some View {
-        Button(action: {
-            OnboardingHaptics.selection()
-            showsShareSheet = true
-        }) {
+        Button(action: openContactPicker) {
             HStack(spacing: 10) {
                 Image(systemName: "person.badge.plus")
                     .font(.system(size: 16, weight: .bold))
-                Text(bonusUnlocked ? "Partager Cooksy" : "Inviter un ami")
+                Text(bonusUnlocked || isPremium ? "Partager Cooksy" : "Inviter un ami")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
             }
             .foregroundStyle(.white)
@@ -346,37 +381,182 @@ struct InviteFriendsView: View {
         }
         .buttonStyle(CooksyTheme.pressScale())
     }
-}
 
-// MARK: - Share sheet with completion callback
+    // MARK: - Flow
 
-/// Wraps `UIActivityViewController` so we can observe whether the user
-/// actually sent the invite. SwiftUI's built-in `ShareLink` doesn't give
-/// us a completion hook — and the share sheet treats "Copy" as a
-/// successful completion, which we don't want to count as an invitation.
-///
-/// The closure receives both the chosen activity (Messages, Mail,
-/// WhatsApp, "Copy", …) and the completion flag, so the caller can
-/// filter out actions that aren't a real invite to another person.
-private struct InviteShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    let onCompletion: (UIActivity.ActivityType?, Bool) -> Void
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        controller.completionWithItemsHandler = { activityType, completed, _, _ in
-            DispatchQueue.main.async {
-                onCompletion(activityType, completed)
-            }
+    private func openContactPicker() {
+        OnboardingHaptics.selection()
+        guard MFMessageComposeViewController.canSendText() else {
+            showsCannotSendAlert = true
+            return
         }
-        return controller
+        showsContactPicker = true
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    private func handleContactsPicked(_ contacts: [CNContact]) {
+        // Pull the primary phone number from each contact. Contacts
+        // without a phone number are silently skipped — we can't SMS
+        // them.
+        let phones = contacts.compactMap { contact -> String? in
+            contact.phoneNumbers.first?.value.stringValue
+        }
+        guard !phones.isEmpty else {
+            showToast(.noPhone)
+            return
+        }
+        pendingRecipients = phones
+        // Tiny delay so the contact-picker dismissal animation completes
+        // before the Messages composer slides in — otherwise iOS skips it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showsMessageComposer = true
+        }
+    }
+
+    private func handleComposerResult(_ result: MessageComposeResult) {
+        let recipients = pendingRecipients
+        pendingRecipients = []
+
+        guard result == .sent else { return }
+
+        let credited = rewards.recordInvites(forPhones: recipients)
+        OnboardingHaptics.medium()
+
+        if isPremium {
+            showToast(.sentPremium)
+        } else if credited == 0 {
+            showToast(.alreadyInvited)
+        } else if credited == 1 {
+            showToast(.creditedOne)
+        } else {
+            showToast(.creditedMany(credited))
+        }
+    }
+
+    // MARK: - Toast plumbing
+
+    private enum ToastKind: Equatable {
+        case sentPremium
+        case alreadyInvited
+        case creditedOne
+        case creditedMany(Int)
+        case noPhone
+
+        var message: String {
+            switch self {
+            case .sentPremium: return "Invitation envoyée 🎉"
+            case .alreadyInvited: return "Ces amis ont déjà été invités"
+            case .creditedOne: return "+1 ami invité 🎉"
+            case .creditedMany(let n): return "+\(n) amis invités 🎉"
+            case .noPhone: return "Aucun numéro de téléphone trouvé"
+            }
+        }
+    }
+
+    private func showToast(_ kind: ToastKind) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            toast = kind
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(2.4))
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    toast = nil
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Contact picker
+
+/// SwiftUI bridge around `CNContactPickerViewController`. Multi-select
+/// is enabled. The closure is fired with the user's selection on
+/// dismiss; cancelling returns an empty array.
+private struct ContactsPicker: UIViewControllerRepresentable {
+    let onSelect: ([CNContact]) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        // Only show contacts that have at least one phone number we can SMS.
+        picker.predicateForEnablingContact = NSPredicate(format: "phoneNumbers.@count > 0")
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let onSelect: ([CNContact]) -> Void
+
+        init(onSelect: @escaping ([CNContact]) -> Void) {
+            self.onSelect = onSelect
+        }
+
+        // Multi-select branch.
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
+            onSelect(contacts)
+        }
+
+        // Single-select branch — iOS calls this one when the user taps a
+        // single row rather than entering multi-select mode.
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            onSelect([contact])
+        }
+
+        func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
+            onSelect([])
+        }
+    }
+}
+
+// MARK: - Message composer
+
+/// SwiftUI bridge around `MFMessageComposeViewController`. Pre-fills the
+/// recipients and body so the user only has to tap Send.
+private struct MessageComposer: UIViewControllerRepresentable {
+    let recipients: [String]
+    let body: String
+    let onResult: (MessageComposeResult) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onResult: onResult) }
+
+    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        let composer = MFMessageComposeViewController()
+        composer.messageComposeDelegate = context.coordinator
+        composer.recipients = recipients
+        composer.body = body
+        return composer
+    }
+
+    func updateUIViewController(_ uiViewController: MFMessageComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
+        let onResult: (MessageComposeResult) -> Void
+
+        init(onResult: @escaping (MessageComposeResult) -> Void) {
+            self.onResult = onResult
+        }
+
+        func messageComposeViewController(
+            _ controller: MFMessageComposeViewController,
+            didFinishWith result: MessageComposeResult
+        ) {
+            // Fire the callback *before* asking iOS to dismiss the
+            // composer — the parent SwiftUI sheet will collapse on its
+            // own once `showsMessageComposer` flips back to false in the
+            // result handler. This avoids passing the callback into the
+            // dismiss completion (which trips Swift 6 strict-concurrency).
+            onResult(result)
+            controller.dismiss(animated: true)
+        }
+    }
 }
 
 #Preview {
     NavigationStack {
         InviteFriendsView()
+            .environmentObject(SessionStore())
     }
 }

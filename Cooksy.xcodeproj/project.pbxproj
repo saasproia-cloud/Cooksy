@@ -94,6 +94,8 @@
 		E89AAE412FAB9F7100C4F1D0 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = E89AAE402FAB9F7100C4F1D0 /* RevenueCatUI */; };
 		E8A69E052FABDFBF00A00B2B /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */; };
 		E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E8B6A0132F962D6B00310B81 /* Supabase */; };
+		E8D8F1E02FBA3BB400D6D10D /* Cooksy.storekit in Resources */ = {isa = PBXBuildFile; fileRef = E8D8F1DF2FBA3BB400D6D10D /* Cooksy.storekit */; };
+		E8FEED9C2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E8FEED9B2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy */; };
 		EB03BB00745A6F42077168F0 /* RecipeValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* RecipeValidationService.swift */; };
 		EF6766BBFB2920DA16C208E8 /* RecipeBookCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509A32C32FE021E5619BAFA7 /* RecipeBookCard.swift */; };
 		F00000000000000000000B01 /* ImportGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000A01 /* ImportGuideView.swift */; };
@@ -111,6 +113,7 @@
 		F100000000000000000000B3 /* TermsOfServiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000A3 /* TermsOfServiceView.swift */; };
 		F100000000000000000000C0 /* DesktopAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D0 /* DesktopAccessView.swift */; };
 		F100000000000000000000C1 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D1 /* HelpView.swift */; };
+		F100000000000000000000C2 /* AccountDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D2 /* AccountDataView.swift */; };
 		F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SupabaseClientProvider.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
 		F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SessionFreshnessGuard.swift */; };
@@ -132,7 +135,6 @@
 		F30000000000000000000115 /* ShimmerModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000015 /* ShimmerModifier.swift */; };
 		F30000000000000000000116 /* SparkleCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000016 /* SparkleCanvas.swift */; };
 		F30000000000000000000117 /* SignInWithAppleButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000017 /* SignInWithAppleButtonView.swift */; };
-		F30000000000000000000118 /* GoogleSignInButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000018 /* GoogleSignInButtonView.swift */; };
 		F30000000000000000000120 /* WelcomeHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000020 /* WelcomeHeroView.swift */; };
 		F30000000000000000000121 /* DemoBeforeAfterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000021 /* DemoBeforeAfterView.swift */; };
 		F30000000000000000000122 /* ValueProofView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000022 /* ValueProofView.swift */; };
@@ -149,7 +151,6 @@
 		F30000000000000000000133 /* ProfileBuildingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000033 /* ProfileBuildingView.swift */; };
 		F30000000000000000000134 /* PersonalizedPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000034 /* PersonalizedPreviewView.swift */; };
 		F30000000000000000000135 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000035 /* SignUpView.swift */; };
-		F30000000000000000000136 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000036 /* LoginView.swift */; };
 		F30000000000000000000137 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000037 /* PaywallView.swift */; };
 		F30000000000000000000138 /* PostPaywallTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000038 /* PostPaywallTutorialView.swift */; };
 		F30000000000000000000140 /* AppReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000040 /* AppReviewView.swift */; };
@@ -158,6 +159,13 @@
 		F30000000000000000000143 /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000043 /* BudgetView.swift */; };
 		F30000000000000000000144 /* MealMomentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000044 /* MealMomentsView.swift */; };
 		F30000000000000000000145 /* ShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000045 /* ShoppingView.swift */; };
+		F30000000000000000000150 /* LifestyleGoalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000050 /* LifestyleGoalView.swift */; };
+		F30000000000000000000151 /* PlanningStyleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000051 /* PlanningStyleView.swift */; };
+		F30000000000000000000152 /* InterludeNumbersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000052 /* InterludeNumbersView.swift */; };
+		F30000000000000000000153 /* CookingForView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000053 /* CookingForView.swift */; };
+		F30000000000000000000154 /* CookingStyleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000054 /* CookingStyleView.swift */; };
+		F30000000000000000000155 /* InterludeTestimonialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000055 /* InterludeTestimonialView.swift */; };
+		F30000000000000000000156 /* PhotoSharingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000056 /* PhotoSharingView.swift */; };
 		F40000000000000000000101 /* TrendingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001 /* TrendingArtwork.swift */; };
 /* End PBXBuildFile section */
 
@@ -269,6 +277,8 @@
 		E76937A97BDE51B26E1F365F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Cooksy-2.mp4"; sourceTree = "<group>"; };
 		E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
+		E8D8F1DF2FBA3BB400D6D10D /* Cooksy.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Cooksy.storekit; sourceTree = "<group>"; };
+		E8FEED9B2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedLinkInbox.swift; sourceTree = "<group>"; };
 		EF7DA30D65C0C079B9DF09F4 /* RecipeOCRService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeOCRService.swift; sourceTree = "<group>"; };
 		F00000000000000000000A01 /* ImportGuideView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideView.swift; sourceTree = "<group>"; };
@@ -286,6 +296,7 @@
 		F100000000000000000000A3 /* TermsOfServiceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TermsOfServiceView.swift; sourceTree = "<group>"; };
 		F100000000000000000000D0 /* DesktopAccessView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DesktopAccessView.swift; sourceTree = "<group>"; };
 		F100000000000000000000D1 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		F100000000000000000000D2 /* AccountDataView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AccountDataView.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* SupabaseClientProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseClientProvider.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* SessionFreshnessGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionFreshnessGuard.swift; sourceTree = "<group>"; };
@@ -306,7 +317,6 @@
 		F30000000000000000000015 /* ShimmerModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShimmerModifier.swift; sourceTree = "<group>"; };
 		F30000000000000000000016 /* SparkleCanvas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SparkleCanvas.swift; sourceTree = "<group>"; };
 		F30000000000000000000017 /* SignInWithAppleButtonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignInWithAppleButtonView.swift; sourceTree = "<group>"; };
-		F30000000000000000000018 /* GoogleSignInButtonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoogleSignInButtonView.swift; sourceTree = "<group>"; };
 		F30000000000000000000020 /* WelcomeHeroView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeHeroView.swift; sourceTree = "<group>"; };
 		F30000000000000000000021 /* DemoBeforeAfterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoBeforeAfterView.swift; sourceTree = "<group>"; };
 		F30000000000000000000022 /* ValueProofView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ValueProofView.swift; sourceTree = "<group>"; };
@@ -323,7 +333,6 @@
 		F30000000000000000000033 /* ProfileBuildingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileBuildingView.swift; sourceTree = "<group>"; };
 		F30000000000000000000034 /* PersonalizedPreviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersonalizedPreviewView.swift; sourceTree = "<group>"; };
 		F30000000000000000000035 /* SignUpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
-		F30000000000000000000036 /* LoginView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		F30000000000000000000037 /* PaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		F30000000000000000000038 /* PostPaywallTutorialView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PostPaywallTutorialView.swift; sourceTree = "<group>"; };
 		F30000000000000000000040 /* AppReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppReviewView.swift; sourceTree = "<group>"; };
@@ -332,6 +341,13 @@
 		F30000000000000000000043 /* BudgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
 		F30000000000000000000044 /* MealMomentsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MealMomentsView.swift; sourceTree = "<group>"; };
 		F30000000000000000000045 /* ShoppingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingView.swift; sourceTree = "<group>"; };
+		F30000000000000000000050 /* LifestyleGoalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LifestyleGoalView.swift; sourceTree = "<group>"; };
+		F30000000000000000000051 /* PlanningStyleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlanningStyleView.swift; sourceTree = "<group>"; };
+		F30000000000000000000052 /* InterludeNumbersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterludeNumbersView.swift; sourceTree = "<group>"; };
+		F30000000000000000000053 /* CookingForView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingForView.swift; sourceTree = "<group>"; };
+		F30000000000000000000054 /* CookingStyleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingStyleView.swift; sourceTree = "<group>"; };
+		F30000000000000000000055 /* InterludeTestimonialView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterludeTestimonialView.swift; sourceTree = "<group>"; };
+		F30000000000000000000056 /* PhotoSharingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoSharingView.swift; sourceTree = "<group>"; };
 		F40000000000000000000001 /* TrendingArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendingArtwork.swift; sourceTree = "<group>"; };
 		F402E2B31A2FB4C0776646C4 /* CooksyLogoMark.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyLogoMark.swift; sourceTree = "<group>"; };
 		F994BB5264D63C2BB2AB20A4 /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -430,6 +446,7 @@
 		55E2662EA3B8916FD93DC6A2 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				E8FEED9B2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy */,
 				32EFE4892EC339B197010542 /* AppAppearance.swift */,
 				C031CB0EB64DA601375638B9 /* CooksyApp.swift */,
 				14827D31D5DF8504B453F5E0 /* RootTabView.swift */,
@@ -546,6 +563,7 @@
 		BEFF8E79044DB072549ACEA6 = {
 			isa = PBXGroup;
 			children = (
+				E8D8F1DF2FBA3BB400D6D10D /* Cooksy.storekit */,
 				E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */,
 				B112FB767A46FF60171FF77D /* Products */,
 				8B5A25527D785C0CAB526183 /* Frameworks */,
@@ -647,6 +665,7 @@
 				F100000000000000000000D0 /* DesktopAccessView.swift */,
 				C71F0012000000000000B001 /* InviteFriendsView.swift */,
 				F100000000000000000000D1 /* HelpView.swift */,
+				F100000000000000000000D2 /* AccountDataView.swift */,
 				F100000000000000000000A0 /* Legal */,
 			);
 			path = Profile;
@@ -691,7 +710,6 @@
 				F30000000000000000000015 /* ShimmerModifier.swift */,
 				F30000000000000000000016 /* SparkleCanvas.swift */,
 				F30000000000000000000017 /* SignInWithAppleButtonView.swift */,
-				F30000000000000000000018 /* GoogleSignInButtonView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -715,7 +733,6 @@
 				F30000000000000000000033 /* ProfileBuildingView.swift */,
 				F30000000000000000000034 /* PersonalizedPreviewView.swift */,
 				F30000000000000000000035 /* SignUpView.swift */,
-				F30000000000000000000036 /* LoginView.swift */,
 				F30000000000000000000037 /* PaywallView.swift */,
 				F30000000000000000000038 /* PostPaywallTutorialView.swift */,
 				F30000000000000000000040 /* AppReviewView.swift */,
@@ -724,6 +741,13 @@
 				F30000000000000000000043 /* BudgetView.swift */,
 				F30000000000000000000044 /* MealMomentsView.swift */,
 				F30000000000000000000045 /* ShoppingView.swift */,
+				F30000000000000000000050 /* LifestyleGoalView.swift */,
+				F30000000000000000000051 /* PlanningStyleView.swift */,
+				F30000000000000000000052 /* InterludeNumbersView.swift */,
+				F30000000000000000000053 /* CookingForView.swift */,
+				F30000000000000000000054 /* CookingStyleView.swift */,
+				F30000000000000000000055 /* InterludeTestimonialView.swift */,
+				F30000000000000000000056 /* PhotoSharingView.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -865,6 +889,8 @@
 			files = (
 				07AD92797580D27AFD485DD0 /* Assets.xcassets in Resources */,
 				E86461F22F82EF5800DCF323 /* Cooksy-2.mp4 in Resources */,
+				E8D8F1E02FBA3BB400D6D10D /* Cooksy.storekit in Resources */,
+				E8FEED9C2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy in Resources */,
 				076B51B332BCB74CD8519710 /* SplashVideo.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -967,7 +993,6 @@
 				F30000000000000000000115 /* ShimmerModifier.swift in Sources */,
 				F30000000000000000000116 /* SparkleCanvas.swift in Sources */,
 				F30000000000000000000117 /* SignInWithAppleButtonView.swift in Sources */,
-				F30000000000000000000118 /* GoogleSignInButtonView.swift in Sources */,
 				F30000000000000000000120 /* WelcomeHeroView.swift in Sources */,
 				F30000000000000000000121 /* DemoBeforeAfterView.swift in Sources */,
 				F30000000000000000000122 /* ValueProofView.swift in Sources */,
@@ -984,7 +1009,6 @@
 				F30000000000000000000133 /* ProfileBuildingView.swift in Sources */,
 				F30000000000000000000134 /* PersonalizedPreviewView.swift in Sources */,
 				F30000000000000000000135 /* SignUpView.swift in Sources */,
-				F30000000000000000000136 /* LoginView.swift in Sources */,
 				F30000000000000000000137 /* PaywallView.swift in Sources */,
 				F30000000000000000000138 /* PostPaywallTutorialView.swift in Sources */,
 				F30000000000000000000140 /* AppReviewView.swift in Sources */,
@@ -993,6 +1017,13 @@
 				F30000000000000000000143 /* BudgetView.swift in Sources */,
 				F30000000000000000000144 /* MealMomentsView.swift in Sources */,
 				F30000000000000000000145 /* ShoppingView.swift in Sources */,
+				F30000000000000000000150 /* LifestyleGoalView.swift in Sources */,
+				F30000000000000000000151 /* PlanningStyleView.swift in Sources */,
+				F30000000000000000000152 /* InterludeNumbersView.swift in Sources */,
+				F30000000000000000000153 /* CookingForView.swift in Sources */,
+				F30000000000000000000154 /* CookingStyleView.swift in Sources */,
+				F30000000000000000000155 /* InterludeTestimonialView.swift in Sources */,
+				F30000000000000000000156 /* PhotoSharingView.swift in Sources */,
 				F10000000000000000000014 /* CulinaryPreferencesView.swift in Sources */,
 				F10000000000000000000015 /* EditProfileView.swift in Sources */,
 				F10000000000000000000016 /* PremiumActiveCard.swift in Sources */,
@@ -1005,6 +1036,7 @@
 				F10000000000000000000019 /* ShareShortcutGuideView.swift in Sources */,
 				F100000000000000000000C0 /* DesktopAccessView.swift in Sources */,
 				F100000000000000000000C1 /* HelpView.swift in Sources */,
+				F100000000000000000000C2 /* AccountDataView.swift in Sources */,
 				F40000000000000000000101 /* TrendingArtwork.swift in Sources */,
 				416C13BC4AFB88D510BC0DA4 /* Layout.swift in Sources */,
 				584124D137E9DFBBE30728DF /* Typography.swift in Sources */,

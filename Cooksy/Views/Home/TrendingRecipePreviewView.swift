@@ -278,7 +278,10 @@ struct TrendingRecipePreviewView: View {
 
     private func saveToLibrary() {
         let recipe = previewRecipe
-        store.addRecipe(recipe)
+        // Demo / trending recipes are baked-in content — they don't run
+        // through the AI import pipeline, so they shouldn't consume a
+        // free-plan éclair.
+        store.addRecipe(recipe, consumesQuota: false)
         withAnimation(.easeInOut(duration: 0.3)) {
             saved = true
         }

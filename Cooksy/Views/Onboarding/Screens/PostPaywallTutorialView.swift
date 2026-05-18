@@ -1,11 +1,22 @@
 import SwiftUI
 
 /// Mini onboarding tour that plays once after the paywall converts.
-/// Teaches the user the 3 core loops: paste link, structured recipe, save.
-/// Skippable at any time. Persisted via `@AppStorage("cooksy.hasSeenTutorial")`.
+///
+/// Two-stage flow:
+///   1. `PremiumWelcomeCelebrationView` — a full-screen "Bienvenue
+///      Premium" moment with confetti and a luxurious badge so the user
+///      *feels* the privilege of converting. ~3 s of pride before the
+///      tour begins.
+///   2. Tutorial slides — the 3 core loops (paste link, structured
+///      recipe, save). Skippable at any time.
+///
+/// Persisted via `@AppStorage("cooksy.hasSeenTutorial")`.
 struct PostPaywallTutorialView: View {
     @AppStorage("cooksy.hasSeenTutorial") private var hasSeenTutorial: Bool = false
 
+    /// Local stage gate. Starts on celebration; flips to slides once the
+    /// user taps "Continuer" on the welcome screen.
+    @State private var showsCelebration: Bool = true
     @State private var index: Int = 0
 
     private let slides: [TutorialSlide] = [
@@ -31,61 +42,80 @@ struct PostPaywallTutorialView: View {
             CooksyTheme.ambientGradient
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Top bar: skip button
-                HStack {
-                    Spacer()
-                    Button(action: finish) {
-                        Text("Passer")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .padding(.horizontal, 16)
-                            .frame(height: 36)
+            if showsCelebration {
+                PremiumWelcomeCelebrationView(
+                    onContinue: {
+                        withAnimation(.easeInOut(duration: 0.45)) {
+                            showsCelebration = false
+                        }
                     }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-
-                // Pager
-                TabView(selection: $index) {
-                    ForEach(Array(slides.enumerated()), id: \.offset) { pair in
-                        TutorialSlideView(slide: pair.element)
-                            .tag(pair.offset)
-                            .padding(.horizontal, 24)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(maxHeight: .infinity)
-
-                // Dots
-                HStack(spacing: 8) {
-                    ForEach(slides.indices, id: \.self) { i in
-                        Capsule()
-                            .fill(i == index ? CooksyTheme.ctaOrangeDark : CooksyTheme.stroke)
-                            .frame(width: i == index ? 22 : 7, height: 7)
-                            .animation(.spring(response: 0.35, dampingFraction: 0.78), value: index)
-                    }
-                }
-                .padding(.bottom, 16)
-
-                // CTA
-                Button(action: advance) {
-                    Text(isLastSlide ? "Commencer à cuisiner" : "Suivant")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(CooksyTheme.accentGradient)
-                        )
-                        .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 10)
-                }
-                .buttonStyle(CooksyTheme.pressScale())
-                .padding(.horizontal, 28)
-                .padding(.bottom, 28)
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity,
+                    removal: .opacity.combined(with: .scale(scale: 0.96))
+                ))
+            } else {
+                tutorialContent
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
+        }
+    }
+
+    private var tutorialContent: some View {
+        VStack(spacing: 0) {
+            // Top bar: skip button
+            HStack {
+                Spacer()
+                Button(action: finish) {
+                    Text("Passer")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                        .padding(.horizontal, 16)
+                        .frame(height: 36)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+
+            // Pager
+            TabView(selection: $index) {
+                ForEach(Array(slides.enumerated()), id: \.offset) { pair in
+                    TutorialSlideView(slide: pair.element)
+                        .tag(pair.offset)
+                        .padding(.horizontal, 24)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(maxHeight: .infinity)
+
+            // Dots
+            HStack(spacing: 8) {
+                ForEach(slides.indices, id: \.self) { i in
+                    Capsule()
+                        .fill(i == index ? CooksyTheme.ctaOrangeDark : CooksyTheme.stroke)
+                        .frame(width: i == index ? 22 : 7, height: 7)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: index)
+                }
+            }
+            .padding(.bottom, 16)
+
+            // CTA
+            Button(action: advance) {
+                Text(isLastSlide ? "Commencer à cuisiner" : "Suivant")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(CooksyTheme.accentGradient)
+                    )
+                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 10)
+            }
+            .buttonStyle(CooksyTheme.pressScale())
+            .padding(.horizontal, 28)
+            .padding(.bottom, 28)
         }
     }
 
@@ -394,5 +424,226 @@ private struct SavedForeverIllustration: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(CooksyTheme.background)
         )
+    }
+}
+
+// MARK: - Premium welcome celebration
+
+/// Full-screen "Bienvenue Premium" moment shown immediately after a
+/// successful paywall conversion. Designed to feel like a *real*
+/// privilege — golden gradient ring, animated badge, confetti, and a
+/// single bold CTA. ~3 s of pride before the tutorial begins.
+///
+/// Visual hierarchy:
+///   1. Floating badge with crown / sparkle (the "you made it" emblem)
+///   2. Headline "Bienvenue dans Cooksy Premium"
+///   3. Three perks restated as confirmation chips
+///   4. "Continuer" CTA → fires `onContinue`, parent moves to the tour
+private struct PremiumWelcomeCelebrationView: View {
+    let onContinue: () -> Void
+
+    @State private var appeared = false
+    @State private var badgePulse = false
+    @State private var confettiTrigger = 0
+
+    private let perks: [String] = [
+        "Imports illimités",
+        "Recettes structurées en quelques secondes",
+        "Sauvegarde et organisation sans limite"
+    ]
+
+    var body: some View {
+        ZStack {
+            // Confetti is purely decorative — anchored above the
+            // backdrop, below the badge content.
+            IngredientConfetti(trigger: confettiTrigger)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 40)
+
+                premiumBadge
+                    .opacity(appeared ? 1 : 0)
+                    .scaleEffect(appeared ? 1 : 0.6)
+                    .animation(.spring(response: 0.7, dampingFraction: 0.62).delay(0.15),
+                               value: appeared)
+
+                Spacer(minLength: 28)
+
+                VStack(spacing: 14) {
+                    Text("Bienvenue dans")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .tracking(1.6)
+                        .foregroundStyle(CooksyTheme.secondaryText)
+
+                    Text("Cooksy Premium")
+                        .font(.system(size: 36, weight: .bold, design: .serif))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                        .multilineTextAlignment(.center)
+
+                    Text("Tu fais maintenant partie du cercle des cuisiniers qui ne regardent plus jamais de vidéo en entier.")
+                        .font(.system(size: 14.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                        .padding(.horizontal, 24)
+                }
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 16)
+                .animation(.easeOut(duration: 0.55).delay(0.45), value: appeared)
+
+                Spacer(minLength: 26)
+
+                perksList
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 12)
+                    .animation(.easeOut(duration: 0.55).delay(0.7), value: appeared)
+
+                Spacer(minLength: 30)
+
+                continueButton
+                    .opacity(appeared ? 1 : 0)
+                    .animation(.easeOut(duration: 0.55).delay(0.95), value: appeared)
+
+                Spacer(minLength: 36)
+            }
+            .frame(maxWidth: 420)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+        }
+        .onAppear {
+            appeared = true
+            confettiTrigger += 1
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                badgePulse = true
+            }
+            OnboardingHaptics.success()
+        }
+    }
+
+    // MARK: - Premium badge
+
+    private var premiumBadge: some View {
+        ZStack {
+            // Outer glow halo
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            CooksyTheme.primaryAccentGlow.opacity(0.55),
+                            CooksyTheme.primaryAccentGlow.opacity(0.0)
+                        ],
+                        center: .center,
+                        startRadius: 12,
+                        endRadius: 130
+                    )
+                )
+                .frame(width: 260, height: 260)
+                .blur(radius: 10)
+                .scaleEffect(badgePulse ? 1.06 : 1.0)
+
+            // Gold ring
+            Circle()
+                .stroke(
+                    AngularGradient(
+                        colors: [
+                            CooksyTheme.primaryAccentStrong,
+                            CooksyTheme.primaryAccentGlow,
+                            CooksyTheme.primaryAccent,
+                            CooksyTheme.primaryAccentStrong
+                        ],
+                        center: .center
+                    ),
+                    lineWidth: 4
+                )
+                .frame(width: 156, height: 156)
+
+            // Inner disc
+            Circle()
+                .fill(Color.white)
+                .frame(width: 138, height: 138)
+                .overlay(
+                    Circle()
+                        .stroke(CooksyTheme.stroke.opacity(0.7), lineWidth: 1)
+                )
+                .shadow(color: CooksyTheme.primaryAccent.opacity(0.35), radius: 22, y: 0)
+                .shadow(color: Color.black.opacity(0.08), radius: 14, y: 10)
+
+            // Icon
+            VStack(spacing: 4) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 38, weight: .black))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                CooksyTheme.primaryAccentStrong,
+                                CooksyTheme.primaryAccent
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                Text("PREMIUM")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(2.0)
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+            }
+        }
+    }
+
+    // MARK: - Perks confirmation
+
+    private var perksList: some View {
+        VStack(spacing: 10) {
+            ForEach(perks, id: \.self) { perk in
+                HStack(spacing: 11) {
+                    ZStack {
+                        Circle()
+                            .fill(CooksyTheme.primaryAccentSoft)
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .black))
+                            .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                    }
+                    Text(perk)
+                        .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
+    // MARK: - CTA
+
+    private var continueButton: some View {
+        Button(action: {
+            OnboardingHaptics.medium()
+            onContinue()
+        }) {
+            HStack(spacing: 8) {
+                Text("Découvrir Cooksy Premium")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .heavy))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.accentGradient)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 10)
+        }
+        .buttonStyle(CooksyTheme.pressScale())
+        .padding(.horizontal, 4)
     }
 }

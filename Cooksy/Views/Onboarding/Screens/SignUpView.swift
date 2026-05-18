@@ -1,17 +1,15 @@
 import SwiftUI
 
-/// D1 — Account creation. Apple + Google only. Once the user authenticates,
+/// D1 — Account creation. Apple Sign-In only. Once the user authenticates,
 /// the parent OnboardingFlow detects the sign-in transition and pushes
 /// onboarding answers to Supabase before routing toward the paywall.
 ///
-/// Email sign-up was removed, so the layout is rebalanced around three
-/// blocks — a hero badge, a short benefit list, and a social-proof bar —
-/// to keep the screen feeling intentional rather than empty.
+/// Apple Sign-In doubles as the returning-user flow (same Apple ID → same
+/// Supabase user), so no separate "Login" screen is needed.
 struct SignUpView: View {
     @ObservedObject var coordinator: OnboardingCoordinator
     @EnvironmentObject private var sessionStore: SessionStore
     let onBack: () -> Void
-    let onGoToLogin: () -> Void
 
     @State private var appeared = false
 
@@ -66,9 +64,6 @@ struct SignUpView: View {
                 }
 
                 Spacer(minLength: 0)
-
-                footerLink
-                    .padding(.bottom, 22)
             }
         }
         .alert(
@@ -267,12 +262,23 @@ struct SignUpView: View {
         }
     }
 
-    // MARK: - Providers (Apple / Google)
+    // MARK: - Provider (Apple Sign-In only)
 
     private var providers: some View {
         VStack(spacing: 12) {
             SignInWithAppleButtonView()
-            GoogleSignInButtonView()
+
+            HStack(spacing: 6) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                Text("Connexion sécurisée par Apple — aucun mot de passe à retenir")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 4)
         }
     }
 
@@ -340,23 +346,6 @@ struct SignUpView: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .padding(.top, 2)
-    }
-
-    private var footerLink: some View {
-        Button(action: {
-            OnboardingHaptics.selection()
-            onGoToLogin()
-        }) {
-            HStack(spacing: 4) {
-                Text("Déjà un compte ?")
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                Text("Se connecter")
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                    .fontWeight(.bold)
-            }
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
-        }
-        .buttonStyle(.plain)
     }
 }
 

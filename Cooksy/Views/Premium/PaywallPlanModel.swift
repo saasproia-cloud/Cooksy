@@ -19,6 +19,9 @@ enum PremiumPlan: String, CaseIterable, Identifiable {
     }
 
     /// Original (non-discounted) price in EUR.
+    /// MUST match the displayPrice of the matching product in Cooksy.storekit
+    /// and in App Store Connect — these values are the fallback used when
+    /// the live StoreKit storefront hasn't loaded yet.
     var basePrice: Decimal {
         switch self {
         case .monthly:  return 7.99

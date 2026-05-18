@@ -10,9 +10,6 @@ struct OnboardingFlow: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @Environment(\.scenePhase) private var scenePhase
 
-    /// When true we present the returning-user login screen on top of the flow.
-    @State private var showingLogin: Bool = false
-
     /// Toast banner shown when the user tries to import a recipe (via the
     /// share extension) before finishing onboarding. The pending import
     /// gets cleared so it does not auto-process once they reach the home
@@ -52,13 +49,6 @@ struct OnboardingFlow: View {
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.88), value: coordinator.currentStep)
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: importBlockedBannerVisible)
-        .fullScreenCover(isPresented: $showingLogin) {
-            LoginView(
-                onBack: { showingLogin = false },
-                onGoToSignUp: { showingLogin = false }
-            )
-            .environmentObject(sessionStore)
-        }
         .onChange(of: sessionStore.phase) { _, newValue in
             handlePhaseChange(newValue)
         }
@@ -104,8 +94,7 @@ struct OnboardingFlow: View {
         switch coordinator.currentStep {
         case .welcome:
             WelcomeHeroView(
-                onContinue: { coordinator.next() },
-                onExistingAccount: { showingLogin = true }
+                onContinue: { coordinator.next() }
             )
 
         case .appReview:
@@ -128,6 +117,13 @@ struct OnboardingFlow: View {
 
         case .primaryGoal:
             PrimaryGoalView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .lifestyleGoal:
+            LifestyleGoalView(
                 coordinator: coordinator,
                 onBack: { coordinator.back() },
                 onContinue: { coordinator.next() }
@@ -161,6 +157,19 @@ struct OnboardingFlow: View {
                 onContinue: { coordinator.next() }
             )
 
+        case .planningStyle:
+            PlanningStyleView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .interludeNumbers:
+            InterludeNumbersView(
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
         case .diet:
             DietView(
                 coordinator: coordinator,
@@ -170,6 +179,13 @@ struct OnboardingFlow: View {
 
         case .allergies:
             AllergiesView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .cookingFor:
+            CookingForView(
                 coordinator: coordinator,
                 onBack: { coordinator.back() },
                 onContinue: { coordinator.next() }
@@ -189,9 +205,22 @@ struct OnboardingFlow: View {
                 onContinue: { coordinator.next() }
             )
 
+        case .cookingStyle:
+            CookingStyleView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
         case .spiceLevel:
             SpiceLevelView(
                 coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
+        case .interludeTestimonial:
+            InterludeTestimonialView(
                 onBack: { coordinator.back() },
                 onContinue: { coordinator.next() }
             )
@@ -231,6 +260,13 @@ struct OnboardingFlow: View {
                 onContinue: { coordinator.next() }
             )
 
+        case .photoSharing:
+            PhotoSharingView(
+                coordinator: coordinator,
+                onBack: { coordinator.back() },
+                onContinue: { coordinator.next() }
+            )
+
         case .buildingProfile:
             ProfileBuildingView(
                 onCompleted: {
@@ -248,8 +284,7 @@ struct OnboardingFlow: View {
         case .signUp:
             SignUpView(
                 coordinator: coordinator,
-                onBack: { coordinator.back() },
-                onGoToLogin: { showingLogin = true }
+                onBack: { coordinator.back() }
             )
         }
     }
@@ -276,7 +311,6 @@ struct OnboardingFlow: View {
 
             await MainActor.run {
                 coordinator.clearDraft()
-                showingLogin = false
             }
         }
     }

@@ -67,28 +67,32 @@ struct QuickImportSheetView: View {
             title: "Depuis\nzéro",
             systemImage: "pencil",
             accentColor: CooksyTheme.ctaOrange,
-            isLocked: false
+            isLocked: false,
+            eclairCost: 0
         ),
         QuickImportOption(
             kind: .browser,
             title: "Site\nweb",
             systemImage: "safari",
             accentColor: CooksyTheme.ctaOrange,
-            isLocked: true
+            isLocked: true,
+            eclairCost: 1
         ),
         QuickImportOption(
             kind: .camera,
             title: "Appareil\nphoto",
             systemImage: "camera",
             accentColor: CooksyTheme.ctaOrange,
-            isLocked: true
+            isLocked: true,
+            eclairCost: 1
         ),
         QuickImportOption(
             kind: .pasteText,
             title: "Texte\ncollé",
             systemImage: "text.alignleft",
             accentColor: CooksyTheme.ctaOrange,
-            isLocked: false
+            isLocked: false,
+            eclairCost: 1
         )
     ]
 
@@ -119,7 +123,7 @@ struct QuickImportSheetView: View {
             .padding(.bottom, 20)
             .background(CooksyTheme.background)
         }
-        .presentationDetents([.height(430)])
+        .presentationDetents([.height(475)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(CooksyTheme.background)
@@ -153,6 +157,9 @@ private struct QuickImportOption: Identifiable {
     let systemImage: String
     let accentColor: Color
     let isLocked: Bool
+    /// How many free-plan éclairs (weekly import slots) this path
+    /// consumes when the recipe is saved. 0 = no AI work, no quota hit.
+    let eclairCost: Int
 }
 
 private struct QuickImportOptionCard: View {
@@ -190,9 +197,11 @@ private struct QuickImportOptionCard: View {
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .minimumScaleFactor(0.9)
+
+                    eclairCostBadge
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 146)
+                .frame(height: 168)
                 .opacity(option.isLocked ? 0.55 : 1.0)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -220,5 +229,35 @@ private struct QuickImportOptionCard: View {
         .buttonStyle(.plain)
         .disabled(option.isLocked)
         .allowsHitTesting(!option.isLocked)
+    }
+
+    /// "–0 ⚡" / "–1 ⚡" chip telling the user up-front how many
+    /// éclairs (weekly free-plan import slots) this option will burn.
+    /// Free, no-AI paths show a green "0" so users feel safe tapping.
+    private var eclairCostBadge: some View {
+        let isFree = option.eclairCost == 0
+        let tint: Color = isFree
+            ? Color(hex: 0x4D8B47)
+            : CooksyTheme.ctaOrangeDark
+        return HStack(spacing: 4) {
+            Text("–\(option.eclairCost)")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 10, weight: .black))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            Capsule(style: .continuous)
+                .fill(tint.opacity(0.12))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(tint.opacity(0.35), lineWidth: 0.5)
+        )
+        .accessibilityLabel(isFree
+            ? "Aucun éclair consommé"
+            : "\(option.eclairCost) éclair consommé")
     }
 }

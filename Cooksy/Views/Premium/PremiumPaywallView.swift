@@ -59,7 +59,17 @@ struct PremiumPaywallView: View {
                 let hPad = Layout.horizontalPadding(for: geo)
 
                 VStack(spacing: 0) {
-                    Spacer(minLength: 52)
+                    // Top bar with the X close button. Inlined into the
+                    // layout (not an overlay) so it's guaranteed visible
+                    // regardless of presentation context / safe area
+                    // negotiation. fullScreenCover from different parents
+                    // can otherwise eat the overlay's topLeading.
+                    HStack {
+                        stickyCloseButton
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
 
                     socialProofPill
                         .padding(.bottom, 16)
@@ -113,7 +123,6 @@ struct PremiumPaywallView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
         }
-        .overlay(alignment: .topLeading) { stickyCloseButton }
         .alert("Erreur", isPresented: .init(
             get: { purchaseError != nil },
             set: { if !$0 { purchaseError = nil } }
@@ -201,8 +210,6 @@ struct PremiumPaywallView: View {
                 .frame(width: 48, height: 48)
             }
             .buttonStyle(.plain)
-            .padding(.leading, 14)
-            .padding(.top, 6)
             .accessibilityLabel("Fermer et rester en gratuit")
         }
     }
@@ -354,16 +361,6 @@ struct PremiumPaywallView: View {
         let priceText = PremiumPlan.yearly.liveOrFallbackPriceString(discountPercent: effectiveDiscount)
         let perMonth = PremiumPlan.yearly.liveOrFallbackMonthlyEquivalent(discountPercent: effectiveDiscount) ?? "3,33 €"
 
-        let badgeText: String = {
-            if let percent = effectiveDiscount {
-                return "🎁 CADEAU −\(percent) %"
-            }
-            if annualTrialEligible {
-                return "ESSAI \(trialDays) JOURS GRATUITS"
-            }
-            return "ÉCONOMIE 58 %"
-        }()
-
         return Button(action: {
             OnboardingHaptics.selection()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
@@ -372,27 +369,36 @@ struct PremiumPaywallView: View {
             confettiTrigger += 1
         }) {
             VStack(spacing: 0) {
-                // Floating premium chip — the only place where orange
-                // gets to shout. Subtle pulse when not selected.
-                Text(badgeText)
-                    .font(.system(size: 10.5, weight: .black, design: .rounded))
-                    .tracking(1.1)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(CooksyTheme.accentGradient)
-                            .shadow(
-                                color: CooksyTheme.primaryAccent.opacity(0.5),
-                                radius: 10,
-                                y: 4
+                // Floating premium chip — the gift-cadeau variant gets a
+                // richer treatment (icon + glow + shimmer) because it's
+                // the conversion-driver on this screen.
+                Group {
+                    if let percent = effectiveDiscount {
+                        giftBadge(percent: percent)
+                    } else {
+                        Text(annualTrialEligible
+                             ? "ESSAI \(trialDays) JOURS GRATUITS"
+                             : "ÉCONOMIE 58 %")
+                            .font(.system(size: 10.5, weight: .black, design: .rounded))
+                            .tracking(1.1)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(CooksyTheme.accentGradient)
+                                    .shadow(
+                                        color: CooksyTheme.primaryAccent.opacity(0.5),
+                                        radius: 10,
+                                        y: 4
+                                    )
                             )
-                    )
-                    .scaleEffect(isSelected || pulse ? 1 : 0.97)
-                    .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: pulse)
-                    .padding(.bottom, -12)
-                    .zIndex(2)
+                    }
+                }
+                .scaleEffect(isSelected || pulse ? 1 : 0.97)
+                .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: pulse)
+                .padding(.bottom, -12)
+                .zIndex(2)
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .top, spacing: 12) {
@@ -468,6 +474,76 @@ struct PremiumPaywallView: View {
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSelected)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Premium "cadeau" pill — used on the annual card when the gift
+    /// offer is active. Richer than the default badge: SF Symbol gift
+    /// icon, deeper gradient, double-shadow halo, subtle shimmer line,
+    /// and slightly larger typography. The percentage is highlighted
+    /// in a contrasting white-on-pill chip so the discount jumps off
+    /// the page on first glance.
+    private func giftBadge(percent: Int) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "gift.fill")
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(.white)
+                .shadow(color: .white.opacity(0.4), radius: 2)
+
+            Text("CADEAU")
+                .font(.system(size: 10.5, weight: .black, design: .rounded))
+                .tracking(1.4)
+                .foregroundStyle(.white)
+
+            // Pill-within-pill for the percentage so the number is the
+            // loudest element of the badge.
+            Text("−\(percent)%")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .tracking(0.4)
+                .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2.5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+                )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6.5)
+        .background(
+            ZStack {
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                CooksyTheme.primaryAccentStrong,
+                                CooksyTheme.primaryAccent,
+                                CooksyTheme.primaryAccentGlow
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                // Subtle shine line across the top half — sells the
+                // "premium-pill" feel without going overboard.
+                Capsule(style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.55),
+                                Color.white.opacity(0.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .center
+                        ),
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: CooksyTheme.primaryAccent.opacity(0.55), radius: 12, y: 5)
+            .shadow(color: CooksyTheme.primaryAccentGlow.opacity(0.35), radius: 22, y: 0)
+        )
+        .accessibilityLabel("Réduction cadeau moins \(percent) pour cent")
     }
 
     private func selectionDot(isSelected: Bool, onAccent: Bool) -> some View {
@@ -655,13 +731,22 @@ struct PremiumPaywallView: View {
                     try await PurchaseService.shared.purchase(plan: plan)
                 }
 
-                guard PurchaseService.shared.isPremium else {
-                    await MainActor.run { isPurchasing = false }
-                    return
-                }
+                // Trust StoreKit's success. RevenueCat's entitlement
+                // may lag by a couple of seconds (sandbox especially),
+                // and the old `guard isPremium` made the paywall hang
+                // until the user backgrounded the app to force a poll.
+                // Optimistically flip premium on so the router can
+                // transition off the paywall immediately.
+                await PurchaseService.shared.forcePremiumAfterPurchase()
 
                 await sessionStore.setPremium(true)
                 let inTrial = PurchaseService.shared.isInTrial
+
+                // Stamp the trial start so our abuse-cooldown logic can
+                // detect if the user lets it lapse without paying.
+                if inTrial {
+                    PurchaseService.shared.recordTrialStarted()
+                }
 
                 await MainActor.run {
                     offers.recordPurchaseCompleted(plan: plan, inTrial: inTrial)

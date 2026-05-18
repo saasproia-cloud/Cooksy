@@ -12,7 +12,39 @@ type ShoppingImageResult = {
   sourcePageUrl?: string;
 };
 
+// Bounded LRU cache. Without an upper bound the Map grew indefinitely
+// (every unique ingredient query added an entry, never evicted) which
+// turned into a slow memory leak on the single Railway instance —
+// 1000 users posting varied items would OOM the container within hours.
+//
+// 5000 entries is plenty for the working set (popular ingredients
+// dominate by a huge margin) and caps the cache footprint at well
+// under ~5 MB.
+const IMAGE_CACHE_MAX_ENTRIES = 5000;
 const imageCache = new Map<string, ShoppingImageResult>();
+
+function cacheGet(key: string): ShoppingImageResult | undefined {
+  const cached = imageCache.get(key);
+  if (cached === undefined) return undefined;
+  // Refresh recency: re-insert to move to the tail of the iteration
+  // order. Map preserves insertion order, so the oldest key is always
+  // the first entry returned by `keys().next()`.
+  imageCache.delete(key);
+  imageCache.set(key, cached);
+  return cached;
+}
+
+function cacheSet(key: string, value: ShoppingImageResult): void {
+  if (imageCache.has(key)) {
+    imageCache.delete(key);
+  } else if (imageCache.size >= IMAGE_CACHE_MAX_ENTRIES) {
+    const oldestKey = imageCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      imageCache.delete(oldestKey);
+    }
+  }
+  imageCache.set(key, value);
+}
 
 // Comprehensive French → Spoonacular ingredient name mapping
 // Spoonacular CDN: https://spoonacular.com/cdn/ingredients_100x100/{name}.jpg
@@ -443,14 +475,14 @@ export async function enrichShoppingImages(items: ShoppingImageRequest[]): Promi
 
 async function searchImageForItem(item: ShoppingImageRequest): Promise<ShoppingImageResult> {
   const cacheKey = `${item.article.toLowerCase()}::${item.category ?? ""}`;
-  const cached = imageCache.get(cacheKey);
+  const cached = cacheGet(cacheKey);
   if (cached) {
     return { ...cached, id: item.id };
   }
 
   const result = await searchRemoteImage(item);
 
-  imageCache.set(cacheKey, result);
+  cacheSet(cacheKey, result);
   return { ...result, id: item.id };
 }
 

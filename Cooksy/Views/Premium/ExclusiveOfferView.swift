@@ -618,10 +618,12 @@ struct ExclusiveOfferView: View {
                 try await PurchaseService.shared.purchaseAnnualWithPromo(
                     offerIdentifier: "GIFT\(percent)"
                 )
-                didSucceed = PurchaseService.shared.isPremium
-                if didSucceed {
-                    await sessionStore.setPremium(true)
-                }
+                // Trust StoreKit's transaction success — RC's entitlement
+                // may lag 1–2 s in sandbox. Force-grant premium locally
+                // so the UI transitions off the offer screen immediately.
+                await PurchaseService.shared.forcePremiumAfterPurchase()
+                didSucceed = true
+                await sessionStore.setPremium(true)
             } catch {
                 // User cancelled or error — gift state unchanged.
             }

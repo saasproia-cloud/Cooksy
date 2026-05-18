@@ -70,9 +70,14 @@ final class SessionFreshnessGuard {
     /// Called after the session has been purged so the router falls back to
     /// the very first screen (Welcome) rather than an intermediate step like
     /// the post-paywall tutorial.
+    ///
+    /// Also nukes the promotional-offer state so a fresh install never
+    /// inherits a gift the previous user/session won — preventing the
+    /// −25 % from showing on the very first paywall view.
     func resetLocalProgress() {
         defaults.removeObject(forKey: tutorialKey)
         deleteLastActive()
+        PremiumOffersService.shared.resetAllGiftStateForNewSession()
     }
 
     /// Stamp "now" as the last time the user was active. Call on successful

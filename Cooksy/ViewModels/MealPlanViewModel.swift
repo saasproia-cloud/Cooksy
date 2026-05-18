@@ -165,15 +165,33 @@ final class MealPlanViewModel: ObservableObject {
         let weekEntries = entriesForCurrentWeek()
         let plannedMeals = weekEntries.count
         let completedMeals = weekEntries.filter { $0.dayDate <= today }.count
-        let totalCalories = weekEntries
-            .compactMap { recipeLookup[$0.recipeID] }
-            .map(calories(for:))
-            .reduce(0, +)
+
+        // Pair each entry with the day it belongs to AND its calorie count,
+        // keeping only entries that resolve to a real recipe with strictly
+        // positive calories. A "moment of the day with no recipe" or a recipe
+        // whose nutrition wasn't estimated yet must not pull the average
+        // toward 0 — it should simply be excluded from the divisor.
+        let caloricEntries: [(day: Date, calories: Int)] = weekEntries.compactMap { entry in
+            guard let recipe = recipeLookup[entry.recipeID] else { return nil }
+            let kcal = calories(for: recipe)
+            guard kcal > 0 else { return nil }
+            return (calendar.startOfDay(for: entry.dayDate), kcal)
+        }
+
+        let totalCalories = caloricEntries.reduce(0) { $0 + $1.calories }
+        let distinctDaysWithCalories = Set(caloricEntries.map(\.day)).count
+
+        let average: Int
+        if distinctDaysWithCalories > 0 {
+            average = Int((Double(totalCalories) / Double(distinctDaysWithCalories)).rounded())
+        } else {
+            average = 0
+        }
 
         return WeeklyOverview(
             plannedMeals: plannedMeals,
             completedMeals: completedMeals,
-            averageDailyCalories: Int((Double(totalCalories) / 7.0).rounded())
+            averageDailyCalories: average
         )
     }
 

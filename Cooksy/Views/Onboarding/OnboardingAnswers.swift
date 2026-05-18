@@ -431,6 +431,191 @@ enum OnboardingShopping: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum OnboardingCookingFor: String, Codable, CaseIterable, Identifiable {
+    case solo
+    case couple
+    case family
+    case friends
+    case guests
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .solo:    return "Pour moi"
+        case .couple:  return "En couple"
+        case .family:  return "En famille"
+        case .friends: return "Entre amis"
+        case .guests:  return "Pour recevoir"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .solo:    return "Souvent solo, on se fait plaisir"
+        case .couple:  return "À deux, on partage chaque repas"
+        case .family:  return "On régale petits et grands"
+        case .friends: return "Brunchs, soirées, repas partagés"
+        case .guests:  return "On reçoit, on impressionne"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .solo:    return "person.fill"
+        case .couple:  return "heart.fill"
+        case .family:  return "figure.2.and.child.holdinghands"
+        case .friends: return "person.3.fill"
+        case .guests:  return "wineglass.fill"
+        }
+    }
+}
+
+enum OnboardingLifestyleGoal: String, Codable, CaseIterable, Identifiable {
+    case loseWeight
+    case eatBetter
+    case saveMoney
+    case learnTechniques
+    case discoverFlavors
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .loseWeight:        return "Perdre du poids"
+        case .eatBetter:         return "Manger mieux au quotidien"
+        case .saveMoney:         return "Économiser sur mes repas"
+        case .learnTechniques:   return "Apprendre de vraies techniques"
+        case .discoverFlavors:   return "Découvrir de nouvelles saveurs"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .loseWeight:        return "Recettes ciblées, portions maîtrisées"
+        case .eatBetter:         return "Équilibré, sain, sans devenir ennuyeux"
+        case .saveMoney:         return "Bon et abordable, sans gaspillage"
+        case .learnTechniques:   return "Monter en niveau étape par étape"
+        case .discoverFlavors:   return "Sortir de mes plats habituels"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .loseWeight:        return "figure.run"
+        case .eatBetter:         return "heart.text.square.fill"
+        case .saveMoney:         return "creditcard.fill"
+        case .learnTechniques:   return "graduationcap.fill"
+        case .discoverFlavors:   return "globe.americas.fill"
+        }
+    }
+}
+
+enum OnboardingPlanningStyle: String, Codable, CaseIterable, Identifiable {
+    case dayByDay
+    case fewDaysAhead
+    case weeklyPlan
+    case batchCooking
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dayByDay:      return "Au jour le jour"
+        case .fewDaysAhead:  return "Quelques jours à l'avance"
+        case .weeklyPlan:    return "Toute la semaine planifiée"
+        case .batchCooking:  return "Batch cooking le weekend"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .dayByDay:      return "Je décide au dernier moment"
+        case .fewDaysAhead:  return "J'organise quelques repas en avance"
+        case .weeklyPlan:    return "J'ai un menu défini chaque semaine"
+        case .batchCooking:  return "Je prépare tout en avance"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .dayByDay:      return "bolt.fill"
+        case .fewDaysAhead:  return "calendar.badge.clock"
+        case .weeklyPlan:    return "calendar"
+        case .batchCooking:  return "tray.full.fill"
+        }
+    }
+}
+
+enum OnboardingCookingStyle: String, Codable, CaseIterable, Identifiable {
+    case healthy
+    case comfort
+    case gourmet
+    case quick
+    case worldly
+    case traditional
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .healthy:     return "Healthy"
+        case .comfort:     return "Comfort food"
+        case .gourmet:     return "Gourmet"
+        case .quick:       return "Express"
+        case .worldly:     return "Cuisine du monde"
+        case .traditional: return "Traditionnel"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .healthy:     return "leaf.fill"
+        case .comfort:     return "heart.fill"
+        case .gourmet:     return "sparkles"
+        case .quick:       return "bolt.fill"
+        case .worldly:     return "globe"
+        case .traditional: return "house.fill"
+        }
+    }
+}
+
+enum OnboardingPhotoSharing: String, Codable, CaseIterable, Identifiable {
+    case never
+    case sometimes
+    case often
+    case always
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .never:     return "Jamais"
+        case .sometimes: return "Parfois"
+        case .often:     return "Souvent"
+        case .always:    return "Tout le temps"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .never:     return "Mes recettes restent perso"
+        case .sometimes: return "Quand le plat est trop beau"
+        case .often:     return "J'aime montrer ce que je fais"
+        case .always:    return "Chaque plat = un post"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .never:     return "lock.fill"
+        case .sometimes: return "camera.fill"
+        case .often:     return "camera.macro"
+        case .always:    return "camera.aperture"
+        }
+    }
+}
+
 enum OnboardingChallenge: String, Codable, CaseIterable, Identifiable {
     case time
     case ingredients
@@ -474,6 +659,11 @@ struct OnboardingAnswers: Codable, Equatable {
     var mealMoments: Set<OnboardingMealMoment>
     var shoppingPlaces: Set<OnboardingShopping>
     var challenges: Set<OnboardingChallenge>
+    var cookingFor: OnboardingCookingFor?
+    var lifestyleGoal: OnboardingLifestyleGoal?
+    var planningStyle: OnboardingPlanningStyle?
+    var cookingStyles: Set<OnboardingCookingStyle>
+    var photoSharing: OnboardingPhotoSharing?
 
     static let empty = OnboardingAnswers(
         primaryGoal: nil,
@@ -490,14 +680,21 @@ struct OnboardingAnswers: Codable, Equatable {
         budget: nil,
         mealMoments: [],
         shoppingPlaces: [],
-        challenges: []
+        challenges: [],
+        cookingFor: nil,
+        lifestyleGoal: nil,
+        planningStyle: nil,
+        cookingStyles: [],
+        photoSharing: nil
     )
 
     private enum CodingKeys: String, CodingKey {
         case primaryGoal, sources, skillLevel, timeMinutesPerMeal,
              cookingFrequencyPerWeek, diets, allergies, typicalServings,
              cuisines, spiceLevel, equipment, budget, mealMoments,
-             shoppingPlaces, challenges
+             shoppingPlaces, challenges,
+             cookingFor, lifestyleGoal, planningStyle, cookingStyles,
+             photoSharing
     }
 
     // Custom decoder so older drafts (without the new fields) still load —
@@ -519,6 +716,11 @@ struct OnboardingAnswers: Codable, Equatable {
         mealMoments = try c.decodeIfPresent(Set<OnboardingMealMoment>.self, forKey: .mealMoments) ?? []
         shoppingPlaces = try c.decodeIfPresent(Set<OnboardingShopping>.self, forKey: .shoppingPlaces) ?? []
         challenges = try c.decodeIfPresent(Set<OnboardingChallenge>.self, forKey: .challenges) ?? []
+        cookingFor = try c.decodeIfPresent(OnboardingCookingFor.self, forKey: .cookingFor)
+        lifestyleGoal = try c.decodeIfPresent(OnboardingLifestyleGoal.self, forKey: .lifestyleGoal)
+        planningStyle = try c.decodeIfPresent(OnboardingPlanningStyle.self, forKey: .planningStyle)
+        cookingStyles = try c.decodeIfPresent(Set<OnboardingCookingStyle>.self, forKey: .cookingStyles) ?? []
+        photoSharing = try c.decodeIfPresent(OnboardingPhotoSharing.self, forKey: .photoSharing)
     }
 
     init(
@@ -536,7 +738,12 @@ struct OnboardingAnswers: Codable, Equatable {
         budget: OnboardingBudget?,
         mealMoments: Set<OnboardingMealMoment>,
         shoppingPlaces: Set<OnboardingShopping>,
-        challenges: Set<OnboardingChallenge>
+        challenges: Set<OnboardingChallenge>,
+        cookingFor: OnboardingCookingFor?,
+        lifestyleGoal: OnboardingLifestyleGoal?,
+        planningStyle: OnboardingPlanningStyle?,
+        cookingStyles: Set<OnboardingCookingStyle>,
+        photoSharing: OnboardingPhotoSharing?
     ) {
         self.primaryGoal = primaryGoal
         self.sources = sources
@@ -553,6 +760,11 @@ struct OnboardingAnswers: Codable, Equatable {
         self.mealMoments = mealMoments
         self.shoppingPlaces = shoppingPlaces
         self.challenges = challenges
+        self.cookingFor = cookingFor
+        self.lifestyleGoal = lifestyleGoal
+        self.planningStyle = planningStyle
+        self.cookingStyles = cookingStyles
+        self.photoSharing = photoSharing
     }
 }
 

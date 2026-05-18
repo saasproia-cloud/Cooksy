@@ -75,23 +75,10 @@ struct ProfileView: View {
             ImportGuideView(onClose: { showsImportGuide = false })
         }
         .fullScreenCover(isPresented: $showsPaywall) {
-            NavigationStack {
-                PremiumPaywallView(
-                    allowsFreeModeDismiss: false,
-                    onDismissToFreeMode: { showsPaywall = false }
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: { showsPaywall = false }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(CooksyTheme.primaryText)
-                                .frame(width: 32, height: 32)
-                                .background(Circle().fill(CooksyTheme.elevatedSurface))
-                        }
-                    }
-                }
-            }
+            PremiumPaywallView(
+                allowsFreeModeDismiss: true,
+                onDismissToFreeMode: { showsPaywall = false }
+            )
         }
     }
 

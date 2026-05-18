@@ -231,6 +231,41 @@ struct ProfileSettingsView: View {
             }
             .buttonStyle(.plain)
             .disabled(isSigningOut)
+
+            Rectangle()
+                .fill(CooksyTheme.dividerSubtle)
+                .frame(height: 1)
+                .padding(.leading, 66)
+
+            // Sous-page sobre qui contient la suppression de compte. Volontairement
+            // formulée de manière neutre ("Gérer mes données") pour ne pas pousser
+            // un user vers la destruction de son compte, tout en restant
+            // facilement trouvable — exigence Apple Review 5.1.1(v).
+            NavigationLink(destination: AccountDataView()) {
+                HStack(spacing: 14) {
+                    rowIcon("person.text.rectangle")
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Gérer mes données")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                        Text("Actions sensibles sur ton compte")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
     }
 

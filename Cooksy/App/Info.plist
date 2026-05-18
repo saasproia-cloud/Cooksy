@@ -37,13 +37,12 @@
 	<string>https://hijjgydwctoqroujaaze.supabase.co</string>
 	<key>SupabaseAnonKey</key>
 	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpampneWR3Y3RvcXJvdWphYXplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2Mzk5NTEsImV4cCI6MjA5MjIxNTk1MX0.xOidxlParQ5H-nIVuW_MdNldM7gUORcqRFyqZoaU71Q</string>
+	<key>RevenueCatAPIKey</key>
+	<string>appl_XyhiKYHcCHxYVpnLlnoqOokWWEu</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Cooksy utilise l’appareil photo pour importer une recette à partir d’une image.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

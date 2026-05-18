@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 @MainActor
 struct PasteTextImportView: View {
@@ -14,6 +15,7 @@ struct PasteTextImportView: View {
     @State private var selectedImageData: Data?
     @State private var selectedImage: UIImage?
     @State private var isImporting = false
+    @State private var pasteboardHasText = false
     @FocusState private var isEditorFocused: Bool
 
     init(
@@ -53,7 +55,19 @@ struct PasteTextImportView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
+                if pasteboardHasText && recipeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: pasteFromClipboard) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.on.clipboard")
+                            Text("Coller")
+                        }
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                }
+
                 Spacer()
+
                 Button("Terminé") {
                     isEditorFocused = false
                 }
@@ -69,6 +83,22 @@ struct PasteTextImportView: View {
                 selectedImage = UIImage(data: data)
             }
         }
+        .onAppear {
+            refreshPasteboardState()
+            // Land the user directly on the keyboard so the first tap
+            // they want to make ("Coller" / typing) just works.
+            if recipeText.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    isEditorFocused = true
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
+            refreshPasteboardState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            refreshPasteboardState()
+        }
     }
 
     private var canImport: Bool {
@@ -83,44 +113,81 @@ struct PasteTextImportView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 28, weight: .regular))
                     .foregroundStyle(CooksyTheme.primaryText)
-                    .frame(width: 92, height: 62)
+                    .frame(width: 62, height: 62)
                     .background(topButtonBackground)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Fermer")
 
             Spacer()
 
-            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(Color.white)
-                        .shadow(color: Color.black.opacity(0.07), radius: 22, y: 12)
-                        .frame(width: 62, height: 62)
+            ZStack(alignment: .topTrailing) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: Color.black.opacity(0.07), radius: 22, y: 12)
+                            .frame(width: 62, height: 62)
 
-                    if let currentImage {
-                        Image(uiImage: currentImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 54, height: 54)
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    } else {
-                        Image(systemName: "photo.badge.plus")
-                            .font(.system(size: 30, weight: .medium))
-                            .foregroundStyle(CooksyTheme.primaryText)
+                        if let currentImage {
+                            Image(uiImage: currentImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 54, height: 54)
+                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        } else {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.system(size: 30, weight: .medium))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(currentImage == nil
+                    ? "Ajouter une photo"
+                    : "Photo attachée — toucher pour la remplacer")
+
+                if currentImage != nil {
+                    Button(action: clearAttachedPhoto) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(Color.black.opacity(0.7)))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 6, y: -6)
+                    .accessibilityLabel("Retirer la photo")
+                }
             }
-            .buttonStyle(.plain)
 
             Button(action: importRecipe) {
-                Text("Importer")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                ZStack {
+                    topButtonBackground
+                    HStack(spacing: 8) {
+                        Text("Importer")
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+
+                        HStack(spacing: 2) {
+                            Text("–1")
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 11, weight: .black))
+                        }
+                        .foregroundStyle(canImport ? CooksyTheme.ctaOrangeDark : CooksyTheme.secondaryText.opacity(0.6))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule().fill((canImport ? CooksyTheme.ctaOrangeDark : CooksyTheme.secondaryText).opacity(0.12))
+                        )
+                    }
                     .foregroundStyle(canImport ? CooksyTheme.primaryText : CooksyTheme.secondaryText.opacity(0.7))
-                    .frame(width: 164, height: 62)
-                    .background(topButtonBackground)
+                }
+                .frame(width: 164, height: 62)
             }
             .buttonStyle(.plain)
             .disabled(!canImport || isImporting)
+            .accessibilityHint("Lance l'analyse IA. Consomme 1 éclair d'import sur le plan gratuit.")
         }
     }
 
@@ -185,6 +252,9 @@ struct PasteTextImportView: View {
 
     private func importRecipe() {
         guard canImport, !isImporting else { return }
+        // Dismiss the keyboard so the loading overlay isn't visually
+        // cropped by it while the AI works.
+        isEditorFocused = false
         isImporting = true
 
         Task {
@@ -198,5 +268,34 @@ struct PasteTextImportView: View {
                 onImport(recipeText, assessment)
             }
         }
+    }
+
+    /// Reads from `UIPasteboard.general` and injects whatever string the
+    /// system holds — silently no-ops if there's no text. Triggers the
+    /// pasteboard permission prompt the first time on iOS 16+.
+    private func pasteFromClipboard() {
+        guard let pasted = UIPasteboard.general.string,
+              !pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        if recipeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recipeText = pasted
+        } else {
+            recipeText.append("\n\(pasted)")
+        }
+    }
+
+    /// Cheap pre-check that doesn't trigger the pasteboard permission
+    /// prompt — uses `hasStrings` rather than reading the content. Lets
+    /// us decide whether to surface the inline "Coller" shortcut.
+    private func refreshPasteboardState() {
+        pasteboardHasText = UIPasteboard.general.hasStrings
+    }
+
+    private func clearAttachedPhoto() {
+        selectedPhotoItem = nil
+        selectedImageData = nil
+        selectedImage = nil
     }
 }

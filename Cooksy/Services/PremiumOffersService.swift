@@ -350,6 +350,39 @@ final class PremiumOffersService: ObservableObject {
         }
     }
 
+    /// Nuke every gift-related persisted flag and reset the in-memory
+    /// state to `.notWon`. Used by `SessionFreshnessGuard` on fresh
+    /// installs and by `SessionStore` when the user signs out or signs
+    /// in to a different account — both contexts where any lingering
+    /// discount from a previous user/session must NOT carry over.
+    ///
+    /// Unlike `resetToNotWon(scheduleCelebration:)`, this method also
+    /// clears `firstSeenKey`, `giftCycleIndexKey`, `freeModeKey`, and
+    /// the "fresh celebration pending" flag — i.e. it's a full wipe,
+    /// not a phase transition.
+    func resetAllGiftStateForNewSession() {
+        defaults.removeObject(forKey: firstSeenKey)
+        defaults.removeObject(forKey: giftWonAtKey)
+        defaults.removeObject(forKey: giftDiscountKey)
+        defaults.removeObject(forKey: giftPhaseKey)
+        defaults.removeObject(forKey: giftPendingTrialAtKey)
+        defaults.removeObject(forKey: giftConsumedAtKey)
+        defaults.removeObject(forKey: giftForfeitedAtKey)
+        defaults.removeObject(forKey: freshGiftCelebrationKey)
+        defaults.removeObject(forKey: giftCycleIndexKey)
+        defaults.removeObject(forKey: freeModeKey)
+
+        giftPhase = .notWon
+        giftDiscountPercent = nil
+        giftOfferExpiresAt = nil
+        giftCooldownEndsAt = nil
+        userChoseFreeMode = false
+        hasFreshGiftCelebrationPending = false
+        giftCycleIndex = 0
+
+        logger.info("Gift state fully reset for new session")
+    }
+
     private func resetToNotWon(scheduleCelebration: Bool) {
         defaults.removeObject(forKey: giftWonAtKey)
         defaults.removeObject(forKey: giftConsumedAtKey)

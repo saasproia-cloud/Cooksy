@@ -56,15 +56,23 @@ final class RecipeStore: ObservableObject {
         return book
     }
 
-    func addRecipe(_ recipe: Recipe, to destinationBookID: RecipeBook.ID? = nil) {
+    func addRecipe(
+        _ recipe: Recipe,
+        to destinationBookID: RecipeBook.ID? = nil,
+        consumesQuota: Bool = true
+    ) {
         let destinationID = destinationBookID ?? uncategorizedBookID
         var storedRecipe = recipe
         storedRecipe.bookID = destinationID
         recipes.insert(storedRecipe, at: 0)
         attach(recipeID: storedRecipe.id, to: destinationID)
         save()
-        // Counts toward the free-tier weekly quota. Premium users are
-        // exempted by ImportQuotaService itself.
+        // Counts toward the free-tier weekly quota only when the recipe
+        // was produced via an AI-powered import path (text, photo, URL,
+        // shared draft). "Depuis zéro" creations and demo-catalogue saves
+        // pass `consumesQuota: false` so they don't burn an éclair.
+        // Premium users are exempted by ImportQuotaService itself.
+        guard consumesQuota else { return }
         Task { @MainActor in
             ImportQuotaService.shared.incrementOnSuccess()
         }

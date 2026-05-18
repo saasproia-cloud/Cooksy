@@ -11,7 +11,6 @@ import SwiftUI
 /// the expected width inside a ScrollView, and content drifts off-centre.
 struct WelcomeHeroView: View {
     let onContinue: () -> Void
-    let onExistingAccount: () -> Void
 
     @State private var appeared = false
 
@@ -51,9 +50,9 @@ struct WelcomeHeroView: View {
                     ctaButton
                         .opacity(appeared ? 1 : 0)
 
-                    loginLink
+                    secureFooter
                         .padding(.top, 14)
-                        .padding(.bottom, 18)
+                        .padding(.bottom, 22)
                         .opacity(appeared ? 1 : 0)
                 }
                 .frame(maxWidth: 380)
@@ -230,22 +229,20 @@ struct WelcomeHeroView: View {
         .buttonStyle(CooksyTheme.pressScale())
     }
 
-    // MARK: - Login link
+    // MARK: - Secure footer (replaces former "Se connecter" link)
 
-    private var loginLink: some View {
-        Button(action: {
-            OnboardingHaptics.selection()
-            onExistingAccount()
-        }) {
-            HStack(spacing: 4) {
-                Text("Déjà un compte ?")
-                    .foregroundStyle(CooksyTheme.secondaryText)
-                Text("Se connecter")
-                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
-            }
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
+    /// Sober reassurance line. Mirrors the visual weight of the previous
+    /// "Déjà un compte ?" link so the layout stays balanced now that account
+    /// access only happens at the end of onboarding (via Apple Sign In).
+    private var secureFooter: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(CooksyTheme.primaryAccentStrong)
+            Text("Aucun compte requis pour commencer")
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
         }
-        .buttonStyle(.plain)
     }
 }
 

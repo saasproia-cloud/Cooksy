@@ -13,6 +13,8 @@ struct PaywallView: View {
     @State private var selectedPlan: PaywallPlan = .annual
     @State private var appeared: Bool = false
     @State private var isActivating: Bool = false
+    @State private var showsTermsSheet: Bool = false
+    @State private var showsPrivacySheet: Bool = false
 
     private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
     private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
@@ -55,6 +57,12 @@ struct PaywallView: View {
                 try? await Task.sleep(for: .milliseconds(120))
                 await MainActor.run { appeared = true }
             }
+        }
+        .sheet(isPresented: $showsTermsSheet) {
+            NavigationStack { TermsOfServiceView() }
+        }
+        .sheet(isPresented: $showsPrivacySheet) {
+            NavigationStack { PrivacyPolicyView() }
         }
     }
 
@@ -272,9 +280,9 @@ struct PaywallView: View {
                 }
             }
             Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
-            PaywallFooterLink(title: "Conditions") { }
+            PaywallFooterLink(title: "Conditions") { showsTermsSheet = true }
             Circle().fill(CooksyTheme.dividerSubtle).frame(width: 3, height: 3)
-            PaywallFooterLink(title: "Confidentialité") { }
+            PaywallFooterLink(title: "Confidentialité") { showsPrivacySheet = true }
         }
         .frame(maxWidth: .infinity)
     }
@@ -292,8 +300,16 @@ struct PaywallView: View {
             do {
                 let rcPlan: PremiumPlan = selectedPlan == .annual ? .yearly : .monthly
                 try await PurchaseService.shared.purchase(plan: rcPlan)
-                if PurchaseService.shared.isPremium {
-                    await sessionStore.setPremium(true)
+                // Trust StoreKit's transaction success — don't wait on
+                // RevenueCat's entitlement sync (it can lag 1–2 s in
+                // sandbox). Optimistically grant premium so the router
+                // navigates off the paywall immediately.
+                await PurchaseService.shared.forcePremiumAfterPurchase()
+                await sessionStore.setPremium(true)
+                // Stamp the trial start anchor so the abuse-cooldown
+                // logic in PurchaseService can detect abandoned trials.
+                if PurchaseService.shared.isInTrial {
+                    PurchaseService.shared.recordTrialStarted()
                 }
             } catch {
                 // User cancelled → silently ignore.

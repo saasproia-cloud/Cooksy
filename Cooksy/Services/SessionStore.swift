@@ -107,12 +107,6 @@ final class SessionStore: ObservableObject {
         await loadProfile(for: user.id)
     }
 
-    /// Sign in using a Google ID token (from GoogleSignIn-iOS).
-    /// `accessToken` is optional but recommended (Supabase uses it to validate `at_hash`).
-    func signInWithGoogle(idToken: String, accessToken: String? = nil, nonce: String? = nil) async {
-        await signInWithIdToken(provider: .google, idToken: idToken, accessToken: accessToken, nonce: nonce)
-    }
-
     private func signInWithIdToken(
         provider: OpenIDConnectCredentials.Provider,
         idToken: String,
@@ -136,6 +130,41 @@ final class SessionStore: ObservableObject {
             lastErrorMessage = "Connexion \(provider) échouée — \(detail)"
             await refreshSession()
         }
+    }
+
+    // MARK: - Account deletion
+
+    /// Permanently deletes the signed-in user's account.
+    ///
+    /// Calls the `delete_my_account` Postgres RPC which drops the row
+    /// from `auth.users`; cascading FKs wipe the user's profile,
+    /// recipes, recipe books, meal plan, shopping list and quota row.
+    /// Storage objects (avatars, recipe images) become orphaned but
+    /// harmless — a server-side janitor will sweep them later.
+    /// On success the local session is signed out so the app routes
+    /// back to the welcome screen.
+    ///
+    /// Required by Apple Guideline 5.1.1(v) and RGPD.
+    func deleteAccount() async throws {
+        guard currentUser != nil else {
+            throw NSError(
+                domain: "Cooksy.SessionStore",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Aucune session active."]
+            )
+        }
+
+        do {
+            _ = try await client.rpc("delete_my_account").execute()
+        } catch {
+            logger.error("deleteAccount RPC failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+
+        // The RPC removes the auth row; the access token is now invalid.
+        // signOut() locally clears keychain + state and resets the
+        // freshness anchor, mirroring the standard sign-out path.
+        await signOut()
     }
 
     // MARK: - Sign out
@@ -222,8 +251,16 @@ final class SessionStore: ObservableObject {
     }
 
     /// Uploads JPEG data to the `avatars` Supabase Storage bucket and returns
-    /// the public URL. Path convention `<uid>/avatar-<ms-timestamp>.jpg`
-    /// matches the `recipe-images` RLS pattern (folder = uid).
+    /// a long-lived signed URL.
+    ///
+    /// The bucket was switched to private in the 20260518 migration so
+    /// the user UUID embedded in the object path no longer leaks via a
+    /// public URL. We mint a 10-year signed URL at upload time — long
+    /// enough that we don't need to re-sign on every render, short
+    /// enough to be revocable by rotating the storage JWT.
+    ///
+    /// Path convention `<uid>/avatar-<ms-timestamp>.jpg` matches the
+    /// `recipe-images` RLS pattern (folder = uid).
     func uploadAvatar(_ data: Data) async throws -> URL {
         guard let user = currentUser else {
             throw NSError(
@@ -249,10 +286,14 @@ final class SessionStore: ObservableObject {
                     )
                 )
 
-            let publicURL = try client.storage
+            // 10 years in seconds — effectively permanent for the
+            // lifespan of an account, while still being a signed URL
+            // (which the private bucket policy requires for reads).
+            let tenYears = 60 * 60 * 24 * 365 * 10
+            let signedURL = try await client.storage
                 .from("avatars")
-                .getPublicURL(path: path)
-            return publicURL
+                .createSignedURL(path: path, expiresIn: tenYears)
+            return signedURL
         } catch {
             logger.error("uploadAvatar failed: \(error.localizedDescription, privacy: .public)")
             throw error

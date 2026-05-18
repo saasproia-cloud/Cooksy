@@ -10,58 +10,79 @@ enum OnboardingStep: Int, CaseIterable, Codable, Identifiable {
     case appReview          // A1.5 — soft App Store rating prompt
     case demo               // A2
     case valueProof         // A3
-    case primaryGoal        // B1
-    case sources            // B2
-    case skillLevel         // B3
-    case timeSlider         // B4
-    case frequency          // B5
-    case diet               // B6
-    case allergies          // B7
-    case servings           // B8
-    case cuisines           // B9
-    case spiceLevel         // B11
-    case equipment          // B12
-    case budget             // B13
-    case mealMoments        // B14
-    case shopping           // B15
-    case challenges         // B10
+
+    // — Block 1: 7 questions —
+    case primaryGoal        // Q1
+    case lifestyleGoal      // Q2 (new)
+    case sources            // Q3
+    case skillLevel         // Q4
+    case timeSlider         // Q5
+    case frequency          // Q6
+    case planningStyle      // Q7 (new)
+
+    case interludeNumbers   // Suspense + chiffres (étape 1/3 terminée)
+
+    // — Block 2: 7 questions —
+    case diet               // Q8
+    case allergies          // Q9
+    case cookingFor         // Q10 (new)
+    case servings           // Q11
+    case cuisines           // Q12
+    case cookingStyle       // Q13 (new)
+    case spiceLevel         // Q14
+
+    case interludeTestimonial // Témoignage / social proof (étape 2/3 terminée)
+
+    // — Block 3: 6 questions —
+    case equipment          // Q15
+    case budget             // Q16
+    case mealMoments        // Q17
+    case shopping           // Q18
+    case challenges         // Q19
+    case photoSharing       // Q20 (new)
+
     case buildingProfile    // C1
     case personalizedPreview // C2
     case signUp             // D1
 
     var id: Int { rawValue }
 
-    /// Block B indices (1-based) used by the progress bar — zero for non-question screens.
+    /// Question indices (1-based) used by the progress bar — nil for non-question screens.
     var questionIndex: Int? {
         switch self {
         case .primaryGoal:    return 1
-        case .sources:        return 2
-        case .skillLevel:     return 3
-        case .timeSlider:     return 4
-        case .frequency:      return 5
-        case .diet:           return 6
-        case .allergies:      return 7
-        case .servings:       return 8
-        case .cuisines:       return 9
-        case .spiceLevel:     return 10
-        case .equipment:      return 11
-        case .budget:         return 12
-        case .mealMoments:    return 13
-        case .shopping:       return 14
-        case .challenges:     return 15
+        case .lifestyleGoal:  return 2
+        case .sources:        return 3
+        case .skillLevel:     return 4
+        case .timeSlider:     return 5
+        case .frequency:      return 6
+        case .planningStyle:  return 7
+        case .diet:           return 8
+        case .allergies:      return 9
+        case .cookingFor:     return 10
+        case .servings:       return 11
+        case .cuisines:       return 12
+        case .cookingStyle:   return 13
+        case .spiceLevel:     return 14
+        case .equipment:      return 15
+        case .budget:         return 16
+        case .mealMoments:    return 17
+        case .shopping:       return 18
+        case .challenges:     return 19
+        case .photoSharing:   return 20
         default:              return nil
         }
     }
 
     /// Total number of question screens — used to size the progress bar.
-    static let totalQuestions = 15
+    static let totalQuestions = 20
 
     /// Whether the "Passer" (skip) button should be shown on this screen.
     /// Only the softest behavioural signals can be skipped — every actual
     /// preference must be answered so the recipe engine has real data.
     var allowsSkip: Bool {
         switch self {
-        case .mealMoments, .shopping, .challenges:
+        case .mealMoments, .shopping, .challenges, .photoSharing, .cookingStyle:
             return true
         default:
             return false
@@ -158,10 +179,14 @@ final class OnboardingCoordinator: ObservableObject {
     /// Whether the user has given enough input on the current step for the CTA to be enabled.
     func canAdvance(from step: OnboardingStep) -> Bool {
         switch step {
-        case .welcome, .appReview, .demo, .valueProof, .buildingProfile, .personalizedPreview, .signUp:
+        case .welcome, .appReview, .demo, .valueProof,
+             .interludeNumbers, .interludeTestimonial,
+             .buildingProfile, .personalizedPreview, .signUp:
             return true
         case .primaryGoal:
             return answers.primaryGoal != nil
+        case .lifestyleGoal:
+            return answers.lifestyleGoal != nil
         case .sources:
             return !answers.sources.isEmpty
         case .skillLevel:
@@ -170,14 +195,20 @@ final class OnboardingCoordinator: ObservableObject {
             return true // slider always has a value
         case .frequency:
             return answers.cookingFrequencyPerWeek > 0
+        case .planningStyle:
+            return answers.planningStyle != nil
         case .diet:
             return !answers.diets.isEmpty
         case .allergies:
             return !answers.allergies.isEmpty
+        case .cookingFor:
+            return answers.cookingFor != nil
         case .servings:
             return answers.typicalServings != nil
         case .cuisines:
             return !answers.cuisines.isEmpty
+        case .cookingStyle:
+            return !answers.cookingStyles.isEmpty
         case .spiceLevel:
             return answers.spiceLevel != nil
         case .equipment:
@@ -190,6 +221,8 @@ final class OnboardingCoordinator: ObservableObject {
             return !answers.shoppingPlaces.isEmpty
         case .challenges:
             return !answers.challenges.isEmpty
+        case .photoSharing:
+            return answers.photoSharing != nil
         }
     }
 
@@ -260,6 +293,30 @@ final class OnboardingCoordinator: ObservableObject {
 
     func toggleShopping(_ shopping: OnboardingShopping) {
         toggleMember(shopping, in: \.shoppingPlaces)
+    }
+
+    func selectCookingFor(_ cookingFor: OnboardingCookingFor) {
+        answers.cookingFor = cookingFor
+        persistDraft()
+    }
+
+    func selectLifestyleGoal(_ goal: OnboardingLifestyleGoal) {
+        answers.lifestyleGoal = goal
+        persistDraft()
+    }
+
+    func selectPlanningStyle(_ style: OnboardingPlanningStyle) {
+        answers.planningStyle = style
+        persistDraft()
+    }
+
+    func toggleCookingStyle(_ style: OnboardingCookingStyle) {
+        toggleMember(style, in: \.cookingStyles)
+    }
+
+    func selectPhotoSharing(_ option: OnboardingPhotoSharing) {
+        answers.photoSharing = option
+        persistDraft()
     }
 
     // MARK: - Internals
