@@ -540,86 +540,304 @@ struct RecipeImportLoadingView: View {
     var title: String? = nil
     var showsBackdrop = true
 
-    @State private var messageIndex = 0
+    @State private var activeStepIndex: Int = 0
+    @State private var animationActive: Bool = false
     @State private var progressPhase: CGFloat = 0
+    @State private var sparklePhase: CGFloat = 0
 
-    private let messages = [
-        "Lecture de la recette…",
-        "Analyse du plat…",
-        "Presque prêt…"
+    private let steps: [LoadingStep] = [
+        LoadingStep(icon: "doc.text.magnifyingglass", title: "Lecture du contenu", subtitle: "On parcourt ta recette mot par mot."),
+        LoadingStep(icon: "sparkles", title: "Identification du plat", subtitle: "On reconnaît ce que tu veux cuisiner."),
+        LoadingStep(icon: "leaf.fill", title: "Extraction des ingrédients", subtitle: "On note quantités, unités et marques."),
+        LoadingStep(icon: "list.number", title: "Mise en forme des étapes", subtitle: "On organise tout dans le bon ordre."),
+        LoadingStep(icon: "flame.fill", title: "Calcul nutritionnel", subtitle: "On estime calories, protéines, glucides, lipides.")
     ]
 
     var body: some View {
         ZStack {
             if showsBackdrop {
-                CooksyTheme.backgroundCalm
-                    .ignoresSafeArea()
+                ZStack {
+                    CooksyTheme.backgroundCalm
+                    backdropGradient
+                    sparkleLayer
+                }
+                .ignoresSafeArea()
             }
 
-            VStack(spacing: 32) {
-                Spacer()
+            VStack(spacing: 26) {
+                Spacer(minLength: 0)
 
-                // Animated noodle bowl with chopsticks
-                AnimatedNoodleBowl()
-                    .frame(width: 120, height: 120)
+                heroBlock
 
-                // Title + subtitle
-                VStack(spacing: 10) {
-                    Text("Cooksy prépare ta recette")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .multilineTextAlignment(.center)
+                contentCard
 
-                    Text("Détends-toi, ça ne prend que quelques secondes")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-
-                // Micro message
-                Text(messages[messageIndex])
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.accentWarm)
-                    .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.4), value: messageIndex)
-
-                // Thin progress bar
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule(style: .continuous)
-                            .fill(CooksyTheme.dividerSubtle)
-
-                        Capsule(style: .continuous)
-                            .fill(CooksyTheme.accentGradient)
-                            .frame(width: max(24, proxy.size.width * progressPhase))
-                    }
-                }
-                .frame(width: 200, height: 4)
-
-                Spacer()
-                Spacer()
+                Spacer(minLength: 0)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 24)
         }
         .task {
-            await runMessageLoop()
+            await runLoadingChoreography()
         }
     }
 
-    private func runMessageLoop() async {
-        withAnimation(.easeInOut(duration: 15)) {
+    // MARK: Hero block
+
+    private var heroBlock: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                CooksyTheme.primaryAccent.opacity(0.32),
+                                CooksyTheme.primaryAccent.opacity(0)
+                            ],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 140
+                        )
+                    )
+                    .frame(width: 220, height: 220)
+                    .blur(radius: 12)
+
+                AnimatedNoodleBowl()
+                    .frame(width: 130, height: 130)
+            }
+
+            VStack(spacing: 8) {
+                Text("On compose ta recette…")
+                    .font(.system(size: 26, weight: .heavy, design: .serif))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Détends-toi, on s'occupe de tout. Quelques secondes seulement.")
+                    .font(.system(size: 13.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: Content card (steps + progress)
+
+    private var contentCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                Text("IA Cooksy en cours")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .tracking(0.6)
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                Spacer(minLength: 0)
+                Text("\(activeStepDisplay) / \(steps.count)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            }
+
+            stepList
+
+            progressBar
+                .padding(.top, 2)
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(CooksyTheme.stroke.opacity(0.6), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.07), radius: 24, y: 12)
+    }
+
+    private var stepList: some View {
+        VStack(spacing: 10) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                stepRow(step: step, index: index)
+            }
+        }
+    }
+
+    private func stepRow(step: LoadingStep, index: Int) -> some View {
+        let state = stepState(for: index)
+        return HStack(spacing: 12) {
+            stepIconView(step: step, state: state)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(step.title)
+                    .font(.system(size: 13.5, weight: state == .active ? .bold : .semibold, design: .rounded))
+                    .foregroundStyle(state == .pending ? CooksyTheme.secondaryText : CooksyTheme.primaryText)
+                Text(step.subtitle)
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(CooksyTheme.secondaryText.opacity(state == .pending ? 0.55 : 0.9))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            if state == .done {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .padding(.vertical, 4)
+        .opacity(state == .pending ? 0.7 : 1)
+        .animation(.easeInOut(duration: 0.35), value: state)
+    }
+
+    @ViewBuilder
+    private func stepIconView(step: LoadingStep, state: StepState) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    state == .pending
+                        ? AnyShapeStyle(CooksyTheme.dividerSubtle)
+                        : AnyShapeStyle(CooksyTheme.accentGradient)
+                )
+                .frame(width: 34, height: 34)
+
+            if state == .active {
+                Circle()
+                    .stroke(Color.white.opacity(0.4), lineWidth: 2)
+                    .frame(width: 34, height: 34)
+                    .scaleEffect(animationActive ? 1.15 : 1)
+                    .opacity(animationActive ? 0 : 0.6)
+                    .animation(.easeOut(duration: 1.2).repeatForever(autoreverses: false), value: animationActive)
+            }
+
+            Image(systemName: step.icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(state == .pending ? CooksyTheme.secondaryText : Color.white)
+                .symbolEffect(.pulse, options: .repeating, isActive: state == .active)
+        }
+        .shadow(color: state == .pending ? .clear : CooksyTheme.primaryAccent.opacity(0.25), radius: 6, y: 3)
+    }
+
+    private var progressBar: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.dividerSubtle.opacity(0.6))
+
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.accentGradient)
+                    .frame(width: max(18, proxy.size.width * progressPhase))
+                    .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 6, y: 2)
+            }
+        }
+        .frame(height: 6)
+        .padding(.top, 6)
+    }
+
+    // MARK: Background ornamentation
+
+    private var backdropGradient: some View {
+        LinearGradient(
+            colors: [
+                CooksyTheme.primaryAccentSoft.opacity(0.35),
+                Color.clear,
+                CooksyTheme.warmCard.opacity(0.25)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .blur(radius: 30)
+    }
+
+    private var sparkleLayer: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(0..<8, id: \.self) { i in
+                    Circle()
+                        .fill(CooksyTheme.primaryAccent.opacity(0.22))
+                        .frame(width: 4, height: 4)
+                        .blur(radius: 0.5)
+                        .position(
+                            x: sparklePosition(index: i, width: proxy.size.width).x,
+                            y: sparklePosition(index: i, width: proxy.size.width).y - sparklePhase * 80
+                        )
+                        .opacity(1 - Double(sparklePhase) * 0.8)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func sparklePosition(index: Int, width: CGFloat) -> CGPoint {
+        let seeds: [(CGFloat, CGFloat)] = [
+            (0.10, 0.20), (0.30, 0.55), (0.45, 0.15), (0.55, 0.75),
+            (0.70, 0.30), (0.82, 0.62), (0.18, 0.80), (0.92, 0.45)
+        ]
+        let seed = seeds[index % seeds.count]
+        return CGPoint(x: width * seed.0, y: 900 * seed.1)
+    }
+
+    // MARK: State helpers
+
+    private enum StepState {
+        case done, active, pending
+    }
+
+    private func stepState(for index: Int) -> StepState {
+        if index < activeStepIndex { return .done }
+        if index == activeStepIndex { return .active }
+        return .pending
+    }
+
+    private var activeStepDisplay: Int {
+        min(activeStepIndex + 1, steps.count)
+    }
+
+    // MARK: Animation choreography
+
+    private func runLoadingChoreography() async {
+        animationActive = true
+
+        // Progress bar advances smoothly to 92% over ~16s, capped so the
+        // bar never appears stuck at 100% if the import keeps running.
+        withAnimation(.easeOut(duration: 16)) {
             progressPhase = 0.92
         }
 
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(3.5))
-            guard !Task.isCancelled else { break }
+        // Sparkle loop drifts upward continuously.
+        withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) {
+            sparklePhase = 1
+        }
 
+        // Each step gets ~3.2 s — total ~16s, which matches the
+        // observed median import duration. Real completion will
+        // unmount this view, no need to hard-cap.
+        for index in 0..<steps.count {
             await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    messageIndex = (messageIndex + 1) % messages.count
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                    activeStepIndex = index
                 }
+            }
+            try? await Task.sleep(for: .seconds(3.2))
+            if Task.isCancelled { return }
+        }
+        // After the last "advance", mark everything done.
+        await MainActor.run {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                activeStepIndex = steps.count
             }
         }
     }
+}
+
+private struct LoadingStep {
+    let icon: String
+    let title: String
+    let subtitle: String
 }

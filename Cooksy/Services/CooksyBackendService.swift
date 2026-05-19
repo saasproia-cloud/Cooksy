@@ -648,7 +648,24 @@ private struct BackendStableIngredient: Decodable {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     cleanName = trimmed.prefix(1).uppercased() + trimmed.dropFirst()
-                    if cleanUnit.isEmpty { cleanUnit = entry.label }
+                    // Always upgrade the unit when we extract one from
+                    // the name. The backend sometimes ships truncated
+                    // remnants like "c." in the unit field while the
+                    // full unit phrase stayed in the name — we treat
+                    // the form recovered from the name as canonical.
+                    let foldedUnit = cleanUnit
+                        .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+                        .lowercased()
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let isTruncated = foldedUnit.isEmpty
+                        || foldedUnit == "c."
+                        || foldedUnit == "c"
+                        || foldedUnit == "cuillere"
+                        || foldedUnit == "cuilleres"
+                        || foldedUnit.count < entry.label.count
+                    if isTruncated {
+                        cleanUnit = entry.label
+                    }
                 }
                 break
             }

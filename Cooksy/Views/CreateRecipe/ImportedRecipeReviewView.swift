@@ -787,7 +787,14 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         self.preferredBookID = preferredBookID
         self.seed = seed
         self.heroImage = seed.imageData.flatMap(UIImage.init(data:))
-        self.currentServings = 1
+        // CRITICAL: initialise currentServings to baseServings so the
+        // review screen displays full-recipe quantities (matching the
+        // saved-recipe detail view). Initialising to 1 caused the
+        // scaler to divide every amount by the backend's serving count
+        // (e.g. servingsText="3" → display=amount/3), producing the
+        // "0.3 / 66.7 / 33.3" fractional pattern users were seeing.
+        let initialBaseServings = max(1, RecipeQuantityScaler.baseServings(from: seed.makeRecipe()))
+        self.currentServings = initialBaseServings
 
         store.$books
             .receive(on: DispatchQueue.main)

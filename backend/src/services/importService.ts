@@ -847,6 +847,19 @@ export async function importFromUrl(input: {
     throw new RecipeImportNotFoodError("not_enough_info");
   }
 
+  // Anti-hallucination cross-check: every major ingredient produced by
+  // the LLM must have at least one token present in the source text
+  // (caption or transcript). When less than half of major ingredients
+  // are supported by the source, the LLM has clearly been making things
+  // up and we drop the unsupported ones rather than ship them.
+  bestValidatedRecipe = dropUnsupportedIngredients(
+    bestValidatedRecipe,
+    resolvedSocialContent,
+    transcript,
+    input.sharedText,
+    canonicalSourceURL
+  );
+
   // Final QA gate: after every retry, reject results that are too thin
   // to be cookable. We'd rather show the user a clean error screen than
   // ship a recipe with 2 vague ingredients and 1 generic step. The
@@ -893,6 +906,90 @@ export async function importFromUrl(input: {
     debug,
     ...(pipelineTrace ? { pipelineTrace } : {})
   };
+}
+
+/**
+ * Drops ingredients whose name tokens don't appear in ANY of the source
+ * texts (caption, transcript, sharedText). The LLM occasionally invents
+ * ingredients that match a similar dish from its training data but
+ * aren't actually in the video — `crème épaisse 100g`, `cumin`, `sucre
+ * 80g`, etc. Cross-checking against the source corpus catches these
+ * even when the prompt instructions are ignored.
+ *
+ * Safety guards:
+ *   - basic seasonings (sel, poivre, huile, eau, beurre, sucre) are
+ *     always kept because they're often implicit/added off-screen.
+ *   - we never drop more than a third of ingredients (above that we
+ *     trust the source-extraction more than our cross-check).
+ *   - ingredients with no usable name tokens (less than 4 chars after
+ *     tokenization) are kept because we can't reliably match them.
+ */
+function dropUnsupportedIngredients(
+  recipe: RecipeImportResult,
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null,
+  transcript: string | null,
+  sharedText: string | undefined,
+  sourceURLForLogging: string
+): RecipeImportResult {
+  const sourceParts = [
+    socialContent?.caption,
+    socialContent?.description,
+    socialContent?.subtitlesText,
+    socialContent?.pageText,
+    socialContent?.title,
+    transcript,
+    sharedText
+  ].filter((part): part is string => Boolean(part?.trim()));
+  if (sourceParts.length === 0) {
+    return recipe;
+  }
+  const sourceCorpus = sourceParts.join(" \n ").toLowerCase();
+  const foldedCorpus = sourceCorpus
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae");
+
+  const BASIC_SEASONINGS = new Set([
+    "sel", "poivre", "salt", "pepper", "huile", "oil", "beurre", "butter",
+    "sucre", "sugar", "eau", "water", "farine", "flour"
+  ]);
+
+  const candidates: string[] = [];
+  const droppedNames = new Set<string>();
+  for (const ing of recipe.ingredientDrafts) {
+    const name = ing.name?.trim();
+    if (!name) continue;
+    const folded = name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/œ/g, "oe")
+      .replace(/æ/g, "ae");
+    const tokens = folded.split(/[\s,/'-]+/).filter((t) => t.length >= 4);
+    if (tokens.length === 0) continue;
+    if (tokens.some((t) => BASIC_SEASONINGS.has(t))) continue;
+
+    const supported = tokens.some((t) => foldedCorpus.includes(t));
+    if (!supported) {
+      candidates.push(name);
+    }
+  }
+
+  if (candidates.length === 0) return recipe;
+
+  // Cap drops at one third of the ingredient list to avoid wiping a
+  // legitimate recipe when our source corpus is incomplete.
+  const cap = Math.max(1, Math.floor(recipe.ingredientDrafts.length / 3));
+  const toDrop = candidates.slice(0, cap);
+  for (const name of toDrop) droppedNames.add(name);
+
+  console.warn(
+    `[dropUnsupportedIngredients] Dropping ${droppedNames.size} hallucinated ingredient(s) not in source corpus for ${sourceURLForLogging}: ${[...droppedNames].join(", ")}`
+  );
+
+  const filteredDrafts = recipe.ingredientDrafts.filter((ing) => !droppedNames.has(ing.name));
+  return { ...recipe, ingredientDrafts: filteredDrafts };
 }
 
 /**

@@ -353,27 +353,31 @@ const SECTION_HEADER_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
 // require the colon ONLY when there is no bullet prefix; bullet-marked
 // headers like `• sauce raclette` or `•oignons caramélisés` are common
 // in TikTok captions and should still be treated as section starts.
-const BULLET_PREFIX_RE = /^[\s ]*[•·▪◦‣⁃*]+[\s ]*/u;
+const BULLET_PREFIX_RE = /^[\s\u00A0]*(?:[•·▪◦‣⁃*]+|[\p{Extended_Pictographic}\uFE0F]+)[\s\u00A0]*/u;
 
 function isStructuralSectionHeader(line: string, nextLines: string[]): string | null {
   const bulletStripped = line.replace(BULLET_PREFIX_RE, "").trim();
   const hadBulletPrefix = bulletStripped !== line.trim();
 
+  // Trim trailing parenthetical content so creators' inline notes like
+  // `MARINADE (au moins 1h au frais)` still match the header pattern.
+  const parenStripped = bulletStripped.replace(/\s*\([^)]*\)\s*$/, "").trim();
+
   // Pattern: short label, optional trailing colon. Colon required only
-  // when there is no bullet prefix (otherwise we'd flag any plain
+  // when there is no bullet/emoji prefix (otherwise we'd flag any plain
   // sentence as a section).
   const colonOptional = hadBulletPrefix;
   const headerPattern = colonOptional
-    ? /^([A-Za-zÀ-ÿ\s'']{2,40})\s*[:：]?\s*$/
-    : /^([A-Za-zÀ-ÿ\s'']{2,40})\s*[:：]\s*$/;
-  const headerMatch = bulletStripped.match(headerPattern);
+    ? /^([A-Za-zÀ-ÿ\s'']{2,60})\s*[:：]?\s*$/
+    : /^([A-Za-zÀ-ÿ\s'']{2,60})\s*[:：]\s*$/;
+  const headerMatch = parenStripped.match(headerPattern);
   if (!headerMatch) return null;
 
   const label = headerMatch[1].trim();
   if (!label) return null;
-  // Cap section labels at 4 words to avoid catching sentences.
+  // Cap section labels at 5 words to avoid catching sentences.
   const wordCount = label.split(/\s+/).filter(Boolean).length;
-  if (wordCount === 0 || wordCount > 4) return null;
+  if (wordCount === 0 || wordCount > 5) return null;
 
   // Must be followed by at least 1 ingredient-like or list-like line
   const nextRelevant = nextLines.slice(0, 3);
@@ -593,9 +597,15 @@ function parseIngredientFromLine(line: string, group: string): RecipeIngredientD
   let amount = "";
   let unit = "";
 
-  // Pattern: "200g", "200 g", "3", "1/2"
+  // Pattern: "200g", "200 g", "3", "1/2". The unit (when present) must
+  // be followed by a word boundary so we don't eat the first letter of
+  // the ingredient name — e.g. "3 grande escalopes" must NOT parse as
+  // `3 g` + `rande escalopes`. The unit group is optional so plain
+  // counts like "3 oignons" still match. We try the long forms first
+  // (`c. à soupe`, `c. à café`) so they win over the short forms
+  // (`c. à s`, `c. à c`) when the caption uses the full word.
   const amountUnitMatch = cleaned.match(
-    /^(\d+(?:[.,/]\d+)?|[¼½¾⅓⅔⅛])\s*(g|kg|mg|ml|cl|dl|l|c\.\s*à\s*(?:s|c)|cas|cac|cuillères?\s*à\s*(?:soupe|café)|pincée|sachet|tranche|gousse|tasse|oz|lb|tbsp|tsp|cup)?\s*(?:de\s+|d['']\s*)?/i
+    /^(\d+(?:[.,/]\d+)?|[¼½¾⅓⅔⅛])\s*(?:(c\.\s*à\s*(?:soupe|café)|cuillères?\s*à\s*(?:soupe|café)|c\.\s*à\s*[sc]|kg|mg|ml|cl|dl|cas|cac|pincée|sachet|tranche|gousse|tasse|tbsp|tsp|cup|g|l|oz|lb)(?=\s|$|[.,)])\s*(?:de\s+|d['']\s*)?)?/i
   );
   if (amountUnitMatch) {
     amount = amountUnitMatch[1] || "";

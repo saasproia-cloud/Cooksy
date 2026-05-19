@@ -330,6 +330,8 @@ struct InterludeTestimonialView: View {
             .opacity(deckRevealed ? 1 : 0)
         }
         .frame(height: 220)
+        .frame(maxWidth: .infinity)
+        .clipped()
         .animation(.spring(response: 0.8, dampingFraction: 0.78).delay(0.35), value: deckRevealed)
     }
 

@@ -267,6 +267,8 @@ struct InterludeNumbersView: View {
             .opacity(cardsRevealed ? 1 : 0)
         }
         .frame(height: 140)
+        .frame(maxWidth: .infinity)
+        .clipped()
         .animation(.spring(response: 0.75, dampingFraction: 0.78).delay(0.25), value: cardsRevealed)
     }
 

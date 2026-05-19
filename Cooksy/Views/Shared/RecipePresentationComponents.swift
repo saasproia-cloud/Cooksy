@@ -896,14 +896,78 @@ private struct RecipeServingStepper: View {
 
 struct RecipePresentationHeroPlaceholder: View {
     let heroStyle: HeroStyle
+    var symbolName: String = "fork.knife"
 
     var body: some View {
         ZStack {
+            // Layer 1 — base gradient
             CooksyTheme.recipeGradient(for: heroStyle)
 
-            Image(systemName: "fork.knife")
-                .font(.system(size: 70, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.88))
+            // Layer 2 — diagonal sheen so the surface looks lit, not flat.
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.22),
+                    Color.white.opacity(0.0),
+                    Color.black.opacity(0.15)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            // Layer 3 — bokeh-style highlight orbs giving depth.
+            Circle()
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 220, height: 220)
+                .blur(radius: 30)
+                .offset(x: -120, y: -90)
+
+            Circle()
+                .fill(Color.white.opacity(0.12))
+                .frame(width: 160, height: 160)
+                .blur(radius: 24)
+                .offset(x: 130, y: 110)
+
+            // Layer 4 — subtle dot pattern overlay for editorial texture.
+            Canvas { context, size in
+                let stride: CGFloat = 26
+                for x in Swift.stride(from: 0, through: size.width, by: stride) {
+                    for y in Swift.stride(from: 0, through: size.height, by: stride) {
+                        let path = Path(ellipseIn: CGRect(x: x, y: y, width: 1.6, height: 1.6))
+                        context.fill(path, with: .color(.white.opacity(0.08)))
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+
+            // Layer 5 — central glyph in a glowing glass ring.
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 140, height: 140)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.6), Color.white.opacity(0.15)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 18, y: 10)
+
+                Image(systemName: symbolName)
+                    .font(.system(size: 56, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.white, Color.white.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: Color.black.opacity(0.25), radius: 4, y: 2)
+            }
         }
     }
 }

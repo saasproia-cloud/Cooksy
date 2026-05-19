@@ -1139,21 +1139,31 @@ enum StepIngredientHighlighter {
         }
 
         var attributed = AttributedString(text)
-        let lowerText = text.lowercased()
-            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr"))
 
         for ref in refs {
             let tokens = tokenize(ref)
             for token in tokens where token.count >= 3 {
-                let lowerToken = token.lowercased()
-                    .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr"))
-                var searchStart = lowerText.startIndex
-                while let range = lowerText.range(of: lowerToken, range: searchStart..<lowerText.endIndex) {
-                    let isWordBoundary = (range.lowerBound == lowerText.startIndex || !lowerText[lowerText.index(before: range.lowerBound)].isLetter)
-                    if isWordBoundary {
-                        let attrStart = AttributedString.Index(range.lowerBound, within: attributed)
-                        let attrEnd = AttributedString.Index(range.upperBound, within: attributed)
-                        if let attrStart, let attrEnd {
+                // Search directly in the ORIGINAL text using case- and
+                // diacritic-insensitive options. This keeps the returned
+                // Range<String.Index> aligned with `attributed`'s native
+                // index space — previously we searched a folded copy of
+                // the text (where "œufs" → "oeufs" or other ligatures
+                // shifted positions), so the highlight ranges sometimes
+                // missed letters at the boundaries.
+                var searchStart = text.startIndex
+                while let range = text.range(
+                    of: token,
+                    options: [.caseInsensitive, .diacriticInsensitive],
+                    range: searchStart..<text.endIndex
+                ) {
+                    let hasWordBoundaryBefore = range.lowerBound == text.startIndex
+                        || !text[text.index(before: range.lowerBound)].isLetter
+                    let hasWordBoundaryAfter = range.upperBound == text.endIndex
+                        || !text[range.upperBound].isLetter
+
+                    if hasWordBoundaryBefore && hasWordBoundaryAfter {
+                        if let attrStart = AttributedString.Index(range.lowerBound, within: attributed),
+                           let attrEnd = AttributedString.Index(range.upperBound, within: attributed) {
                             attributed[attrStart..<attrEnd].foregroundColor = highlightColor
                             attributed[attrStart..<attrEnd].font = .system(size: fontSize, weight: .bold, design: .rounded)
                         }

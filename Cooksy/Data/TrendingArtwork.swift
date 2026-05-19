@@ -97,28 +97,94 @@ enum TrendingArtworkStyle: Hashable {
     }
 }
 
-/// Round thumbnail used in the "Tendances du jour" list. Replaces the old
-/// emoji-on-gradient look with a clean SF Symbol + thematic gradient that
-/// reads more like a real food app.
+/// Thumbnail used in the "Tendances du jour" list. Replaces the old
+/// emoji-on-gradient look with a layered glass surface that mimics a
+/// proper recipe cover (gradient + bokeh highlights + dotted texture +
+/// symbol on a glass disc) so the feed feels editorial.
 struct TrendingArtworkSurface: View {
     let style: TrendingArtworkStyle
     var symbolSize: CGFloat = 22
+    /// When `true`, render the larger hero treatment (bigger glass disc,
+    /// more pronounced highlights). Defaults to the compact thumbnail
+    /// treatment so existing list cells stay visually consistent.
+    var prominent: Bool = false
 
     var body: some View {
         ZStack {
+            // Layer 1 — base gradient
             style.gradient
 
-            // Subtle light blob in the corner to give the surface depth
-            // without costing a blur pass.
-            Circle()
-                .fill(Color.white.opacity(0.18))
-                .frame(width: 58, height: 58)
-                .offset(x: 18, y: -18)
+            // Layer 2 — diagonal sheen
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.22),
+                    Color.white.opacity(0.0),
+                    Color.black.opacity(0.12)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-            Image(systemName: style.symbolName)
-                .font(.system(size: symbolSize, weight: .bold))
-                .foregroundStyle(.white)
-                .shadow(color: Color.black.opacity(0.18), radius: 2, y: 1)
+            // Layer 3 — bokeh highlights for depth
+            Circle()
+                .fill(Color.white.opacity(prominent ? 0.22 : 0.18))
+                .frame(width: prominent ? 110 : 70, height: prominent ? 110 : 70)
+                .blur(radius: prominent ? 22 : 12)
+                .offset(x: prominent ? -28 : 18, y: prominent ? -32 : -18)
+
+            Circle()
+                .fill(Color.white.opacity(0.10))
+                .frame(width: prominent ? 80 : 46, height: prominent ? 80 : 46)
+                .blur(radius: 14)
+                .offset(x: prominent ? 36 : 22, y: prominent ? 34 : 18)
+
+            // Layer 4 — subtle dotted texture (only on prominent variant
+            // to keep the small thumbnail crisp).
+            if prominent {
+                Canvas { context, size in
+                    let stride: CGFloat = 14
+                    for x in Swift.stride(from: 0, through: size.width, by: stride) {
+                        for y in Swift.stride(from: 0, through: size.height, by: stride) {
+                            let path = Path(ellipseIn: CGRect(x: x, y: y, width: 1.2, height: 1.2))
+                            context.fill(path, with: .color(.white.opacity(0.06)))
+                        }
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+
+            // Layer 5 — symbol on a glass disc.
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(
+                        width: prominent ? symbolSize * 3.4 : symbolSize * 2.0,
+                        height: prominent ? symbolSize * 3.4 : symbolSize * 2.0
+                    )
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.55), Color.white.opacity(0.15)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: prominent ? 1.4 : 1.0
+                            )
+                    )
+                    .shadow(color: Color.black.opacity(0.12), radius: prominent ? 14 : 6, y: prominent ? 8 : 3)
+
+                Image(systemName: style.symbolName)
+                    .font(.system(size: symbolSize, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.white, Color.white.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: Color.black.opacity(0.22), radius: 2, y: 1)
+            }
         }
     }
 }

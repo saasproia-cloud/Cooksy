@@ -578,6 +578,19 @@ function sanitizeTitle(value: string): string {
   return cleaned;
 }
 
+/// Returns true when `unit` looks like a truncated cuillère form (e.g.
+/// "c.", "c", "cuillère") that the LLM sometimes emits when the rest of
+/// the unit phrase ends up in the name field. Used to decide whether to
+/// upgrade the unit value using the form extracted from the name.
+function isTruncatedUnit(unit: string): boolean {
+  const folded = unit
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+  return /^c\.?$|^cuillere?s?$|^cuiller?$/.test(folded);
+}
+
 function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngredientDraft[] {
   let amount = clean(ingredient.amount);
   let unit = normalizeFrenchUnit(clean(ingredient.unit));
@@ -602,8 +615,19 @@ function sanitizeIngredientDraft(ingredient: RecipeIngredientDraft): RecipeIngre
       if (!amount && asrCleaned.extractedAmount) {
         amount = asrCleaned.extractedAmount;
       }
-      if (!unit && asrCleaned.extractedUnit) {
-        unit = normalizeFrenchUnit(asrCleaned.extractedUnit);
+      if (asrCleaned.extractedUnit) {
+        // Extraction from the name field is ALWAYS more authoritative
+        // than the existing `unit` value when the latter is empty OR
+        // shorter than the extracted form. The LLM sometimes outputs
+        // `name: "À soupe huile"` with `unit: "c."` — a truncated
+        // remnant — and the previous logic preserved that truncation.
+        // We now upgrade to the full normalised unit from the name
+        // unless the existing unit is already at least as specific.
+        const extracted = normalizeFrenchUnit(asrCleaned.extractedUnit);
+        const existing = unit;
+        if (!existing || existing.length < extracted.length || isTruncatedUnit(existing)) {
+          unit = extracted;
+        }
       }
     }
     const preNormalized = asrCleaned.name || cleanedName;
