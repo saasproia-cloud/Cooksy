@@ -33,7 +33,7 @@ struct QuotaReachedSheet: View {
                     .font(.system(size: 24, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .multilineTextAlignment(.center)
-                Text("3 recettes / semaine en gratuit · réinitialisation \(resetCopy)")
+                Text(quotaSummaryCopy)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
@@ -104,16 +104,19 @@ struct QuotaReachedSheet: View {
         }
     }
 
-    private var resetCopy: String {
-        let secs = quota.secondsUntilReset
-        let hours = Int(secs / 3600)
-        if hours > 24 {
-            let days = Int(ceil(secs / 86400))
-            return "dans \(days) jour\(days > 1 ? "s" : "")"
+    /// "X recettes / semaine en gratuit · <countdown>". The slot count is
+    /// dynamic so users who earned an invite-bonus slot correctly read
+    /// "4 recettes". The `now` timer keeps the final-day h/m readout live.
+    private var quotaSummaryCopy: String {
+        _ = now // subscribe to the per-minute tick
+        let limit = quota.weeklyLimit
+        let base = "\(limit) recette\(limit > 1 ? "s" : "") / semaine en gratuit"
+
+        guard !quota.resetCountdownText.isEmpty else { return base }
+
+        if quota.isOnFinalResetDay {
+            return "\(base) · \(quota.resetCountdownText) restant"
         }
-        if hours <= 1 {
-            return "dans moins d'1 h"
-        }
-        return "dans \(hours) h"
+        return "\(base) · réinitialisation dans \(quota.resetCountdownText)"
     }
 }

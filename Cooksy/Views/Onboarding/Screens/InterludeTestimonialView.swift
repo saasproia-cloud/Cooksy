@@ -218,18 +218,14 @@ struct InterludeTestimonialView: View {
             )
 
             Text("Tu rejoins une\nvraie communauté.")
-                .font(.system(size: 30, weight: .heavy, design: .serif))
+                .font(.system(size: 28, weight: .heavy, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(-2)
+                .minimumScaleFactor(0.8)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Text("Des cuisiniers qui ont commencé exactement comme toi.")
-                .font(.system(size: 13.5, weight: .medium, design: .rounded))
-                .foregroundStyle(CooksyTheme.secondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
         }
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Live counter
@@ -237,7 +233,7 @@ struct InterludeTestimonialView: View {
     /// Big gradient counter pretending to tick the user count in real time.
     /// Adds a tiny pulsing dot to suggest "live."
     private var liveCounter: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ZStack {
                 Circle()
                     .fill(Color.green.opacity(0.18))
@@ -249,20 +245,21 @@ struct InterludeTestimonialView: View {
                     .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: heroPulse)
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(liveCount.formatted(.number.grouping(.automatic)))")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .foregroundStyle(CooksyTheme.accentGradient)
-                    .contentTransition(.numericText(value: Double(liveCount)))
-                    .monospacedDigit()
+            Text("\(liveCount.formatted(.number.grouping(.automatic)))")
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .foregroundStyle(CooksyTheme.accentGradient)
+                .contentTransition(.numericText(value: Double(liveCount)))
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
 
-                Text("cuisiniers actifs")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-            }
+            Text("actifs")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(CooksyTheme.secondaryText)
+                .lineLimit(1)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(
             Capsule()
                 .fill(CooksyTheme.elevatedSurface)
@@ -280,59 +277,67 @@ struct InterludeTestimonialView: View {
     /// card on top. The two back cards are dimmed + tilted so the eye
     /// goes straight to the front quote.
     private var testimonialDeck: some View {
-        ZStack {
-            TestimonialCard(
-                initial: "M",
-                name: "Marc, 34 ans",
-                meta: "Famille · sans gluten",
-                quote: "Mes recettes TikTok sont enfin propres.",
-                gradient: [CooksyTheme.secondaryAccent, CooksyTheme.secondaryAccentStrong],
-                stars: 5,
-                isFeatured: false,
-                animatedStars: 5
-            )
-            .frame(width: 280, height: 150)
-            .rotationEffect(.degrees(deckRevealed ? -7 : -16))
-            .offset(x: deckRevealed ? -34 : -10, y: deckRevealed ? 22 : 50)
-            .scaleEffect(0.9)
-            .opacity(deckRevealed ? 0.85 : 0)
+        GeometryReader { geo in
+            let w = geo.size.width
+            let frontW = min(280, w)
+            let backW = min(240, w * 0.85)
+            let sideOffset = min(28, w * 0.08)
 
-            TestimonialCard(
-                initial: "T",
-                name: "Tom, 22 ans",
-                meta: "Solo · niveau débutant",
-                quote: "Je cuisine vraiment, plus juste scroller.",
-                gradient: [CooksyTheme.primaryAccentStrong, CooksyTheme.primaryAccent],
-                stars: 5,
-                isFeatured: false,
-                animatedStars: 5
-            )
-            .frame(width: 280, height: 150)
-            .rotationEffect(.degrees(deckRevealed ? 6 : 14))
-            .offset(x: deckRevealed ? 36 : 14, y: deckRevealed ? 18 : 44)
-            .scaleEffect(0.92)
-            .opacity(deckRevealed ? 0.9 : 0)
+            ZStack {
+                TestimonialCard(
+                    initial: "M",
+                    name: "Marc, 34 ans",
+                    meta: "Famille · sans gluten",
+                    quote: "Mes recettes TikTok sont enfin propres.",
+                    gradient: [CooksyTheme.secondaryAccent, CooksyTheme.secondaryAccentStrong],
+                    stars: 5,
+                    isFeatured: false,
+                    animatedStars: 5
+                )
+                .frame(width: backW, height: 150)
+                .rotationEffect(.degrees(deckRevealed ? -7 : -16))
+                .offset(x: deckRevealed ? -sideOffset : -sideOffset * 0.3, y: deckRevealed ? 22 : 50)
+                .scaleEffect(0.9)
+                .opacity(deckRevealed ? 0.8 : 0)
 
-            TestimonialCard(
-                initial: "L",
-                name: "Léa, 28 ans",
-                meta: "Couple · niveau intermédiaire",
-                quote: "J'ai arrêté de scroller TikTok pour rien. Je gagne 2 soirées par semaine.",
-                gradient: [CooksyTheme.primaryAccent, CooksyTheme.primaryAccentGlow],
-                stars: 5,
-                isFeatured: true,
-                animatedStars: starsLit,
-                quoteVisible: quoteVisible
-            )
-            .frame(width: 300, height: 178)
-            .rotationEffect(.degrees(deckRevealed ? -1 : 4))
-            .offset(y: deckRevealed ? -8 : 24)
-            .opacity(deckRevealed ? 1 : 0)
+                TestimonialCard(
+                    initial: "T",
+                    name: "Tom, 22 ans",
+                    meta: "Solo · débutant",
+                    quote: "Je cuisine vraiment, plus juste scroller.",
+                    gradient: [CooksyTheme.primaryAccentStrong, CooksyTheme.primaryAccent],
+                    stars: 5,
+                    isFeatured: false,
+                    animatedStars: 5
+                )
+                .frame(width: backW, height: 150)
+                .rotationEffect(.degrees(deckRevealed ? 6 : 14))
+                .offset(x: deckRevealed ? sideOffset : sideOffset * 0.3, y: deckRevealed ? 18 : 44)
+                .scaleEffect(0.92)
+                .opacity(deckRevealed ? 0.85 : 0)
+
+                TestimonialCard(
+                    initial: "L",
+                    name: "Léa, 28 ans",
+                    meta: "Couple · intermédiaire",
+                    quote: "J'ai arrêté de scroller pour rien. Je gagne 2 soirées par semaine.",
+                    gradient: [CooksyTheme.primaryAccent, CooksyTheme.primaryAccentGlow],
+                    stars: 5,
+                    isFeatured: true,
+                    animatedStars: starsLit,
+                    quoteVisible: quoteVisible
+                )
+                .frame(width: frontW, height: 172)
+                .rotationEffect(.degrees(deckRevealed ? -1 : 4))
+                .offset(y: deckRevealed ? -8 : 24)
+                .opacity(deckRevealed ? 1 : 0)
+            }
+            .frame(width: w, height: 220)
+            .animation(.spring(response: 0.8, dampingFraction: 0.78).delay(0.35), value: deckRevealed)
         }
         .frame(height: 220)
         .frame(maxWidth: .infinity)
         .clipped()
-        .animation(.spring(response: 0.8, dampingFraction: 0.78).delay(0.35), value: deckRevealed)
     }
 
     // MARK: - Featured strip
@@ -343,17 +348,17 @@ struct InterludeTestimonialView: View {
             FeaturedBadge(
                 icon: "app.badge.fill",
                 title: "App Store",
-                subtitle: "Top 10 · Cuisine"
+                subtitle: "Top 10 cuisine"
             )
             FeaturedBadge(
                 icon: "star.circle.fill",
                 title: "4.9 / 5",
-                subtitle: "2 300+ avis"
+                subtitle: "2 300 avis"
             )
             FeaturedBadge(
                 icon: "sparkles",
-                title: "Coup de cœur",
-                subtitle: "Éditeurs Apple"
+                title: "Coup de ♥",
+                subtitle: "Apple Éditeurs"
             )
         }
     }
@@ -376,10 +381,11 @@ struct InterludeTestimonialView: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(CooksyTheme.primaryAccentStrong)
 
-            Text("Plus que quelques questions avant de voir ton profil complet.")
+            Text("Plus que quelques questions avant ton profil.")
                 .font(.system(size: 12.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.leading)
+                .minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
@@ -620,12 +626,14 @@ private struct FeaturedBadge: View {
             Text(title)
                 .font(.system(size: 12.5, weight: .bold, design: .rounded))
                 .foregroundStyle(CooksyTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             Text(subtitle)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)

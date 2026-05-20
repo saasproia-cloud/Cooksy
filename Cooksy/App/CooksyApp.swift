@@ -4,7 +4,10 @@ import RevenueCat
 
 @MainActor
 final class CooksyAppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
-    @Published private(set) var pendingURL: URL?
+    /// Latest external URL handed to the app (system open, share
+    /// extension, push deep link). RootRouter observes this via
+    /// `EnvironmentObject` and routes accordingly.
+    @Published var pendingURL: URL?
 
     func application(
         _ app: UIApplication,
@@ -18,6 +21,32 @@ final class CooksyAppDelegate: NSObject, UIApplicationDelegate, ObservableObject
     func consumePendingURLIfNeeded(_ url: URL) {
         guard pendingURL == url else { return }
         pendingURL = nil
+    }
+
+    // MARK: - APNs
+
+    /// Apple hands us the device token after `registerForRemoteNotifications`.
+    /// We forward it to NotificationsCenter which uploads it to
+    /// `POST /api/devices/register` over HTTPS + Supabase JWT.
+    nonisolated func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            await NotificationsCenter.shared.didReceiveAPNsToken(deviceToken)
+        }
+    }
+
+    /// Apple failed to mint a token (no network, push entitlement
+    /// missing, simulator without push capability). Record the error
+    /// so the settings UI can surface a hint, but don't block anything.
+    nonisolated func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            NotificationsCenter.shared.didFailToRegisterAPNs(error)
+        }
     }
 }
 
@@ -42,6 +71,14 @@ struct CooksyApp: App {
                 .task {
                     await sessionStore.bootstrap()
                     await PurchaseService.shared.fetchOfferings()
+                    // Refresh APNs authorization state on every cold
+                    // start so the Notifications settings screen renders
+                    // accurate copy without an extra round-trip.
+                    await NotificationsCenter.shared.refreshAuthorizationStatus()
+                    // Beacon "app.opened" so dormant scans suppress this
+                    // user for at least 2 hours and segmentation rolls a
+                    // fresh last_active_at. Cheap, idempotent server-side.
+                    await NotificationsCenter.shared.trackAppOpened()
                 }
                 .task(id: sessionStore.phase) {
                     switch sessionStore.phase {

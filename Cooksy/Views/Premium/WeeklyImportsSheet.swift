@@ -22,7 +22,16 @@ struct WeeklyImportsSheet: View {
     @StateObject private var quota = ImportQuotaService.shared
     @StateObject private var rewards = InviteRewardService.shared
     @State private var now: Date = Date()
+    /// Tracks the "Rappelez-moi" reminder state so the row can flip to a
+    /// confirmed "Rappel activé" affordance once scheduled.
+    @State private var reminderState: ReminderState = .idle
     private let timer = Timer.publish(every: 60.0, on: .main, in: .common).autoconnect()
+
+    private enum ReminderState {
+        case idle        // not scheduled — show the "Rappelez-moi" CTA
+        case scheduled   // a reminder is pending — show the confirmed state
+        case working     // request in flight (permission prompt / settings)
+    }
 
     private var isPremium: Bool { quota.isPremium }
     /// Base free slots (3) — never changes.
@@ -115,6 +124,13 @@ struct WeeklyImportsSheet: View {
         .frame(maxWidth: .infinity)
         .background(CooksyTheme.background.ignoresSafeArea())
         .onReceive(timer) { _ in now = Date() }
+        .task {
+            // Re-opening the sheet should reflect a reminder the user
+            // already set in a previous session.
+            if await NotificationScheduler.isQuotaResetReminderScheduled() {
+                reminderState = .scheduled
+            }
+        }
     }
 
     // MARK: - Pieces
@@ -234,14 +250,12 @@ struct WeeklyImportsSheet: View {
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
             } else if windowStarted {
-                (
-                    Text("Réinitialisation \(resetCopy). ")
+                VStack(spacing: 8) {
+                    Text(resetCopy)
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(CooksyTheme.secondaryText)
-                    + Text("Rappelez-moi")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(CooksyTheme.primaryText)
-                )
+                    remindMeControl
+                }
             } else {
                 Text("Le compteur démarre à ta première importation.")
                     .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -250,18 +264,104 @@ struct WeeklyImportsSheet: View {
         }
     }
 
+    /// "Rappelez-moi" — a real button now. On tap:
+    ///   • notifications authorized  → schedule the reset reminder, flip
+    ///     to the confirmed "Rappel activé" pill.
+    ///   • notifications denied      → bounce to iOS Settings so the user
+    ///     can re-enable them.
+    ///   • not yet determined       → request permission, then schedule
+    ///     if granted.
+    @ViewBuilder
+    private var remindMeControl: some View {
+        switch reminderState {
+        case .scheduled:
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(CooksyTheme.primaryAccentStrong)
+                Text("Rappel activé — on te prévient au reset")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.primaryAccentSoft.opacity(0.6))
+            )
+
+        case .idle, .working:
+            Button(action: handleRemindMeTap) {
+                HStack(spacing: 6) {
+                    Image(systemName: "bell.badge")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Rappelez-moi")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(CooksyTheme.primaryText)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .stroke(CooksyTheme.stroke, lineWidth: 1)
+                )
+            }
+            .buttonStyle(CooksyTheme.pressScale())
+            .disabled(reminderState == .working)
+        }
+    }
+
+    private func handleRemindMeTap() {
+        OnboardingHaptics.selection()
+        reminderState = .working
+        Task {
+            await NotificationsCenter.shared.refreshAuthorizationStatus()
+            switch NotificationsCenter.shared.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                NotificationScheduler.scheduleQuotaResetReminder(
+                    secondsUntilReset: quota.secondsUntilReset
+                )
+                reminderState = .scheduled
+                OnboardingHaptics.success()
+
+            case .denied:
+                // Permission was refused — there is nothing we can
+                // schedule that would surface. Send the user to iOS
+                // Settings so they can flip Cooksy's switch back on.
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    await UIApplication.shared.open(settingsURL)
+                }
+                reminderState = .idle
+
+            case .notDetermined:
+                let granted = await NotificationsCenter.shared.requestExplicitAuthorization()
+                if granted {
+                    NotificationScheduler.scheduleQuotaResetReminder(
+                        secondsUntilReset: quota.secondsUntilReset
+                    )
+                    reminderState = .scheduled
+                    OnboardingHaptics.success()
+                } else {
+                    reminderState = .idle
+                }
+
+            @unknown default:
+                reminderState = .idle
+            }
+        }
+    }
+
     private var windowStarted: Bool {
         quota.secondsUntilReset > 0
     }
 
+    /// Reset line. The `now` timer drives a refresh every minute so the
+    /// hour/minute readout on the final day stays live.
     private var resetCopy: String {
-        let secs = quota.secondsUntilReset
-        let hours = Int(secs / 3600)
-        if hours > 24 {
-            let days = Int(ceil(secs / 86400))
-            return "dans \(days) jour\(days > 1 ? "s" : "")"
+        _ = now // keep the view subscribed to the per-minute tick
+        if quota.isOnFinalResetDay {
+            return "Réinitialisation : \(quota.resetCountdownText) restant"
         }
-        if hours <= 1 { return "dans moins d'1 h" }
-        return "dans \(hours) h"
+        return "Réinitialisation dans \(quota.resetCountdownText)."
     }
 }

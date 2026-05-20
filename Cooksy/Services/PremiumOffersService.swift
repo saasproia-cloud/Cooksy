@@ -19,7 +19,7 @@ import OSLog
 ///   │                                    │                                                          │
 ///   │                                    └─[24 h elapses without purchase]──────────▶ forfeited ──┤
 ///   │                                                                                              │
-///   └──────────[forfeited cooldown elapses ─ 6 d]────── + fresh-gift celebration ◀─────────────────┘
+///   └──────────[forfeited cooldown elapses ─ 7 d]────── + fresh-gift celebration ◀─────────────────┘
 /// ```
 ///
 /// Two important UX guarantees:
@@ -44,8 +44,18 @@ final class PremiumOffersService: ObservableObject {
     /// either because the 24 h window expired or the trial was
     /// cancelled before billing. After this delay the pill comes back
     /// with a "fresh chance" celebration animation on Home.
-    static let reissueCooldown: TimeInterval = 6 * 86_400      // 6 days
+    ///
+    /// Tuned to 7 days: a weekly rhythm keeps the gift feeling like a
+    /// genuine, scarce "event" rather than ambient pricing — which
+    /// preserves the urgency of the 24 h claim window. A shorter
+    /// cooldown would let users simply wait it out.
+    static let reissueCooldown: TimeInterval = 7 * 86_400      // 7 days
     static let defaultGiftDiscount: Int = 25
+    /// How long after a forfeit the Home "something's cooking" teaser
+    /// stays hidden. A short quiet period so the card lands as a
+    /// pleasant discovery mid-cooldown rather than an instant
+    /// consolation prize the user would tune out.
+    static let giftTeaserRevealDelay: TimeInterval = 2 * 86_400   // 2 days
 
     // MARK: - State
 
@@ -55,8 +65,8 @@ final class PremiumOffersService: ObservableObject {
         case notWon            // never played, or cooldown just ended
         case won               // mini-game played, discount usable in next 24 h
         case pendingFromTrial  // started the annual trial with the gift; waiting on conversion
-        case consumed          // gift was effectively used (annual paid). 7 d cooldown.
-        case forfeited         // user cancelled the trial before billing. 3 d cooldown.
+        case consumed          // gift was effectively used (annual paid). Terminal — never returns.
+        case forfeited         // 24 h window lapsed, or trial cancelled before billing. 7 d cooldown.
     }
 
     // MARK: - Storage keys
@@ -103,10 +113,17 @@ final class PremiumOffersService: ObservableObject {
     /// One mini-game variant. Adding a new case here, plus a matching
     /// view in `GiftMiniGameHost`, is enough to slot it into the
     /// rotation — no other change required.
+    ///
+    /// The user cycles through these in declaration order: a fresh
+    /// game each gift cycle so the offer never feels repetitive. Every
+    /// variant is rigged to award the same −25 % jackpot.
     enum GiftGameKind: String, CaseIterable {
         case wheel
         case scratchCard
         case mysteryBox
+        case cardFlip
+        case cupShuffle
+        case balloonPop
     }
 
     private let defaults: UserDefaults
@@ -164,6 +181,38 @@ final class PremiumOffersService: ObservableObject {
         defaults.object(forKey: giftWonAtKey) != nil
     }
 
+    // MARK: - Gift teaser (Home "something's cooking" card)
+
+    /// `true` once a forfeited gift has been cooling down long enough
+    /// for the Home anticipation card to surface (see
+    /// `giftTeaserRevealDelay`). False outside the `.forfeited` phase.
+    var shouldShowGiftTeaser: Bool {
+        rollOverIfNeeded()
+        guard giftPhase == .forfeited, let started = giftForfeitedAt else { return false }
+        return Date().timeIntervalSince(started) >= Self.giftTeaserRevealDelay
+    }
+
+    /// Timestamp the current cooldown started (the forfeit moment).
+    /// Nil when no forfeit is on record.
+    var giftForfeitedAt: Date? {
+        defaults.object(forKey: giftForfeitedAtKey) as? Date
+    }
+
+    /// "Cooking" progress 0...1 across the whole reissue cooldown —
+    /// drives the teaser's gauge, lid lift and glow intensity.
+    var giftTeaserProgress: Double {
+        guard let started = giftForfeitedAt else { return 0 }
+        let elapsed = Date().timeIntervalSince(started)
+        return min(1, max(0, elapsed / Self.reissueCooldown))
+    }
+
+    /// Seconds left before the gift becomes claimable again, clamped
+    /// at zero once the cooldown has elapsed.
+    var giftCooldownRemaining: TimeInterval {
+        guard let ends = giftCooldownEndsAt else { return 0 }
+        return max(0, ends.timeIntervalSince(Date()))
+    }
+
     // MARK: - Mini-game outcomes
 
     /// Records a successful gift game. Stamps the discount + the
@@ -172,9 +221,21 @@ final class PremiumOffersService: ObservableObject {
         defaults.set(Date(), forKey: giftWonAtKey)
         defaults.set(percent, forKey: giftDiscountKey)
         giftDiscountPercent = percent
-        giftOfferExpiresAt = Date().addingTimeInterval(Self.giftOfferDuration)
+        let expiresAt = Date().addingTimeInterval(Self.giftOfferDuration)
+        giftOfferExpiresAt = expiresAt
         setPhase(.won)
         logger.info("Gift offer won: -\(percent, privacy: .public) % for 24 h")
+
+        // The gift was just won — any pending cooldown anticipation
+        // notifications are now obsolete.
+        NotificationScheduler.cancelGiftCooldown()
+
+        // H1 — schedule the "6 h left" local reminder so the discount
+        // window doesn't quietly lapse while the app is closed.
+        NotificationScheduler.scheduleGiftExpiry(
+            expiresAt: expiresAt,
+            discountPercent: percent
+        )
     }
 
     // MARK: - Purchase / cancellation hooks
@@ -197,6 +258,18 @@ final class PremiumOffersService: ObservableObject {
     /// being charged.
     func recordPurchaseCompleted(plan: PremiumPlan, inTrial: Bool) {
         rollOverIfNeeded()
+
+        // A confirmed purchase always retires the gift-expiry and the
+        // onboarding welcome nudges — the user is past that funnel now.
+        // The trial reminder series is kept when `inTrial` (the user
+        // genuinely is mid-trial and J-2/J-1 still matter); a direct
+        // paid purchase cancels everything.
+        if inTrial {
+            NotificationScheduler.cancelGiftExpiry()
+            NotificationScheduler.cancelWelcome()
+        } else {
+            NotificationScheduler.cancelAllConversionNudges()
+        }
 
         guard plan == .yearly, giftPhase == .won, giftOfferIsActive else {
             // Monthly plan, or no active gift — leave the gift state
@@ -266,8 +339,17 @@ final class PremiumOffersService: ObservableObject {
         defaults.removeObject(forKey: giftWonAtKey)
         giftDiscountPercent = nil
         giftOfferExpiresAt = nil
-        giftCooldownEndsAt = now.addingTimeInterval(Self.reissueCooldown)
+        let cooldownEnd = now.addingTimeInterval(Self.reissueCooldown)
+        giftCooldownEndsAt = cooldownEnd
         setPhase(.forfeited)
+
+        // Schedule the anticipation notifications that pull the user
+        // back to watch the Home "something's cooking" card simmer
+        // toward its reveal.
+        NotificationScheduler.scheduleGiftCooldown(
+            cooldownEndsAt: cooldownEnd,
+            teaserAppearsAt: now.addingTimeInterval(Self.giftTeaserRevealDelay)
+        )
         logger.info("Gift reissue cooldown started (\(reason, privacy: .public)) — back in \(Self.reissueCooldown / 86_400, privacy: .public) d")
     }
 
@@ -379,6 +461,10 @@ final class PremiumOffersService: ObservableObject {
         userChoseFreeMode = false
         hasFreshGiftCelebrationPending = false
         giftCycleIndex = 0
+
+        // Drop any pending gift-cooldown notifications so a previous
+        // user's anticipation pings never fire for the new account.
+        NotificationScheduler.cancelGiftCooldown()
 
         logger.info("Gift state fully reset for new session")
     }

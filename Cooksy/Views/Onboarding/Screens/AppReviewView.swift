@@ -39,8 +39,9 @@ struct AppReviewView: View {
 
     var body: some View {
         ZStack {
-            AnimatedAmbientBackground()
-                .ignoresSafeArea()
+            // Background is provided by OnboardingFlow (shared across all
+            // onboarding screens). Don't remount one here — it would mean
+            // two 30fps TimelineViews fighting during the screen transition.
 
             GeometryReader { geo in
                 let heroDiameter = min(geo.size.width * 0.68, 240)
@@ -119,7 +120,12 @@ struct AppReviewView: View {
         }
         .onAppear {
             appeared = true
-            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+            // One-shot reveal of the sparkle decorations around the heart.
+            // We removed the previous `.repeatForever(autoreverses:)` loop:
+            // it kept spending CPU even while the screen was offscreen
+            // during transitions and contributed to the welcome→appReview
+            // hitch. The static "lit" state still reads as decorative.
+            withAnimation(.easeOut(duration: 0.7).delay(0.3)) {
                 sparkle = true
             }
         }

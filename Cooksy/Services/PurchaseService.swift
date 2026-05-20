@@ -187,6 +187,18 @@ final class PurchaseService: NSObject, ObservableObject {
         // with a new trial (Apple let them through).
         UserDefaults.standard.removeObject(forKey: trialCooldownUntilKey)
         logger.info("Trial started — recorded baseline at \(Date(), privacy: .public)")
+
+        // Schedule the local trial-reminder series (C1/C3/C4/C5). These
+        // are on-device, deterministic, and survive offline — see
+        // NotificationScheduler. The "garde tout pour X/an" recap needs
+        // the live annual price; fall back to a sensible default if the
+        // storefront hasn't loaded yet.
+        let trialDays = annualTrialDays ?? 7
+        let annualPriceText = annualPriceString ?? "39,99 €"
+        NotificationScheduler.scheduleTrialSeries(
+            trialDays: trialDays,
+            annualPriceText: annualPriceText
+        )
     }
 
     /// Heuristic: if we previously recorded a trial start, more time

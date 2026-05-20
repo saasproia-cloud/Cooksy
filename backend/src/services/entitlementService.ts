@@ -1,4 +1,5 @@
 import { getSupabaseServiceRoleClient } from "../config/supabase.js";
+import { sendPush } from "./notifications/pushService.js";
 
 /**
  * Server-side source of truth for premium status and import quota.
@@ -81,6 +82,16 @@ export async function consumeImportSlot(
     remaining: Math.max(0, weeklyLimit - importsUsed)
   };
 
+  // The moment a free user *reaches* (or passes) their weekly cap is the
+  // single highest-intent conversion window we have. Record the event
+  // and fire B1 quota_reached_immediate. Fire-and-forget: a push failure
+  // must never block or fail the import response. The push service's own
+  // dedup_key (daily bucket) + the template's 7-day cooldown stop this
+  // from spamming on every subsequent over-the-cap attempt.
+  if (!isPremium && importsUsed >= weeklyLimit) {
+    void notifyQuotaReached(userId);
+  }
+
   if (importsUsed > weeklyLimit) {
     // We've already incremented the counter past the cap. That's fine
     // — the window resets every Monday, so the over-shoot is bounded
@@ -93,6 +104,34 @@ export async function consumeImportSlot(
   }
 
   return snapshot;
+}
+
+/**
+ * Record a `quota.reached` event and fire the B1 conversion push.
+ * Separated out so the await chain in `consumeImportSlot` stays clean
+ * and the failure surface is fully contained.
+ */
+async function notifyQuotaReached(userId: string): Promise<void> {
+  try {
+    const supabase = getSupabaseServiceRoleClient();
+    // The event log feeds the quota_reached_d1_followup cron (it scans
+    // for users who hit the cap ~1 day ago).
+    await supabase.from("notification_events").insert({
+      user_id: userId,
+      event_type: "quota.reached",
+      event_data: { source: "import_slot" }
+    });
+    await sendPush({
+      userId,
+      templateId: "quota_reached_immediate",
+      dedupBucket: "daily"
+    });
+  } catch (err) {
+    console.warn(
+      "[entitlement] notifyQuotaReached failed:",
+      (err as Error).message
+    );
+  }
 }
 
 /**

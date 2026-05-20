@@ -76,6 +76,32 @@ final class RecipeStore: ObservableObject {
         Task { @MainActor in
             ImportQuotaService.shared.incrementOnSuccess()
         }
+
+        // Lifetime import counter — drives the one-shot milestone pushes.
+        let lifetimeKey = "cooksy.notif.lifetimeImports"
+        let lifetimeImports = UserDefaults.standard.integer(forKey: lifetimeKey) + 1
+        UserDefaults.standard.set(lifetimeImports, forKey: lifetimeKey)
+
+        // First real (AI-powered) import → schedule the celebration push
+        // and retire the onboarding nudges. Latched via the lifetime
+        // counter so it fires exactly once per install.
+        if lifetimeImports == 1 {
+            let recipeID = storedRecipe.id.uuidString
+            Task { @MainActor in
+                NotificationScheduler.scheduleFirstImportCelebration(recipeID: recipeID)
+                // First import is a high-value moment — promote the
+                // provisional push grant to a full one so future
+                // banners get sound + lock-screen visibility.
+                _ = await NotificationsCenter.shared.requestExplicitAuthorization()
+            }
+        }
+
+        // A5 — 5th lifetime import milestone.
+        if lifetimeImports == 5 {
+            Task { @MainActor in
+                NotificationScheduler.scheduleImportMilestone5()
+            }
+        }
     }
 
     func updateRecipe(_ recipe: Recipe, movingTo destinationBookID: RecipeBook.ID? = nil) {

@@ -46,31 +46,20 @@ private struct RecipeImportFlowHost: ViewModifier {
     @State private var showsQuotaReachedSheet = false
     @State private var showsPaywallFromQuota = false
 
-    /// Intercepts attempts to open the import sheet: if the free user has
-    /// hit their weekly quota, surface `QuotaReachedSheet` instead of the
-    /// normal import options.
-    private var gatedIsPresented: Binding<Bool> {
-        Binding(
-            get: { isPresented && quota.canImport },
-            set: { newValue in
-                if newValue && !quota.canImport {
-                    showsQuotaReachedSheet = true
-                    isPresented = false
-                } else {
-                    isPresented = newValue
-                }
-            }
-        )
+    /// Closes the import options sheet, then surfaces `QuotaReachedSheet`.
+    /// Used when a free user taps an AI-powered option (e.g. "Texte collé")
+    /// while their weekly quota is exhausted — we catch it the instant the
+    /// option is tapped, so the user never reaches the paste screen only to
+    /// be blocked at save time (which felt punishing).
+    private func presentQuotaReachedSheet() {
+        isPresented = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            showsQuotaReachedSheet = true
+        }
     }
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: isPresented) { _, newValue in
-                if newValue && !quota.canImport {
-                    showsQuotaReachedSheet = true
-                    isPresented = false
-                }
-            }
             .sheet(isPresented: $showsQuotaReachedSheet) {
                 QuotaReachedSheet(
                     onUpgrade: {
@@ -100,8 +89,12 @@ private struct RecipeImportFlowHost: ViewModifier {
                         }
                 }
             }
-            .sheet(isPresented: gatedIsPresented) {
+            .sheet(isPresented: $isPresented) {
                 QuickImportSheetView(
+                    // "Depuis zéro" never costs an éclair, so it stays
+                    // available even at the weekly limit. AI-powered options
+                    // are gated below via `canImport`.
+                    canImport: quota.canImport,
                     onCreateFromScratch: {
                         createRecipeSeed = nil
                         isPresented = false
@@ -127,7 +120,8 @@ private struct RecipeImportFlowHost: ViewModifier {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                             showsPasteTextImport = true
                         }
-                    }
+                    },
+                    onQuotaReached: presentQuotaReachedSheet
                 )
             }
             .confirmationDialog(

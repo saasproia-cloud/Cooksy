@@ -214,6 +214,21 @@ final class SessionStore: ObservableObject {
                 .eq("id", value: user.id)
                 .execute()
             await loadProfile(for: user.id)
+
+            // Right after onboarding completes is the cheapest, lowest-
+            // friction moment to ask iOS for notification permission.
+            // We use the provisional grant (no prompt) so the user never
+            // sees a system dialog here — pushes start landing silently
+            // in the Notification Center, and iOS asks the user to make
+            // them visible the first time they expand one. Explicit
+            // grant is requested later at high-value moments (1st import,
+            // trial start) by feature-level call sites.
+            _ = await NotificationsCenter.shared.requestProvisionalAuthorization()
+
+            // Schedule the A1 welcome nudge (~1 h out, daytime-clamped).
+            // Cancelled automatically the moment the user makes their
+            // first import — see NotificationScheduler / RecipeStore.
+            NotificationScheduler.scheduleWelcome()
         } catch {
             logger.error("saveOnboardingAnswers failed: \(error.localizedDescription, privacy: .public)")
             lastErrorMessage = error.localizedDescription

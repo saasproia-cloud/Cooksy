@@ -56,10 +56,16 @@ struct PlaceholderView: View {
 }
 
 struct QuickImportSheetView: View {
+    /// `false` once the free user has used up their weekly import quota.
+    /// Gates AI-powered options ("Texte collé"); "Depuis zéro" stays free.
+    var canImport: Bool = true
     let onCreateFromScratch: () -> Void
     let onBrowserImport: () -> Void
     let onCameraImport: () -> Void
     let onPasteText: () -> Void
+    /// Called when the user taps an AI option while their quota is spent —
+    /// the host responds by showing `QuotaReachedSheet`.
+    var onQuotaReached: () -> Void = {}
 
     private let options: [QuickImportOption] = [
         QuickImportOption(
@@ -114,6 +120,7 @@ struct QuickImportSheetView: View {
                     ForEach(options) { option in
                         QuickImportOptionCard(
                             option: option,
+                            isQuotaLocked: isQuotaLocked(option),
                             action: action(for: option.kind)
                         )
                     }
@@ -138,8 +145,16 @@ struct QuickImportSheetView: View {
         case .camera:
             return onCameraImport
         case .pasteText:
-            return onPasteText
+            // Quota spent → route straight to the limit screen instead of
+            // opening the paste editor.
+            return canImport ? onPasteText : onQuotaReached
         }
+    }
+
+    /// An otherwise-available, AI-powered option that the free user can no
+    /// longer use this week because their import quota is exhausted.
+    private func isQuotaLocked(_ option: QuickImportOption) -> Bool {
+        !option.isLocked && option.eclairCost > 0 && !canImport
     }
 }
 
@@ -164,6 +179,10 @@ private struct QuickImportOption: Identifiable {
 
 private struct QuickImportOptionCard: View {
     let option: QuickImportOption
+    /// `true` when the free user's weekly quota is spent and this option
+    /// would consume an éclair. The card stays tappable on purpose — the
+    /// tap routes to the limit screen rather than doing nothing.
+    var isQuotaLocked: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -171,15 +190,9 @@ private struct QuickImportOptionCard: View {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 14) {
                     if option.isLocked {
-                        Text("BIENTÔT")
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .tracking(1.6)
-                            .foregroundStyle(CooksyTheme.ctaOrangeDark)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule().fill(CooksyTheme.ctaOrangeDark.opacity(0.12))
-                            )
+                        topPill(text: "BIENTÔT")
+                    } else if isQuotaLocked {
+                        topPill(text: "INDISPONIBLE")
                     }
 
                     Image(systemName: option.systemImage)
@@ -198,11 +211,11 @@ private struct QuickImportOptionCard: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.9)
 
-                    eclairCostBadge
+                    costBadge
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 168)
-                .opacity(option.isLocked ? 0.55 : 1.0)
+                .opacity(option.isLocked ? 0.55 : (isQuotaLocked ? 0.82 : 1.0))
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(CooksyTheme.warmCard)
@@ -212,7 +225,7 @@ private struct QuickImportOptionCard: View {
                         .stroke(CooksyTheme.stroke, lineWidth: 1)
                 )
 
-                if option.isLocked {
+                if option.isLocked || isQuotaLocked {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(CooksyTheme.ctaOrangeDark)
@@ -227,8 +240,50 @@ private struct QuickImportOptionCard: View {
             }
         }
         .buttonStyle(.plain)
+        // Only the "coming soon" options are truly disabled. A quota-locked
+        // option stays tappable so its tap can surface the limit screen.
         .disabled(option.isLocked)
         .allowsHitTesting(!option.isLocked)
+    }
+
+    private func topPill(text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .black, design: .rounded))
+            .tracking(1.6)
+            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(
+                Capsule().fill(CooksyTheme.ctaOrangeDark.opacity(0.12))
+            )
+    }
+
+    /// Bottom chip: the éclair cost normally, or a "Limite atteinte" lock
+    /// chip when the weekly quota is spent.
+    @ViewBuilder
+    private var costBadge: some View {
+        if isQuotaLocked {
+            HStack(spacing: 4) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 9, weight: .black))
+                Text("Limite atteinte")
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+            }
+            .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(CooksyTheme.ctaOrangeDark.opacity(0.12))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(CooksyTheme.ctaOrangeDark.opacity(0.35), lineWidth: 0.5)
+            )
+            .accessibilityLabel("Limite hebdomadaire atteinte")
+        } else {
+            eclairCostBadge
+        }
     }
 
     /// "–0 ⚡" / "–1 ⚡" chip telling the user up-front how many

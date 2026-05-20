@@ -25,6 +25,10 @@ import {
   QuotaExceededError
 } from "./services/entitlementService.js";
 import { registerRevenueCatWebhook } from "./routes/webhookRevenueCat.js";
+import { registerDeviceRoutes } from "./routes/devices.js";
+import { registerEventRoutes } from "./routes/events.js";
+import { registerNotificationPrefsRoutes } from "./routes/notificationPrefs.js";
+import { startNotificationCron } from "./services/notifications/cronRunner.js";
 
 const isProduction = env.APP_ENV === "production";
 
@@ -315,6 +319,16 @@ app.post(
 // the handler). Idempotent via webhook_events table.
 await registerRevenueCatWebhook(app);
 
+// Notifications subsystem (Sprint 1):
+//   - device token registry (APNs push targeting)
+//   - lightweight event beacon (app.opened, paywall.shown, …)
+//   - per-user preferences + open/tap beacons
+// All routes require a Supabase JWT (requireAuth) and are RLS-safe via
+// service-role + explicit user_id checks inside the handlers.
+await registerDeviceRoutes(app);
+await registerEventRoutes(app);
+await registerNotificationPrefsRoutes(app);
+
 // Diagnostic endpoints are intentionally restricted to non-production
 // environments. They can leak raw transcripts and rack up Google STT
 // charges if abused, so we wall them off behind APP_ENV.
@@ -393,6 +407,11 @@ app.setErrorHandler((error, request, reply) => {
 app.listen({
   host: "0.0.0.0",
   port: env.PORT
+}).then(() => {
+  // Start the in-process notification cron once the server is up.
+  // Daily reactivation batch (dormant / lapsed / quota follow-up /
+  // cancellation save) + the Sunday weekend meal-prep nudge.
+  startNotificationCron();
 }).catch((error) => {
   app.log.error(error);
   process.exit(1);

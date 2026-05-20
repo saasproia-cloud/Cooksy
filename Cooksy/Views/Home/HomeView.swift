@@ -52,6 +52,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     topBar
                     welcomeBlock
+                    giftCookingTeaser
                     importGuideCard
                     recentImportsSection
                     trendingTodaySection
@@ -61,25 +62,11 @@ struct HomeView: View {
                 .padding(.bottom, 120)
             }
         }
-        .overlay(alignment: .top) {
-            // Fresh-gift celebration: pops in once when a previously
-            // expired gift becomes claimable again, then dismissed
-            // either by tapping "Jouer" (opens the wheel) or X.
-            if !(sessionStore.profile?.isPremium ?? false) && offers.hasFreshGiftCelebrationPending {
-                FreshGiftCelebrationToast(
-                    onTapPlay: {
-                        offers.acknowledgeFreshGiftCelebration()
-                        showsGiftWheel = true
-                    },
-                    onDismiss: {
-                        offers.acknowledgeFreshGiftCelebration()
-                    }
-                )
-                .padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(.spring(response: 0.5, dampingFraction: 0.82),
+        // The fresh-gift celebration is now owned by the in-scroll
+        // `GiftCookingTeaserCard` (its "ready" state) — the user has
+        // been watching that card simmer for days, so the reveal lands
+        // there rather than as a separate top toast.
+        .animation(.spring(response: 0.5, dampingFraction: 0.85),
                    value: offers.hasFreshGiftCelebrationPending)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
@@ -261,6 +248,29 @@ struct HomeView: View {
                 .truncationMode(.tail)
                 .minimumScaleFactor(0.78)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Anticipation card shown to free users while a declined gift is
+    /// cooling down: a pot that simmers a "surprise" with a live
+    /// countdown, then flips to a tappable "ready" state that opens the
+    /// gift mini-game. Hidden until the cooldown is a couple of days in
+    /// (see `PremiumOffersService.shouldShowGiftTeaser`).
+    @ViewBuilder
+    private var giftCookingTeaser: some View {
+        if !(sessionStore.profile?.isPremium ?? false),
+           offers.shouldShowGiftTeaser || offers.hasFreshGiftCelebrationPending {
+            GiftCookingTeaserCard(
+                offers: offers,
+                onPlay: {
+                    offers.acknowledgeFreshGiftCelebration()
+                    showsGiftWheel = true
+                },
+                onDismissReady: {
+                    offers.acknowledgeFreshGiftCelebration()
+                }
+            )
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 

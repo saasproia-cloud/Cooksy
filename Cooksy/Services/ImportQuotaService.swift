@@ -76,6 +76,38 @@ final class ImportQuotaService: ObservableObject {
         return max(resetAt.timeIntervalSince(Date()), 0)
     }
 
+    /// `true` during the final 24 h before the quota resets. Callers use
+    /// it to switch the countdown copy from a day count to an hour/minute
+    /// readout, and to phrase the surrounding sentence ("… restant").
+    var isOnFinalResetDay: Bool {
+        let secs = secondsUntilReset
+        return secs > 0 && secs <= 86_400
+    }
+
+    /// Human-readable countdown to the next reset, shared by every quota
+    /// surface (weekly-imports sheet, quota-reached sheet) so the wording
+    /// stays consistent.
+    ///
+    /// - More than 24 h left → whole days, rounded up: a brand-new window
+    ///   reads "7 jours", then "6 jours", "5 jours"… as each day elapses.
+    /// - 24 h or less left   → live hours + minutes, e.g. "22h12", "0h47".
+    /// - Window not started  → empty string (the caller shows its own
+    ///   "le compteur démarre à ta première importation" copy instead).
+    var resetCountdownText: String {
+        let secs = secondsUntilReset
+        guard secs > 0 else { return "" }
+
+        if secs > 86_400 {
+            let days = Int(ceil(secs / 86_400))
+            return "\(days) jour\(days > 1 ? "s" : "")"
+        }
+
+        let totalSeconds = Int(secs)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        return "\(hours)h\(String(format: "%02d", minutes))"
+    }
+
     /// Call this AFTER a successful recipe import. Increments the count
     /// and persists. No-op for premium users. Stamps the window start
     /// timestamp on the *first* import so the rolling window begins

@@ -272,7 +272,40 @@ struct RootTabView: View {
     }
 
     @MainActor
+    /// Best-effort routing for cooksy:// deep links coming from push
+    /// notifications. Sprint 1 lands the user on the right tab; sprint 2
+    /// will refine with sheet presentations (paywall, gift wheel,
+    /// specific recipe detail). Anything unknown falls back to home.
+    private func routeDeepLink(_ destination: DeepLinkDestination) {
+        switch destination {
+        case .home, .homeTrending:
+            selection = .home
+        case .importRecipe:
+            selection = .home
+            showsQuickImportSheet = true
+        case .library, .recipe:
+            selection = .recipes
+        case .plan:
+            selection = .plan
+        case .profileSubscription, .profileStats, .gift, .paywall:
+            // Paywall + gift surfaces are owned by upstream RootRouter +
+            // home overlays; navigating to .more brings the user close
+            // enough to those entry points. Will be refined in sprint 2.
+            selection = .more
+        }
+    }
+
     private func handleIncomingURL(_ url: URL) async {
+        // cooksy:// deep links from push notifications take precedence
+        // over share-extension URLs. Route them through DeepLinkRouter
+        // and dispatch to the matching surface. We intentionally cover
+        // the high-traffic destinations only; unknown deep links fall
+        // back to home so a stale push never lands the user nowhere.
+        if let destination = DeepLinkRouter.destination(for: url) {
+            routeDeepLink(destination)
+            return
+        }
+
         guard let openRequest = SharedImportOpenRequest(url: url) else {
             await processPendingSharedImportIfNeeded()
             return

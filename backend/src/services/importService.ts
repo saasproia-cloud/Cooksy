@@ -18,7 +18,7 @@ import {
   summarizeSnapshot,
   type PipelineTrace,
 } from "./pipelineTrace.js";
-import { transcribeWithGoogleFromUrl } from "./googleSpeechService.js";
+// Google Speech-to-Text removed: see transcribeAudioWithFallback below.
 import { providerStatus } from "../config/env.js";
 import { fetchFallbackPages } from "./searchFallbackService.js";
 import { resolveSocialContent } from "./socialContentService.js";
@@ -4057,55 +4057,19 @@ type TranscriptionOptions = {
 // recognition of cooking-specific vocabulary (provolone, panko, gochujang,
 // cuillère à soupe) which directly translates into more precise ingredient
 // names and quantities in the final recipe.
-// Process-wide circuit breaker: when Google Speech-to-Text returns a
-// fatal config error (API not enabled, missing scope, billing not set
-// up…), we stop trying for the rest of the process lifetime. Avoids
-// spamming the logs and burning a second per request on a doomed call.
-let googleSpeechDisabledReason: string | null = null;
-
-function isFatalGoogleSpeechError(error: unknown): string | null {
-  const message = error instanceof Error ? error.message : String(error);
-  if (!message) return null;
-  if (/PERMISSION_DENIED/i.test(message)) return "permission_denied";
-  if (/has not been used in project|api has not been enabled/i.test(message)) return "api_disabled";
-  if (/Could not load the default credentials|invalid_grant|invalid_client/i.test(message)) return "bad_credentials";
-  if (/billing/i.test(message)) return "billing_required";
-  return null;
-}
-
+// OpenAI Whisper is now the only transcription path. Google STT was
+// removed because (a) the user's GCP project returns PERMISSION_DENIED
+// (Cloud Speech API disabled) on every request, and (b) Whisper alone
+// is high-quality enough for our French-first cooking corpus. We also
+// now receive richer subtitle text from Apify (Option 2 "Download
+// subtitles when present" of the TikTok scraper) which usually beats
+// any speech-to-text on creator-uploaded content.
 async function transcribeAudioWithFallback(
   mediaUrl: string | undefined,
   options: TranscriptionOptions
 ): Promise<string | null> {
   if (!mediaUrl) {
     return null;
-  }
-
-  if (providerStatus.googleSpeech && !googleSpeechDisabledReason) {
-    try {
-      const googleTranscript = await transcribeWithGoogleFromUrl(mediaUrl, {
-        mediaFetchTimeoutMs: options.mediaFetchTimeoutMs,
-        maxDurationSeconds: options.maxDurationSeconds,
-        maxFileBytes: options.maxFileBytes
-      });
-      if (googleTranscript && googleTranscript.trim().length > 0) {
-        console.info(`[transcription] provider=google length=${googleTranscript.length}`);
-        return googleTranscript;
-      }
-      console.info("[transcription] provider=google result=empty, falling back to openAI");
-    } catch (error) {
-      const fatal = isFatalGoogleSpeechError(error);
-      if (fatal) {
-        googleSpeechDisabledReason = fatal;
-        console.warn(
-          `[transcription] Google Speech-to-Text fatally disabled (${fatal}); using OpenAI Whisper exclusively for the rest of this process.`
-        );
-      } else {
-        console.warn(
-          `[transcription] provider=google error=${(error as Error).message ?? String(error)}, falling back to openAI`
-        );
-      }
-    }
   }
 
   const whisperTranscript = await transcribeMediaFromUrl(mediaUrl, options).catch(() => null);

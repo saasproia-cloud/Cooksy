@@ -91,7 +91,20 @@ const rawEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().default("YOUR_SUPABASE_SERVICE_ROLE_KEY"),
   // RevenueCat — shared secret configured in the RevenueCat dashboard
   // for the Cooksy webhook. Used to authenticate incoming webhook calls.
-  REVENUECAT_WEBHOOK_SECRET: z.string().default("YOUR_REVENUECAT_WEBHOOK_SECRET")
+  REVENUECAT_WEBHOOK_SECRET: z.string().default("YOUR_REVENUECAT_WEBHOOK_SECRET"),
+  // APNs — Apple Push credentials used by the push service to talk
+  // HTTP/2 + JWT-signed requests to api.push.apple.com (production) or
+  // api.sandbox.push.apple.com (debug builds). All four are required for
+  // outbound push to work; absent any one of them, push goes into
+  // "log-only" mode (we still record dispatches with skip_reason).
+  APNS_AUTH_KEY: z.string().default("YOUR_APNS_AUTH_KEY"),       // PEM contents of the .p8, or base64 of it
+  APNS_KEY_ID: z.string().default("YOUR_APNS_KEY_ID"),           // 10-char Apple key id
+  APNS_TEAM_ID: z.string().default("YOUR_APNS_TEAM_ID"),         // 10-char Apple team id
+  APNS_BUNDLE_ID: z.string().default("YOUR_APNS_BUNDLE_ID"),     // e.g. com.cooksy.ios
+  APNS_ENVIRONMENT: z.preprocess(
+    emptyToUndefined,
+    z.enum(["production", "sandbox"]).default("production")
+  )
 });
 
 const envSchema = z.object({
@@ -114,7 +127,12 @@ const envSchema = z.object({
   SUPABASE_URL: z.string(),
   SUPABASE_ANON_KEY: z.string(),
   SUPABASE_SERVICE_ROLE_KEY: z.string(),
-  REVENUECAT_WEBHOOK_SECRET: z.string()
+  REVENUECAT_WEBHOOK_SECRET: z.string(),
+  APNS_AUTH_KEY: z.string(),
+  APNS_KEY_ID: z.string(),
+  APNS_TEAM_ID: z.string(),
+  APNS_BUNDLE_ID: z.string(),
+  APNS_ENVIRONMENT: z.enum(["production", "sandbox"])
 });
 
 function isConfigured(value: string): boolean {
@@ -161,7 +179,12 @@ export const providerStatus = {
     isConfigured(env.SUPABASE_URL) &&
     isConfigured(env.SUPABASE_ANON_KEY) &&
     isConfigured(env.SUPABASE_SERVICE_ROLE_KEY),
-  revenueCatWebhook: isConfigured(env.REVENUECAT_WEBHOOK_SECRET)
+  revenueCatWebhook: isConfigured(env.REVENUECAT_WEBHOOK_SECRET),
+  apns:
+    isConfigured(env.APNS_AUTH_KEY) &&
+    isConfigured(env.APNS_KEY_ID) &&
+    isConfigured(env.APNS_TEAM_ID) &&
+    isConfigured(env.APNS_BUNDLE_ID)
 };
 
 export class BackendConfigurationError extends Error {
@@ -183,7 +206,8 @@ export function requireProvider(provider: keyof typeof providerStatus): void {
     usda: "USDA_API_KEY",
     googleSpeech: "GOOGLE_APPLICATION_CREDENTIALS",
     supabase: "SUPABASE_URL/SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY",
-    revenueCatWebhook: "REVENUECAT_WEBHOOK_SECRET"
+    revenueCatWebhook: "REVENUECAT_WEBHOOK_SECRET",
+    apns: "APNS_AUTH_KEY/APNS_KEY_ID/APNS_TEAM_ID/APNS_BUNDLE_ID"
   }[provider];
 
   throw new BackendConfigurationError(

@@ -71,6 +71,7 @@
 		C71F0003000000000000A001 /* PaywallPlanModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0003000000000000B001 /* PaywallPlanModel.swift */; };
 		C71F0004000000000000A001 /* IngredientConfetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0004000000000000B001 /* IngredientConfetti.swift */; };
 		C71F0005000000000000A001 /* PremiumPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0005000000000000B001 /* PremiumPaywallView.swift */; };
+		C71F0013000000000000A001 /* PaywallTrialFlowComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0013000000000000B001 /* PaywallTrialFlowComponents.swift */; };
 		C71F0006000000000000A001 /* WelcomeOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0006000000000000B001 /* WelcomeOfferSheet.swift */; };
 		C71F0007000000000000A001 /* QuotaReachedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0007000000000000B001 /* QuotaReachedSheet.swift */; };
 		C71F0008000000000000A001 /* LockedFeatureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0008000000000000B001 /* LockedFeatureOverlay.swift */; };
@@ -84,6 +85,10 @@
 		C71F0010000000000000A001 /* GiftMiniGameHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0010000000000000B001 /* GiftMiniGameHost.swift */; };
 		C71F0011000000000000A001 /* InviteRewardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0011000000000000B001 /* InviteRewardService.swift */; };
 		C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0012000000000000B001 /* InviteFriendsView.swift */; };
+		C71F0016000000000000A001 /* GiftCardFlipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0016000000000000B001 /* GiftCardFlipView.swift */; };
+		C71F0017000000000000A001 /* GiftCupShuffleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0017000000000000B001 /* GiftCupShuffleView.swift */; };
+		C71F0018000000000000A001 /* GiftBalloonPopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0018000000000000B001 /* GiftBalloonPopView.swift */; };
+		C71F0019000000000000A001 /* GiftCookingTeaserCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0019000000000000B001 /* GiftCookingTeaserCard.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E76937A97BDE51B26E1F365F /* Foundation.framework */; };
 		D66E5382CB61F6BCC307F937 /* CooksyShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -115,6 +120,10 @@
 		F100000000000000000000C1 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D1 /* HelpView.swift */; };
 		F100000000000000000000C2 /* AccountDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000D2 /* AccountDataView.swift */; };
 		F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SupabaseClientProvider.swift */; };
+		F40000000000000000000311 /* NotificationsCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000301 /* NotificationsCenter.swift */; };
+		F40000000000000000000312 /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000302 /* DeepLinkRouter.swift */; };
+		F40000000000000000000314 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000304 /* NotificationScheduler.swift */; };
+		F40000000000000000000313 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000303 /* NotificationSettingsView.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
 		F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SessionFreshnessGuard.swift */; };
 		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
@@ -256,6 +265,7 @@
 		C71F0003000000000000B001 /* PaywallPlanModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallPlanModel.swift; sourceTree = "<group>"; };
 		C71F0004000000000000B001 /* IngredientConfetti.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IngredientConfetti.swift; sourceTree = "<group>"; };
 		C71F0005000000000000B001 /* PremiumPaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PremiumPaywallView.swift; sourceTree = "<group>"; };
+		C71F0013000000000000B001 /* PaywallTrialFlowComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallTrialFlowComponents.swift; sourceTree = "<group>"; };
 		C71F0006000000000000B001 /* WelcomeOfferSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeOfferSheet.swift; sourceTree = "<group>"; };
 		C71F0007000000000000B001 /* QuotaReachedSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuotaReachedSheet.swift; sourceTree = "<group>"; };
 		C71F0008000000000000B001 /* LockedFeatureOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LockedFeatureOverlay.swift; sourceTree = "<group>"; };
@@ -269,6 +279,10 @@
 		C71F0010000000000000B001 /* GiftMiniGameHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftMiniGameHost.swift; sourceTree = "<group>"; };
 		C71F0011000000000000B001 /* InviteRewardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteRewardService.swift; sourceTree = "<group>"; };
 		C71F0012000000000000B001 /* InviteFriendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteFriendsView.swift; sourceTree = "<group>"; };
+		C71F0016000000000000B001 /* GiftCardFlipView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftCardFlipView.swift; sourceTree = "<group>"; };
+		C71F0017000000000000B001 /* GiftCupShuffleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftCupShuffleView.swift; sourceTree = "<group>"; };
+		C71F0018000000000000B001 /* GiftBalloonPopView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftBalloonPopView.swift; sourceTree = "<group>"; };
+		C71F0019000000000000B001 /* GiftCookingTeaserCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftCookingTeaserCard.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
 		DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
 		DDFE043E909AA15F5CDFAE1B /* BrandHeaderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BrandHeaderView.swift; sourceTree = "<group>"; };
@@ -298,6 +312,10 @@
 		F100000000000000000000D1 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		F100000000000000000000D2 /* AccountDataView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AccountDataView.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* SupabaseClientProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseClientProvider.swift; sourceTree = "<group>"; };
+		F40000000000000000000301 /* NotificationsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationsCenter.swift; sourceTree = "<group>"; };
+		F40000000000000000000302 /* DeepLinkRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkRouter.swift; sourceTree = "<group>"; };
+		F40000000000000000000304 /* NotificationScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		F40000000000000000000303 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* SessionFreshnessGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionFreshnessGuard.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* OnboardingFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
@@ -416,6 +434,9 @@
 				E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */,
 				C71F0002000000000000B001 /* PremiumOffersService.swift */,
 				C71F0011000000000000B001 /* InviteRewardService.swift */,
+				F40000000000000000000301 /* NotificationsCenter.swift */,
+				F40000000000000000000302 /* DeepLinkRouter.swift */,
+				F40000000000000000000304 /* NotificationScheduler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -602,6 +623,7 @@
 			children = (
 				C71F0003000000000000B001 /* PaywallPlanModel.swift */,
 				C71F0005000000000000B001 /* PremiumPaywallView.swift */,
+				C71F0013000000000000B001 /* PaywallTrialFlowComponents.swift */,
 				C71F0006000000000000B001 /* WelcomeOfferSheet.swift */,
 				C71F0007000000000000B001 /* QuotaReachedSheet.swift */,
 				C71F0008000000000000B001 /* LockedFeatureOverlay.swift */,
@@ -614,6 +636,10 @@
 				C71F000E000000000000B001 /* GiftScratchCardView.swift */,
 				C71F000F000000000000B001 /* GiftMysteryBoxView.swift */,
 				C71F0010000000000000B001 /* GiftMiniGameHost.swift */,
+				C71F0016000000000000B001 /* GiftCardFlipView.swift */,
+				C71F0017000000000000B001 /* GiftCupShuffleView.swift */,
+				C71F0018000000000000B001 /* GiftBalloonPopView.swift */,
+				C71F0019000000000000B001 /* GiftCookingTeaserCard.swift */,
 				10D069CBC3AEFF15D785CBBA /* PaywallFeatureComparisonView.swift */,
 				08497B7B8296DEFBAA089F8A /* PaywallTrustStripView.swift */,
 			);
@@ -658,6 +684,7 @@
 				F10000000000000000000001 /* ProfileView.swift */,
 				F10000000000000000000004 /* CulinaryPreferencesView.swift */,
 				F10000000000000000000005 /* EditProfileView.swift */,
+				F40000000000000000000303 /* NotificationSettingsView.swift */,
 				F10000000000000000000006 /* PremiumActiveCard.swift */,
 				F10000000000000000000007 /* PremiumCrownBadge.swift */,
 				F10000000000000000000008 /* TrendingRecipesView.swift */,
@@ -911,6 +938,7 @@
 				C71F0003000000000000A001 /* PaywallPlanModel.swift in Sources */,
 				C71F0004000000000000A001 /* IngredientConfetti.swift in Sources */,
 				C71F0005000000000000A001 /* PremiumPaywallView.swift in Sources */,
+				C71F0013000000000000A001 /* PaywallTrialFlowComponents.swift in Sources */,
 				C71F0006000000000000A001 /* WelcomeOfferSheet.swift in Sources */,
 				C71F0007000000000000A001 /* QuotaReachedSheet.swift in Sources */,
 				C71F0008000000000000A001 /* LockedFeatureOverlay.swift in Sources */,
@@ -924,6 +952,10 @@
 				C71F0010000000000000A001 /* GiftMiniGameHost.swift in Sources */,
 				C71F0011000000000000A001 /* InviteRewardService.swift in Sources */,
 				C71F0012000000000000A001 /* InviteFriendsView.swift in Sources */,
+				C71F0016000000000000A001 /* GiftCardFlipView.swift in Sources */,
+				C71F0017000000000000A001 /* GiftCupShuffleView.swift in Sources */,
+				C71F0018000000000000A001 /* GiftBalloonPopView.swift in Sources */,
+				C71F0019000000000000A001 /* GiftCookingTeaserCard.swift in Sources */,
 				24368CBE04042DFA3B6F8C31 /* CooksyTheme.swift in Sources */,
 				77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */,
 				0DEA03C6F3737AD192298935 /* RecipeBook.swift in Sources */,
@@ -974,6 +1006,10 @@
 				F10000000000000000000012 /* ProfileSettingsView.swift in Sources */,
 				F10000000000000000000011 /* ProfileView.swift in Sources */,
 				F20000000000000000000011 /* SupabaseClientProvider.swift in Sources */,
+				F40000000000000000000311 /* NotificationsCenter.swift in Sources */,
+				F40000000000000000000312 /* DeepLinkRouter.swift in Sources */,
+				F40000000000000000000314 /* NotificationScheduler.swift in Sources */,
+				F40000000000000000000313 /* NotificationSettingsView.swift in Sources */,
 				F20000000000000000000012 /* SessionStore.swift in Sources */,
 				F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */,
 				F30000000000000000000101 /* OnboardingFlow.swift in Sources */,

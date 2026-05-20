@@ -32,6 +32,17 @@ struct OnboardingFlow: View {
             CooksyTheme.background
                 .ignoresSafeArea()
 
+            // Shared animated background — mounted ONCE here at the flow
+            // level rather than per-screen. Previously each hero/interlude
+            // overlaid its own `AnimatedAmbientBackground()`, which meant
+            // SwiftUI ran two 30fps TimelineViews simultaneously during the
+            // cross-fade `.transition()` (one fading out, one fading in) —
+            // a measurable hitch on welcome → appReview → next. With the
+            // background hoisted up here it persists across steps and never
+            // double-renders.
+            AnimatedAmbientBackground()
+                .ignoresSafeArea()
+
             currentScreen
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .trailing)),
@@ -47,7 +58,10 @@ struct OnboardingFlow: View {
                     .zIndex(20)
             }
         }
-        .animation(.spring(response: 0.5, dampingFraction: 0.88), value: coordinator.currentStep)
+        // Tighter transition spring (was 0.5/0.88 → 0.38/0.92): a snappier
+        // crossfade window leaves less time for stale frames during the
+        // hand-off between screens.
+        .animation(.spring(response: 0.38, dampingFraction: 0.92), value: coordinator.currentStep)
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: importBlockedBannerVisible)
         .onChange(of: sessionStore.phase) { _, newValue in
             handlePhaseChange(newValue)

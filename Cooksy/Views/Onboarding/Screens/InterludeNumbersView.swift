@@ -215,12 +215,14 @@ struct InterludeNumbersView: View {
             )
 
             Text("Voilà ce qu'on\nconstruit pour toi.")
-                .font(.system(size: 30, weight: .heavy, design: .serif))
+                .font(.system(size: 28, weight: .heavy, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(-2)
+                .minimumScaleFactor(0.8)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Recipe stack hero
@@ -229,47 +231,55 @@ struct InterludeNumbersView: View {
     /// in with a small spring + offset so it feels like the cards are
     /// landing in place. The whole stack tilts subtly for depth.
     private var recipeStack: some View {
-        ZStack {
-            RecipePreviewCard(
-                title: "Bowl miso · saumon",
-                tag: "Healthy",
-                accent: CooksyTheme.primaryAccent,
-                glyph: "leaf.fill"
-            )
-            .frame(width: 220, height: 64)
-            .rotationEffect(.degrees(cardsRevealed ? -8 : -20))
-            .offset(x: cardsRevealed ? -78 : -40, y: cardsRevealed ? 18 : 60)
-            .opacity(cardsRevealed ? 0.85 : 0)
-            .scaleEffect(0.88)
+        GeometryReader { geo in
+            let w = geo.size.width
+            let backW = min(190, w * 0.58)
+            let frontW = min(230, w * 0.72)
+            let sideOffset = min(58, w * 0.18)
 
-            RecipePreviewCard(
-                title: "Carbonara, vraie recette",
-                tag: "Comfort",
-                accent: CooksyTheme.secondaryAccent,
-                glyph: "flame.fill"
-            )
-            .frame(width: 230, height: 66)
-            .rotationEffect(.degrees(cardsRevealed ? 6 : 18))
-            .offset(x: cardsRevealed ? 70 : 40, y: cardsRevealed ? 14 : 50)
-            .opacity(cardsRevealed ? 0.92 : 0)
-            .scaleEffect(0.92)
+            ZStack {
+                RecipePreviewCard(
+                    title: "Bowl miso · saumon",
+                    tag: "Healthy",
+                    accent: CooksyTheme.primaryAccent,
+                    glyph: "leaf.fill"
+                )
+                .frame(width: backW, height: 64)
+                .rotationEffect(.degrees(cardsRevealed ? -8 : -20))
+                .offset(x: cardsRevealed ? -sideOffset : -sideOffset * 0.5, y: cardsRevealed ? 18 : 60)
+                .opacity(cardsRevealed ? 0.85 : 0)
+                .scaleEffect(0.88)
 
-            RecipePreviewCard(
-                title: "Poulet teriyaki express",
-                tag: "12 min",
-                accent: CooksyTheme.primaryAccentStrong,
-                glyph: "bolt.fill",
-                featured: true
-            )
-            .frame(width: 250, height: 76)
-            .rotationEffect(.degrees(cardsRevealed ? -2 : 6))
-            .offset(y: cardsRevealed ? -10 : 30)
-            .opacity(cardsRevealed ? 1 : 0)
+                RecipePreviewCard(
+                    title: "Carbonara, vraie recette",
+                    tag: "Comfort",
+                    accent: CooksyTheme.secondaryAccent,
+                    glyph: "flame.fill"
+                )
+                .frame(width: backW, height: 66)
+                .rotationEffect(.degrees(cardsRevealed ? 6 : 18))
+                .offset(x: cardsRevealed ? sideOffset : sideOffset * 0.5, y: cardsRevealed ? 14 : 50)
+                .opacity(cardsRevealed ? 0.92 : 0)
+                .scaleEffect(0.92)
+
+                RecipePreviewCard(
+                    title: "Poulet teriyaki express",
+                    tag: "12 min",
+                    accent: CooksyTheme.primaryAccentStrong,
+                    glyph: "bolt.fill",
+                    featured: true
+                )
+                .frame(width: frontW, height: 76)
+                .rotationEffect(.degrees(cardsRevealed ? -2 : 6))
+                .offset(y: cardsRevealed ? -10 : 30)
+                .opacity(cardsRevealed ? 1 : 0)
+            }
+            .frame(width: w, height: 140)
+            .animation(.spring(response: 0.75, dampingFraction: 0.78).delay(0.25), value: cardsRevealed)
         }
         .frame(height: 140)
         .frame(maxWidth: .infinity)
         .clipped()
-        .animation(.spring(response: 0.75, dampingFraction: 0.78).delay(0.25), value: cardsRevealed)
     }
 
     // MARK: - Big number block
@@ -287,11 +297,14 @@ struct InterludeNumbersView: View {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(CooksyTheme.primaryAccentStrong)
-                Text("recettes déjà compatibles avec ton profil")
-                    .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                Text("recettes compatibles avec ton profil")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.85)
+                    .lineLimit(2)
             }
+            .padding(.horizontal, 8)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
@@ -316,18 +329,24 @@ struct InterludeNumbersView: View {
                     Text("Ton profil culinaire")
                         .font(.system(size: 13.5, weight: .bold, design: .rounded))
                         .foregroundStyle(CooksyTheme.primaryText)
-                    Text("Il devient unique à chaque réponse.")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Text("Unique à chaque réponse.")
                         .font(.system(size: 11.5, weight: .medium, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 Text("\(Int(profileProgress * 100)) %")
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
                     .foregroundStyle(CooksyTheme.accentGradient)
                     .contentTransition(.numericText())
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
 
             GeometryReader { geo in
@@ -397,15 +416,19 @@ struct InterludeNumbersView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Prochain bloc → goûts & cuisines")
+                Text("Prochain bloc · goûts")
                     .font(.system(size: 13.5, weight: .bold, design: .rounded))
                     .foregroundStyle(CooksyTheme.primaryText)
-                Text("On va calibrer ce que tu adores vraiment.")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text("On calibre ce que tu adores.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 4)
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .bold))

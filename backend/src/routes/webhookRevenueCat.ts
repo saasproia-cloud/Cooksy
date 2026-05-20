@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { env, providerStatus } from "../config/env.js";
 import { getSupabaseServiceRoleClient } from "../config/supabase.js";
+import { applyRevenueCatNotificationEffects } from "../services/notifications/webhookNotificationEffects.js";
 
 /**
  * RevenueCat webhook handler.
@@ -147,6 +148,21 @@ async function handleWebhook(
       return { error: "set_premium_failed" };
     }
   }
+
+  // 4b. Notification side effects — keep `user_subscription_state` in
+  //     sync and fire the immediate webhook-driven pushes (welcome_paid,
+  //     cancellation save). Best-effort: never blocks the 200 response,
+  //     never makes RC retry. Runs only after the `set_premium` side
+  //     effect succeeded so push copy can trust the premium flag.
+  await applyRevenueCatNotificationEffects({
+    id: rcEvent.id,
+    type: rcEvent.type,
+    app_user_id: rcEvent.app_user_id,
+    product_id: rcEvent.product_id,
+    period_type: rcEvent.period_type,
+    purchased_at_ms: rcEvent.purchased_at_ms,
+    expiration_at_ms: rcEvent.expiration_at_ms
+  });
 
   // 5. Record the event so we never re-apply it.
   const { error: insertError } = await supabase

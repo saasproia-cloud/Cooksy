@@ -114,11 +114,36 @@ struct ProfileSettingsView: View {
 
     private var preferencesCard: some View {
         ProfileSectionCard {
-            settingsToggleRow(
-                systemImage: "bell.badge",
-                title: "Notifications",
-                isOn: $notificationsEnabled
-            )
+            // Notifications now drill into a full settings screen with
+            // per-category toggles and the iOS authorization state. The
+            // legacy `notificationsEnabled` AppStorage is preserved as a
+            // local mirror of the master switch, so existing references
+            // keep working until the next cleanup pass.
+            NavigationLink(destination: NotificationSettingsView()) {
+                HStack(spacing: 14) {
+                    rowIcon("bell.badge")
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notifications")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                        Text("Rappels, suggestions, cadeaux…")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             Rectangle()
                 .fill(CooksyTheme.dividerSubtle)
