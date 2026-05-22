@@ -123,7 +123,6 @@
 		F40000000000000000000311 /* NotificationsCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000301 /* NotificationsCenter.swift */; };
 		F40000000000000000000312 /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000302 /* DeepLinkRouter.swift */; };
 		F40000000000000000000314 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000304 /* NotificationScheduler.swift */; };
-		F40000000000000000000313 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000303 /* NotificationSettingsView.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
 		F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SessionFreshnessGuard.swift */; };
 		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
@@ -315,7 +314,6 @@
 		F40000000000000000000301 /* NotificationsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationsCenter.swift; sourceTree = "<group>"; };
 		F40000000000000000000302 /* DeepLinkRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkRouter.swift; sourceTree = "<group>"; };
 		F40000000000000000000304 /* NotificationScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
-		F40000000000000000000303 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* SessionFreshnessGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionFreshnessGuard.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* OnboardingFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
@@ -684,7 +682,6 @@
 				F10000000000000000000001 /* ProfileView.swift */,
 				F10000000000000000000004 /* CulinaryPreferencesView.swift */,
 				F10000000000000000000005 /* EditProfileView.swift */,
-				F40000000000000000000303 /* NotificationSettingsView.swift */,
 				F10000000000000000000006 /* PremiumActiveCard.swift */,
 				F10000000000000000000007 /* PremiumCrownBadge.swift */,
 				F10000000000000000000008 /* TrendingRecipesView.swift */,
@@ -1009,7 +1006,6 @@
 				F40000000000000000000311 /* NotificationsCenter.swift in Sources */,
 				F40000000000000000000312 /* DeepLinkRouter.swift in Sources */,
 				F40000000000000000000314 /* NotificationScheduler.swift in Sources */,
-				F40000000000000000000313 /* NotificationSettingsView.swift in Sources */,
 				F20000000000000000000012 /* SessionStore.swift in Sources */,
 				F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */,
 				F30000000000000000000101 /* OnboardingFlow.swift in Sources */,

@@ -215,15 +215,12 @@ final class SessionStore: ObservableObject {
                 .execute()
             await loadProfile(for: user.id)
 
-            // Right after onboarding completes is the cheapest, lowest-
-            // friction moment to ask iOS for notification permission.
-            // We use the provisional grant (no prompt) so the user never
-            // sees a system dialog here — pushes start landing silently
-            // in the Notification Center, and iOS asks the user to make
-            // them visible the first time they expand one. Explicit
-            // grant is requested later at high-value moments (1st import,
-            // trial start) by feature-level call sites.
-            _ = await NotificationsCenter.shared.requestProvisionalAuthorization()
+            // Right after onboarding completes is the moment to ask for
+            // notification permission. We show the *explicit* iOS prompt
+            // (not a silent provisional grant) so the user makes a clear
+            // choice — the trial-ending and quota reminders only have
+            // value if they're actually visible banners.
+            _ = await NotificationsCenter.shared.requestExplicitAuthorization()
 
             // Schedule the A1 welcome nudge (~1 h out, daytime-clamped).
             // Cancelled automatically the moment the user makes their

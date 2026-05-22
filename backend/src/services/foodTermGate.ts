@@ -147,6 +147,25 @@ const EXTRA_FOOD_SEED: ReadonlyArray<string> = [
   "lentil", "lentils", "quinoa", "oats", "oatmeal", "almond", "walnut",
   "pistachio", "peanut", "hazelnut", "pecan", "cashew", "soy", "tofu",
   "tempeh", "miso", "kimchi", "seaweed", "nori", "sesame", "olive",
+
+  // Baking & leavening agents (EN + FR) — these are legitimate recipe
+  // ingredients that were missing from the seed, causing lines like
+  // "1 tbsp baking powder" or "¼ cup water" to fail the food gate.
+  "water", "baking", "powder", "soda", "bicarbonate", "cornstarch",
+  "cornflour", "starch", "fecule", "fécule", "maizena", "gelatin",
+  "gelatine", "gelatine", "shortening", "lard", "ghee", "margarine",
+  "buttermilk", "babeurre", "creme-fraiche", "sourdough", "levain",
+  "seasoning", "assaisonnement", "stock", "broth", "bouillon-cube",
+  "molasses", "melasse", "mélasse", "treacle", "cornmeal", "semolina",
+  "breadcrumb", "breadcrumbs", "crouton", "croutons", "cornflakes",
+  "panko", "graham", "biscuit", "biscuits", "speculoos", "spéculoos",
+  "marshmallow", "guimauve", "caramel", "fudge", "praline", "nougat",
+  "oregano", "origan", "cayenne", "rosemary", "sage", "sauge",
+  "dill", "aneth", "tarragon", "estragon", "chive", "chives",
+  "nutmeg", "muscade", "clove", "cloves", "girofle", "cardamom",
+  "cardamome", "allspice", "fennel", "fenouil", "anise", "anis",
+  "turmeric", "coriander", "cilantro", "parsley", "basil", "thyme",
+  "mint", "bayleaf", "worcestershire", "mirin", "dashi", "fishsauce",
 ];
 
 // ---------------------------------------------------------------------

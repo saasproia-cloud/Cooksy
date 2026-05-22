@@ -15,7 +15,6 @@ struct ProfileSettingsView: View {
         }
     }
 
-    @AppStorage("cooksy.settings.notificationsEnabled") private var notificationsEnabled: Bool = true
     @AppStorage("cooksy.settings.units") private var unitsRaw: String = Units.metric.rawValue
 
     @EnvironmentObject private var sessionStore: SessionStore
@@ -113,43 +112,11 @@ struct ProfileSettingsView: View {
     }
 
     private var preferencesCard: some View {
+        // Notification preferences are intentionally NOT exposed in-app.
+        // iOS already provides a complete, system-level switch under
+        // Réglages → Cooksy → Notifications — duplicating it here would
+        // only invite users to silence Cooksy from inside the app.
         ProfileSectionCard {
-            // Notifications now drill into a full settings screen with
-            // per-category toggles and the iOS authorization state. The
-            // legacy `notificationsEnabled` AppStorage is preserved as a
-            // local mirror of the master switch, so existing references
-            // keep working until the next cleanup pass.
-            NavigationLink(destination: NotificationSettingsView()) {
-                HStack(spacing: 14) {
-                    rowIcon("bell.badge")
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Notifications")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                        Text("Rappels, suggestions, cadeaux…")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Rectangle()
-                .fill(CooksyTheme.dividerSubtle)
-                .frame(height: 1)
-                .padding(.leading, 66)
-
             settingsPickerRow(
                 systemImage: "ruler",
                 title: "Unités de mesure",
@@ -299,28 +266,6 @@ struct ProfileSettingsView: View {
         let short = info?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = info?["CFBundleVersion"] as? String ?? "1"
         return "\(short) (\(build))"
-    }
-
-    private func settingsToggleRow(
-        systemImage: String,
-        title: String,
-        isOn: Binding<Bool>
-    ) -> some View {
-        HStack(spacing: 14) {
-            rowIcon(systemImage)
-
-            Text(title)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(CooksyTheme.primaryText)
-
-            Spacer(minLength: 0)
-
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(CooksyTheme.ctaOrange)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 
     private func settingsPickerRow(

@@ -119,6 +119,14 @@ export type NormalizerInput = {
    * stick strictly to what was actually spoken.
    */
   audioIsPrimarySource?: boolean;
+  /**
+   * True when the social caption contains a genuine structured recipe
+   * (≥4 ingredient lines or an explicit-sections layout). The caption
+   * then becomes the absolute source of truth for the ingredient list;
+   * the audio digest is demoted to step-reconstruction only and must
+   * NEVER add, remove or replace caption ingredients.
+   */
+  captionIsAuthoritative?: boolean;
 };
 
 export function hasSuspiciousRecipeTitle(value: string): boolean {

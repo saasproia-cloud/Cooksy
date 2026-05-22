@@ -835,7 +835,26 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     ].join("\n")
     : "";
 
+  // Caption-first mode: the social caption IS a structured recipe and
+  // becomes the absolute source of truth for the ingredient list. The
+  // audio digest is demoted to step-reconstruction only.
+  const captionAuthoritativeBlock = input.captionIsAuthoritative
+    ? [
+      "★★★ SOURCE PRIORITAIRE = LA LÉGENDE (caption) ★★★",
+      "La légende sociale ci-dessous CONTIENT la recette complète et structurée. Elle est ta SOURCE DE VÉRITÉ ABSOLUE pour la liste d'ingrédients.",
+      "RÈGLES STRICTES en mode légende-prioritaire :",
+      "- La liste d'ingrédients de ta sortie = EXACTEMENT les ingrédients de la légende, avec leurs quantités et unités EXACTES. Tu les recopies, tu ne les recalcules pas.",
+      "- Tu n'AJOUTES aucun ingrédient absent de la légende (sauf sel/poivre/eau/huile de cuisson triviaux, marqués `flags.usedInferredIngredients=true`).",
+      "- Tu ne SUPPRIMES aucun ingrédient présent dans la légende.",
+      "- Tu ne REMPLACES aucun ingrédient de la légende par un autre.",
+      "- Les sections de la légende (FILLING / DOUGH / Marinade / Sauce / ⭐ …) deviennent les `group` de chaque ingredientDraft.",
+      "- Le DIGEST AUDIO et la transcription servent UNIQUEMENT à reconstruire la SÉQUENCE D'ÉTAPES de cuisson quand la légende n'a pas d'instructions détaillées. JAMAIS pour toucher à la liste d'ingrédients.",
+      "- Si la légende n'a pas d'étapes mais que l'audio décrit la préparation, génère les étapes depuis l'audio (`flags.generatedSteps=true`)."
+    ].join("\n")
+    : "";
+
   return [
+    captionAuthoritativeBlock,
     audioPrimaryBlock,
     `Mode d'import : ${input.mode}`,
     input.sourceUrl ? `URL source : ${input.sourceUrl}` : "",
@@ -848,14 +867,18 @@ function buildNormalizationPrompt(input: NormalizerInput): string {
     secondarySocialText ? `Contexte social secondaire : ${truncate(secondarySocialText, 900)}` : "",
     tertiarySocialText ? `Contexte social additionnel : ${truncate(tertiarySocialText, 700)}` : "",
     hasDigest
-      ? `Digest audio nettoyé (SOURCE PRIORITAIRE pour plat, ingrédients et séquence d'étapes) :\n${truncate(input.transcriptDigest!.trim(), 2200)}`
+      ? (input.captionIsAuthoritative
+          ? `Digest audio nettoyé (référence pour la SÉQUENCE D'ÉTAPES uniquement — N'AJOUTE PAS d'ingrédient depuis ce digest, la liste vient de la légende) :\n${truncate(input.transcriptDigest!.trim(), 2200)}`
+          : `Digest audio nettoyé (SOURCE PRIORITAIRE pour plat, ingrédients et séquence d'étapes) :\n${truncate(input.transcriptDigest!.trim(), 2200)}`)
       : "",
     input.transcript ? `${transcriptLabel} : ${truncate(input.transcript, 2600)}` : "",
     input.pageTextContent ? `Texte web / sources : ${truncate(input.pageTextContent, 2200)}` : "",
     structuredDataText ? `Données structurées : ${structuredDataText}` : "",
     [
       "Consignes opérationnelles (le system prompt définit la stratégie de fidélité, ces consignes sont de l'opérationnel) :",
-      "- Si le digest audio structuré est présent dans le contexte, c'est ta SOURCE DE VÉRITÉ : applique la VALIDATION FINALE FID-1 à FID-8.",
+      input.captionIsAuthoritative
+        ? "- MODE LÉGENDE-PRIORITAIRE ACTIF : la LÉGENDE est ta source de vérité pour les ingrédients (recopie-les tous, quantités exactes). Le digest audio ne sert QU'À reconstruire les étapes de cuisson."
+        : "- Si le digest audio structuré est présent dans le contexte, c'est ta SOURCE DE VÉRITÉ : applique la VALIDATION FINALE FID-1 à FID-8.",
       "- Si le digest est absent, exploite directement la transcription audio brute, puis la légende, puis les sources web. Même hiérarchie de fidélité.",
       "- GROUPEMENT : si le digest contient SUB_PREPARATIONS avec ≥2 entrées, tu DOIS reproduire ce groupement via le champ `group` de chaque ingredientDraft ET via le champ `section` de la première étape de chaque groupe. Les labels de `group` et `section` doivent matcher exactement.",
       "- Si le digest n'a pas de SUB_PREPARATIONS mais que la légende ou les étapes révèlent clairement des sous-préparations (ex: mots-clés 'marinade:', 'sauce:', 'pour la salade', 'pour le montage'), tu DOIS quand même grouper.",

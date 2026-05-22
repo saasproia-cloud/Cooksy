@@ -973,16 +973,27 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
                 targetServings: currentServings
             )
 
+            // Pass rawAmount/rawUnit so this screen renders ingredients
+            // IDENTICALLY to the saved-recipe detail screen. Omitting
+            // them dropped the unit from the quantity column, making the
+            // import preview differ from the saved recipe.
             return RecipeIngredientPresentation(
                 id: ingredient.id,
                 quantityText: quantityText,
+                rawAmount: ingredient.amount,
+                rawUnit: ingredient.unit,
                 name: ingredient.name
             )
         }
     }
 
     var instructions: [RecipeStep] {
-        previewRecipe.steps
+        // Use the same step cleaner as the saved-recipe detail screen so
+        // the preview and the persisted recipe show identical steps.
+        RecipeStepDisplayBuilder.cleanedSteps(
+            from: previewRecipe.steps,
+            ingredients: previewRecipe.ingredients
+        )
     }
 
     func changeServings(by delta: Int) {

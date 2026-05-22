@@ -28,7 +28,11 @@ struct InterludeTestimonialView: View {
             CooksyTheme.ambientGradient
                 .ignoresSafeArea()
 
+            // Clamp the decorative glow to the screen size. Its circles
+            // are 520pt wide; left unconstrained they inflate the parent
+            // ZStack and shove every content card off both edges.
             backgroundGlow
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
 
             VStack(spacing: 0) {

@@ -27,10 +27,16 @@ struct InterludeNumbersView: View {
             CooksyTheme.ambientGradient
                 .ignoresSafeArea()
 
+            // Decorative layers MUST be clamped to the screen size.
+            // `backgroundGlow` draws 520pt circles; without this frame it
+            // would inflate the parent ZStack to 520pt wide and push every
+            // content card ~63pt off each edge.
             backgroundGlow
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
 
             SparkleCanvas(count: 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(appeared ? 0.55 : 0)
                 .animation(.easeOut(duration: 0.8).delay(0.2), value: appeared)
                 .allowsHitTesting(false)

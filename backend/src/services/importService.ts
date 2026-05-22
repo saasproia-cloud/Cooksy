@@ -33,6 +33,8 @@ import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import {
   compileRecipeFromSources,
   measureRecipeQuality,
+  parseStructuredRecipe,
+  captionTriggersHardPrimary,
   type CompilerResult,
 } from "./recipeCompiler.js";
 import {
@@ -318,6 +320,15 @@ export async function importFromUrl(input: {
     resolvedSocialContent?.subtitlesText,
     pageSummary?.description
   );
+  // Caption-first decision: when the caption is a genuine structured
+  // recipe, it becomes the authoritative ingredient source and the
+  // audio digest is demoted to step-reconstruction only.
+  let captionIsPrimary = captionIsAuthoritativeRecipe(resolvedSocialContent, input.sharedText);
+  if (captionIsPrimary) {
+    console.info(
+      `[importService] Caption is an authoritative structured recipe — caption-first mode for ${canonicalSourceURL}`
+    );
+  }
   let transcript: string | null = null;
   let transcriptDigest: string | null = null;
   let parsedDigest: ParsedTranscriptDigest | null = null;
@@ -337,7 +348,10 @@ export async function importFromUrl(input: {
     transcript,
     transcriptDigest,
     fallbackPages,
-    audioIsPrimarySource: captionWasSparse && Boolean(transcript)
+    // Audio is primary ONLY when the caption is sparse AND not an
+    // authoritative recipe — a rich caption always wins.
+    audioIsPrimarySource: captionWasSparse && !captionIsPrimary && Boolean(transcript),
+    captionIsAuthoritative: captionIsPrimary
   });
 
   // Re-run compiler with full social context now available
@@ -516,6 +530,13 @@ export async function importFromUrl(input: {
         resolvedSocialContent.subtitlesText,
         pageSummary?.description
       );
+      // Re-evaluate caption-first status now the richer caption arrived.
+      captionIsPrimary = captionIsAuthoritativeRecipe(resolvedSocialContent, input.sharedText);
+      if (captionIsPrimary) {
+        console.info(
+          `[importService] Caption (post-enrichment) is an authoritative structured recipe — caption-first mode for ${canonicalSourceURL}`
+        );
+      }
     }
   }
 
@@ -640,7 +661,15 @@ export async function importFromUrl(input: {
   // BUT: never skip when the title is generic (e.g. "Sandwich") or when the
   // recipe drifted away from the digest — those are exactly the cases where
   // the web fallback can rescue a precise title/ingredients.
-  const preAudioDrift = recipeDriftedFromDigest(recipe, parsedDigest);
+  // When the caption is the authoritative recipe, the audio digest is a
+  // SECONDARY source — it must never make the caption recipe look
+  // "drifted" just because the (sparse) audio mentioned fewer
+  // ingredients. Drift detection is skipped entirely in caption-first
+  // mode so a 20-ingredient caption recipe isn't penalised against a
+  // 3-ingredient audio digest.
+  const preAudioDrift = captionIsPrimary
+    ? { drifted: false, reason: [], missingIngredients: [], missingGestures: [], noiseLeaks: [] }
+    : recipeDriftedFromDigest(recipe, parsedDigest);
   if (parsedDigest && preAudioDrift.drifted) {
     console.info(
       `[importService] Recipe drifted from digest (pre-web): reasons=[${preAudioDrift.reason.join(", ")}] missingIngredients=${preAudioDrift.missingIngredients.length} missingGestures=${preAudioDrift.missingGestures.length} noiseLeaks=${preAudioDrift.noiseLeaks.length} for ${canonicalSourceURL}`
@@ -765,13 +794,25 @@ export async function importFromUrl(input: {
   if (parsedDigest) {
     const postRescueDrift = recipeDriftedFromDigest(recipe, parsedDigest);
     if (postRescueDrift.drifted) {
+      // Caption-first: snapshot the caption ingredient list before
+      // enrichment so the audio digest can only contribute STEPS and a
+      // title fallback — never add/replace/remove an ingredient.
+      const captionIngredientsSnapshot = captionIsPrimary
+        ? recipe.ingredientDrafts
+        : null;
       const enrichment = enrichRecipeFromDigest(recipe, parsedDigest, postRescueDrift);
       recipe = enrichment.recipe;
+      if (captionIngredientsSnapshot) {
+        recipe = { ...recipe, ingredientDrafts: captionIngredientsSnapshot };
+      }
       const titleSuffix = enrichment.titleChanged
         ? `, title="${enrichment.titleChanged.from}"→"${enrichment.titleChanged.to}"`
         : "";
+      const ingredientSuffix = captionIngredientsSnapshot
+        ? "0 (caption-first: ingredients locked)"
+        : String(enrichment.addedIngredients);
       console.info(
-        `[importService] Recipe enriched from digest: +${enrichment.addedIngredients} ingredients, +${enrichment.addedSteps} steps${titleSuffix} for ${canonicalSourceURL}`
+        `[importService] Recipe enriched from digest: +${ingredientSuffix} ingredients, +${enrichment.addedSteps} steps${titleSuffix} for ${canonicalSourceURL}`
       );
     }
   }
@@ -865,12 +906,24 @@ export async function importFromUrl(input: {
   // ship a recipe with 2 vague ingredients and 1 generic step. The
   // thresholds here are intentionally lenient — they only fire when the
   // result is genuinely unusable, not when it's just a simple recipe.
+  //
+  // Caption-first override: when the caption WAS an authoritative
+  // structured recipe, never reject the import with not_enough_info —
+  // the source genuinely contained a recipe, so a thin output means our
+  // pipeline dropped the ball, not that the user shared junk. We log it
+  // and ship what we have rather than show a false "oops" error.
   const qaIssues = assessFinalRecipeQuality(bestValidatedRecipe);
   if (qaIssues.length > 0) {
-    console.warn(
-      `[importService] QA gate rejected recipe for ${canonicalSourceURL}: ${qaIssues.join("; ")}`
-    );
-    throw new RecipeImportNotFoodError("not_enough_info");
+    if (captionIsPrimary) {
+      console.warn(
+        `[importService] QA gate flagged issues but caption was authoritative — shipping anyway for ${canonicalSourceURL}: ${qaIssues.join("; ")}`
+      );
+    } else {
+      console.warn(
+        `[importService] QA gate rejected recipe for ${canonicalSourceURL}: ${qaIssues.join("; ")}`
+      );
+      throw new RecipeImportNotFoodError("not_enough_info");
+    }
   }
 
   const finalizedRecipe = await finalizeImportedRecipe(bestValidatedRecipe, {
@@ -2134,6 +2187,7 @@ function buildUrlNormalizationContext(input: {
   transcriptDigest?: string | null;
   fallbackPages?: ImportedPageSummary[];
   audioIsPrimarySource?: boolean;
+  captionIsAuthoritative?: boolean;
 }) {
   const fallbackPages = input.fallbackPages ?? [];
   const combinedPages = [
@@ -2160,8 +2214,36 @@ function buildUrlNormalizationContext(input: {
     socialSubtitles: input.socialContent?.subtitlesText,
     transcript: input.transcript ?? undefined,
     transcriptDigest: input.transcriptDigest ?? undefined,
-    audioIsPrimarySource: input.audioIsPrimarySource === true
+    audioIsPrimarySource: input.audioIsPrimarySource === true,
+    captionIsAuthoritative: input.captionIsAuthoritative === true
   };
+}
+
+/**
+ * Decides whether the social caption is a genuine structured recipe
+ * that must be treated as the authoritative ingredient source. True
+ * when the caption parses to ≥ 4 ingredient lines OR fires the
+ * compiler's hard-primary trigger (explicit sections). When true, the
+ * audio digest is demoted to step-reconstruction only.
+ */
+function captionIsAuthoritativeRecipe(
+  socialContent: Awaited<ReturnType<typeof resolveSocialContent>> | null,
+  sharedText: string | undefined
+): boolean {
+  const captionText = [
+    socialContent?.caption,
+    socialContent?.description,
+    sharedText
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join("\n")
+    .trim();
+  if (captionText.length < 40) return false;
+
+  const parsed = parseStructuredRecipe(captionText);
+  if (parsed.rawIngredientCount >= 4) return true;
+  if (captionTriggersHardPrimary(parsed)) return true;
+  return false;
 }
 
 function recipeFromContext(

@@ -1,0 +1,16 @@
+{
+  "name": "caption-first-panini",
+  "description": "Round 4 — a rich English caption with FILLING/Seasonings/DOUGH sections must be parsed in full: ranges (1/2-1 cup), comma-separated seasoning lists, water and baking powder all survive; the headline does not leak as a phantom ingredient.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@on_todays_bake/video/1",
+    "socialCaption": "Homemade cheesy beef panini pockets\n\nFILLING:\n500g minced beef\n1 small onion, diced\n1/2 red bell pepper\n1/2 yellow bell pepper\n2 garlic cloves, minced\n2 tbsp tomato paste\n1/4 cup water\n2 cups mozzarella\n\nSeasonings:\nSalt, black pepper, smoked paprika, garlic powder, oregano, cayenne, thyme & all-purpose seasoning\n\nDOUGH:\n3 cups all purpose Flour\n1 tbsp Baking powder\n1 tsp Salt\n1 tbsp Sugar\n1/2-1 cup Milk\n2 tbsp oil or melted butter"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 16,
+    "minSections": 3,
+    "mustContainIngredientTokens": ["beef", "mozzarella", "water", "flour", "milk"],
+    "mustNotContainIngredientTokens": ["panini pockets", "-1 cup"]
+  }
+}

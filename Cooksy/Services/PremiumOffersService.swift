@@ -128,6 +128,9 @@ final class PremiumOffersService: ObservableObject {
 
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "PremiumOffers")
+    /// Guards against queueing more than one deferred rollover at a time
+    /// (see `rollOverIfNeeded()`).
+    private var rolloverScheduled = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -142,7 +145,7 @@ final class PremiumOffersService: ObservableObject {
         if defaults.object(forKey: firstSeenKey) == nil {
             defaults.set(Date(), forKey: firstSeenKey)
         }
-        rollOverIfNeeded()
+        applyRolloverNow()
     }
 
     /// True if the user hasn't played the mini-game yet — used to
@@ -257,7 +260,7 @@ final class PremiumOffersService: ObservableObject {
     /// and the user would lose access to the home pill without ever
     /// being charged.
     func recordPurchaseCompleted(plan: PremiumPlan, inTrial: Bool) {
-        rollOverIfNeeded()
+        applyRolloverNow()
 
         // A confirmed purchase always retires the gift-expiry and the
         // onboarding welcome nudges — the user is past that funnel now.
@@ -300,7 +303,7 @@ final class PremiumOffersService: ObservableObject {
     /// after the trial period elapses; in production this fires when
     /// Apple posts the first renewal receipt.
     func recordTrialConverted() {
-        rollOverIfNeeded()
+        applyRolloverNow()
         guard giftPhase == .pendingFromTrial else { return }
         consumeGiftNow()
         logger.info("Annual trial converted — gift consumed, 7 d cooldown started")
@@ -310,7 +313,7 @@ final class PremiumOffersService: ObservableObject {
     /// first billing. Without this hook, the gift would remain in
     /// `pendingFromTrial` forever and the user could never replay.
     func recordTrialCancelled() {
-        rollOverIfNeeded()
+        applyRolloverNow()
         guard giftPhase == .pendingFromTrial else { return }
         startReissueCooldown(reason: "trial cancelled before billing")
     }
@@ -399,22 +402,56 @@ final class PremiumOffersService: ObservableObject {
         giftPhase = phase
     }
 
-    /// Idempotent self-heal: walks the cooldowns and rolls expired
-    /// states forward so the user gets a fresh chance after the right
-    /// delay. Called from every public read so we never serve stale
-    /// state.
+    /// Idempotent self-heal — **deferred** entry point. Safe to call
+    /// from inside a SwiftUI `body` (every public read does): when a
+    /// phase transition is due it is applied on the next run-loop tick,
+    /// never synchronously.
     ///
-    /// Transitions:
-    ///   • `.won` whose 24 h claim window has lapsed → `.forfeited`
-    ///     with a 6-day reissue cooldown.
-    ///   • `.forfeited` whose cooldown has elapsed → `.notWon` AND a
-    ///     fresh-chance celebration is queued for the Home screen.
-    ///   • `.consumed` → terminal, never rolls back. A user who has
-    ///     already paid with the gift has spent their one shot — even
-    ///     if they downgrade later, the gift never returns.
+    /// Why deferral matters: the previous version called
+    /// `startReissueCooldown` / `resetToNotWon` directly from getters
+    /// like `shouldShowGiftPill`, which SwiftUI evaluates *inside* a
+    /// view `body`. Mutating `@Published` state during a view update is
+    /// undefined behaviour ("Modifying state during view update…") and
+    /// was a plausible cause of the gift pill flickering / vanishing
+    /// intermittently. Deferring the mutation guarantees it always
+    /// lands outside the render pass.
+    ///
+    /// Transitions handled by `applyRolloverNow()`:
+    ///   • `.won` whose 24 h claim window lapsed → `.forfeited` (cooldown).
+    ///   • `.forfeited` whose cooldown elapsed → `.notWon` + celebration.
+    ///   • `.consumed` → terminal, never rolls back.
     private func rollOverIfNeeded() {
-        let now = Date()
+        guard rolloverIsDue(), !rolloverScheduled else { return }
+        rolloverScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.rolloverScheduled = false
+            self.applyRolloverNow()
+        }
+    }
 
+    /// Pure predicate — is a phase transition currently due? No
+    /// mutation, so it is safe to evaluate during a view update.
+    private func rolloverIsDue() -> Bool {
+        let now = Date()
+        switch giftPhase {
+        case .won:
+            guard let expiry = giftOfferExpiresAt else { return false }
+            return expiry <= now
+        case .forfeited:
+            guard let forfeitedAt = defaults.object(forKey: giftForfeitedAtKey) as? Date
+            else { return false }
+            return now.timeIntervalSince(forfeitedAt) >= Self.reissueCooldown
+        case .consumed, .notWon, .pendingFromTrial:
+            return false
+        }
+    }
+
+    /// Synchronous transition application. Used only at safe call sites
+    /// (init / rehydrate, purchase hooks) where mutating `@Published`
+    /// state immediately is fine because we are not inside a `body`.
+    private func applyRolloverNow() {
+        let now = Date()
         switch giftPhase {
         case .won:
             if let expiry = giftOfferExpiresAt, expiry <= now {
@@ -516,6 +553,6 @@ final class PremiumOffersService: ObservableObject {
             giftCooldownEndsAt = forfeitedAt.addingTimeInterval(Self.reissueCooldown)
         }
 
-        rollOverIfNeeded()
+        applyRolloverNow()
     }
 }

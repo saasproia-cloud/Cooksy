@@ -1,0 +1,16 @@
+{
+  "name": "caption-first-naan",
+  "description": "Round 4 — a French caption using ⭐ emoji section markers (⭐ INGRÉDIENTS / ⭐ MARINADE / ⭐ PANURE) is parsed into distinct groups; C.A.C / c.a.s abbreviations become proper units; '3 escalopes' keeps its first letter.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@lacuisinedekam/video/1",
+    "socialCaption": "SANDWICH NAAN\n\n⭐ INGRÉDIENTS\n- 300g de farine\n- 6g de levure déshydratée\n- 1 C.A.C de levure chimique\n- 125g de yaourt nature\n- 1 C.A.C de sucre\n- 30g de beurre mou\n\n⭐ MARINADE\n- 3 escalopes de poulet\n- 1 c.a.s de sauce soja salé\n\n⭐ PANURE\n- 150g de farine\n- 150g de chapelure\n- 4 œufs battus"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 9,
+    "minSections": 3,
+    "mustContainIngredientTokens": ["farine", "poulet", "chapelure"],
+    "mustNotContainIngredientTokens": ["à café", "à soupe", "c.a.c"]
+  }
+}

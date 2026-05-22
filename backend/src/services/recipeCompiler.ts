@@ -42,7 +42,7 @@ import {
   cleanIngredientNameField,
   normalizeFrenchIngredientName,
 } from "./ingredientNormalization.js";
-import { passesDualGate } from "./foodTermGate.js";
+import { passesDualGate, containsFoodSignal } from "./foodTermGate.js";
 import { cleanWebText } from "./sourceSanitizer.js";
 
 // =====================================================================
@@ -271,7 +271,23 @@ export function parseStructuredRecipe(text: string): ParsedRecipe {
   const lines = expandDigestOneLiners(rawLines);
 
   const title = extractTitle(lines);
-  const sections = parseSections(lines);
+  // Drop the exact title line before section parsing so the headline
+  // (e.g. "Homemade cheesy beef panini pockets") doesn't leak into the
+  // unnamed section as a phantom ingredient. Only the FIRST occurrence
+  // is removed — a later identical line is genuinely content.
+  const titleNormalized = title.trim().toLowerCase();
+  let titleLineRemoved = false;
+  const linesForSections = titleNormalized
+    ? lines.filter((line) => {
+        if (titleLineRemoved) return true;
+        if (line.trim().toLowerCase() === titleNormalized) {
+          titleLineRemoved = true;
+          return false;
+        }
+        return true;
+      })
+    : lines;
+  const sections = parseSections(linesForSections);
   const hasExplicitSections = sections.some((s) => s.name !== "");
 
   let totalIngredients = 0;
@@ -554,6 +570,22 @@ function parseSections(lines: string[]): RecipeSection[] {
       }
     }
 
+    // Comma-separated ingredient list: a single line like
+    // "Salt, black pepper, smoked paprika, garlic powder, oregano" —
+    // common under a "Seasonings:" header. Split into individual
+    // ingredients instead of dropping the whole line.
+    if (mode === "ingredients" && !isStep) {
+      const commaParts = splitCommaSeparatedIngredients(line);
+      if (commaParts.length >= 3) {
+        for (const part of commaParts) {
+          currentSection.ingredients.push(
+            parseIngredientFromLine(part, currentSection.name)
+          );
+        }
+        continue;
+      }
+    }
+
     if (mode === "ingredients" && isIngredient) {
       currentSection.ingredients.push(
         parseIngredientFromLine(line, currentSection.name)
@@ -585,12 +617,53 @@ function parseSections(lines: string[]): RecipeSection[] {
 
 // --- Line Parsers ---
 
+/**
+ * Splits a single line that is actually a comma-separated list of
+ * ingredients ("Salt, black pepper, smoked paprika, garlic powder,
+ * oregano, cayenne, thyme & all-purpose seasoning"). Returns the parts
+ * ONLY when the line genuinely looks like such a list: ≥ 2 separators,
+ * every part short (≤ 4 words), and a majority of parts pass the food
+ * gate. Returns [] otherwise so the caller falls back to normal
+ * single-ingredient handling.
+ */
+function splitCommaSeparatedIngredients(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 240) return [];
+  // Bail on lines that look like prose / steps (cooking verbs, etc.).
+  if (containsCookingVerb(trimmed)) return [];
+  // Must have at least two separators.
+  const separatorCount = (trimmed.match(/[,&]|\set\s/gi) ?? []).length;
+  if (separatorCount < 2) return [];
+
+  const parts = trimmed
+    .split(/\s*(?:,|&|\set\s)\s*/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 3) return [];
+
+  let foodParts = 0;
+  for (const part of parts) {
+    const wordCount = part.split(/\s+/).filter(Boolean).length;
+    if (wordCount === 0 || wordCount > 4) return [];
+    if (/\d/.test(part)) return []; // numbered lists handled elsewhere
+    if (passesDualGate(part) || containsFoodSignal(part)) {
+      foodParts += 1;
+    }
+  }
+  // Require a clear majority of parts to read as food.
+  return foodParts >= Math.ceil(parts.length * 0.6) ? parts : [];
+}
+
 function parseIngredientFromLine(line: string, group: string): RecipeIngredientDraft {
   let cleaned = line
     // Accept any common bullet glyph with OR without a following space:
     // `- 200g farine`, `•3 oeufs`, `·sel`, `▪ 1/2 c.s huile`, etc.
     .replace(/^[-•·*▪◦‣⁃]\s*/u, "")
     .replace(/^\d+[.)]\s+/, "")
+    // Collapse a leading quantity RANGE to its first value so the rest
+    // doesn't leak into the name. `1/2-1 cup Milk` → `1/2 cup Milk`,
+    // `2-3 chicken breasts` → `2 chicken breasts`, `150-200g` → `150g`.
+    .replace(/^(\d+(?:[.,/]\d+)?)\s*[-–—]\s*\d+(?:[.,/]\d+)?(\s*)/u, "$1$2")
     .trim();
 
   // Extract amount and unit from prefix
@@ -657,15 +730,34 @@ function cleanStepLine(line: string): string {
     .trim();
 }
 
+// A leading quantity marks a line as a genuine ingredient, never a title.
+const LEADING_QUANTITY_RE = /^\s*[-•·*▪◦‣⁃]?\s*(?:\d+(?:[.,/]\d+)?|[¼½¾⅓⅔⅛])/u;
+
 function extractTitle(lines: string[]): string {
+  let isFirstContentLine = true;
   // First non-empty line that doesn't look like an ingredient, step, or section header
   for (const line of lines.slice(0, 5)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (looksLikeIngredientLine(trimmed)) continue;
-    if (looksLikeStepLine(trimmed)) continue;
-    if (/^(?:ingrédients?|ingredients?|étapes?|steps?|instructions?)\s*[:：]?\s*$/i.test(trimmed)) continue;
-    if (matchSectionHeader(trimmed, lines.slice(1))) continue;
+
+    const isFirst = isFirstContentLine;
+    isFirstContentLine = false;
+
+    // The very first content line of a caption is the headline/title in
+    // the vast majority of recipe posts — even when it contains a food
+    // word ("Homemade cheesy BEEF panini pockets"). Only reject it as a
+    // title when it carries a leading quantity (then it's a real
+    // ingredient) or is itself a section header.
+    const looksLikeStructuredIngredient = LEADING_QUANTITY_RE.test(trimmed);
+    const isSectionHeader = Boolean(matchSectionHeader(trimmed, lines.slice(1)));
+    const isListHeader = /^(?:ingrédients?|ingredients?|étapes?|steps?|instructions?)\s*[:：]?\s*$/i.test(trimmed);
+
+    if (!isFirst || looksLikeStructuredIngredient || isSectionHeader || isListHeader) {
+      if (looksLikeIngredientLine(trimmed)) continue;
+      if (looksLikeStepLine(trimmed)) continue;
+      if (isListHeader) continue;
+      if (isSectionHeader) continue;
+    }
 
     // Likely a title
     const cleaned = trimmed
