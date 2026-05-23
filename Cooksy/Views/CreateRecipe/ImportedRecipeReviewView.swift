@@ -50,6 +50,10 @@ struct ImportedRecipeReviewView: View {
                 .ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
+                // Outer VStack pinned to screen width — guarantees the
+                // ScrollView content can never become wider than the
+                // proposed viewport, even if a hero child or an
+                // intrinsically-sized chip reports an oversized width.
                 VStack(spacing: 0) {
                     // MARK: – Immersive Hero
                     heroSection
@@ -71,15 +75,21 @@ struct ImportedRecipeReviewView: View {
                         selectedTabContent
                             .frame(maxWidth: .infinity)
                     }
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 120)
                     .offset(y: -32)
                 }
+                .frame(maxWidth: .infinity)
             }
             .ignoresSafeArea(edges: .top)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
+            // The import succeeded (this screen only shows on success) —
+            // debit the éclair here, once, regardless of whether the
+            // user later saves or discards the recipe.
+            viewModel.consumeImportQuotaIfNeeded()
             await viewModel.loadRemoteImageIfNeeded()
             IngredientVisualCatalog.preload()
         }
@@ -122,6 +132,12 @@ struct ImportedRecipeReviewView: View {
         .fullScreenCover(isPresented: $showsEditor) {
             CreateRecipeView(store: store, seed: viewModel.seed, preferredBookID: viewModel.selectedBookID) {
                 showsEditor = false
+                // The in-app editor saved the recipe itself. Forward the
+                // saved recipe so the host marks this review as saved and
+                // does NOT fire the "non enregistrée" reminder toast.
+                if let savedID = store.recipes.first?.id {
+                    onSaved?(savedID)
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     dismiss()
                 }
@@ -775,6 +791,10 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
     private let validation: RecipeValidationResult
     private let preferredBookID: RecipeBook.ID?
     private var cancellables = Set<AnyCancellable>()
+    /// Latch so the import éclair is debited exactly once — when this
+    /// review screen first appears (i.e. the import succeeded), not on
+    /// save. Reaching this screen means the AI produced a usable recipe.
+    private var didConsumeImportQuota = false
 
     init(
         store: RecipeStore,
@@ -1012,6 +1032,17 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         heroImage = UIImage(data: data)
     }
 
+    /// Debits one import éclair the first time this review screen is
+    /// shown. Reaching this screen means the AI successfully produced a
+    /// usable recipe, so the import is "successful" and is billed here —
+    /// NOT at save time. Failed imports never reach this screen, so they
+    /// cost nothing. Premium users are a no-op inside ImportQuotaService.
+    func consumeImportQuotaIfNeeded() {
+        guard !didConsumeImportQuota else { return }
+        didConsumeImportQuota = true
+        ImportQuotaService.shared.incrementOnSuccess()
+    }
+
     @discardableResult
     func saveRecipe(plannedFor day: Date? = nil) async -> Recipe.ID? {
         guard !isSaving, canSave else { return nil }
@@ -1025,7 +1056,10 @@ private final class ImportedRecipeReviewViewModel: ObservableObject {
         let recipeID = UUID()
         let imageURL = seed.imageData.flatMap { store.storeImageData($0, for: recipeID) }
         let recipe = seed.makeRecipe(id: recipeID, bookID: selectedBookID, imageURL: imageURL)
-        store.addRecipe(recipe, to: selectedBookID)
+        // The import éclair was already debited when this screen
+        // appeared (consumeImportQuotaIfNeeded). Saving must NOT debit a
+        // second one.
+        store.addRecipe(recipe, to: selectedBookID, consumesQuota: false)
 
         if let day {
             store.addMealPlanRecipe(recipeID: recipeID, for: day)

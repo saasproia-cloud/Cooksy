@@ -37,6 +37,12 @@ struct RecipeDetailView: View {
 
             if let recipe = viewModel.recipe {
                 ScrollView(.vertical, showsIndicators: false) {
+                    // Outer VStack pinned to screen width — defends against
+                    // any child reporting an intrinsic width larger than
+                    // the screen (e.g. a hero placeholder blob, an
+                    // unexpected fixed-size chip). Without this clamp, a
+                    // single greedy child could inflate the whole
+                    // ScrollView content and push cards off both edges.
                     VStack(spacing: 0) {
                         // MARK: – Immersive Hero
                         heroSection(recipe: recipe)
@@ -61,10 +67,12 @@ struct RecipeDetailView: View {
                             selectedTabContent
                                 .frame(maxWidth: .infinity)
                         }
+                        .frame(maxWidth: .infinity)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 40)
                         .offset(y: -32)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 .ignoresSafeArea(edges: .top)
             }

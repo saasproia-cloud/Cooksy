@@ -23,11 +23,6 @@ final class CreateRecipeViewModel: ObservableObject {
     private let preferredBookID: RecipeBook.ID?
     private let editingRecipeID: Recipe.ID?
     private let editingCreatedAt: Date?
-    /// `true` when this view-model was seeded from an AI-powered import
-    /// (text-paste, photo, URL share). Drives whether saving the recipe
-    /// consumes a free-plan éclair. From-scratch creations leave this
-    /// `false` and don't burn quota.
-    private let cameFromImportSeed: Bool
     private var sourceURL: URL?
     private var remoteImageURL: URL?
     private var selectedImageData: Data?
@@ -43,10 +38,6 @@ final class CreateRecipeViewModel: ObservableObject {
         self.preferredBookID = preferredBookID
         self.editingRecipeID = editingRecipe?.id
         self.editingCreatedAt = editingRecipe?.createdAt
-        // Only an explicitly-passed seed (from the import pipeline) counts
-        // as "came from an import". Editing an existing recipe later does
-        // not — `updateRecipe` doesn't touch the quota anyway.
-        self.cameFromImportSeed = seed != nil
 
         let effectiveSeed = seed ?? editingRecipe.map {
             RecipeEditorSeed(recipe: $0, imageData: Self.loadImageData(from: $0.heroImageURL))
@@ -191,10 +182,15 @@ final class CreateRecipeViewModel: ObservableObject {
             let recipeID = UUID()
             let imageURL = persistImage(data: seed.imageData, recipeID: recipeID)
             let recipe = seed.makeRecipe(id: recipeID, bookID: selectedBookID, imageURL: imageURL)
+            // Never debit a quota éclair on save. When this editor was
+            // opened from an import seed, the éclair was already debited
+            // at import success (the review screen, or the prepared
+            // shared-import handoff). A "from scratch" creation never
+            // costs an éclair. Either way: false.
             store.addRecipe(
                 recipe,
                 to: selectedBookID,
-                consumesQuota: cameFromImportSeed
+                consumesQuota: false
             )
         }
 

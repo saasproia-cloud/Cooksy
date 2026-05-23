@@ -425,6 +425,11 @@ struct RootTabView: View {
             }
 
         case .createManuallyInApp:
+            // No review screen on this handoff path — debit the import
+            // éclair here since the import itself succeeded.
+            if !assessment.validation.isRejected {
+                ImportQuotaService.shared.incrementOnSuccess()
+            }
             sharedImportCreateSeed = assessment.seed
         }
 

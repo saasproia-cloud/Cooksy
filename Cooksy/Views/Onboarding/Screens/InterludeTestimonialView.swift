@@ -24,67 +24,62 @@ struct InterludeTestimonialView: View {
     private let targetLiveCount: Int = 12_047
 
     var body: some View {
-        ZStack {
-            CooksyTheme.ambientGradient
-                .ignoresSafeArea()
+        // The content VStack is the single layout root. Decorative
+        // glow + gradient live in `.background()` so their fixed 500-520pt
+        // circle sizes are out of the layout flow and can never push the
+        // page wider than the screen.
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-            // Clamp the decorative glow to the screen size. Its circles
-            // are 520pt wide; left unconstrained they inflate the parent
-            // ZStack and shove every content card off both edges.
-            backgroundGlow
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(false)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    headline
+                        .padding(.top, 8)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.1), value: appeared)
 
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
+                    liveCounter
+                        .opacity(appeared ? 1 : 0)
+                        .scaleEffect(appeared ? 1 : 0.92)
+                        .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.2), value: appeared)
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 22) {
-                        headline
-                            .padding(.top, 8)
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 12)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.1), value: appeared)
+                    testimonialDeck
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5).delay(0.35), value: appeared)
 
-                        liveCounter
-                            .opacity(appeared ? 1 : 0)
-                            .scaleEffect(appeared ? 1 : 0.92)
-                            .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.2), value: appeared)
+                    featuredStrip
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 10)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.55), value: appeared)
 
-                        testimonialDeck
-                            .opacity(appeared ? 1 : 0)
-                            .animation(.easeOut(duration: 0.5).delay(0.35), value: appeared)
+                    microStatsRow
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.7), value: appeared)
 
-                        featuredStrip
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 10)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.55), value: appeared)
-
-                        microStatsRow
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 12)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.7), value: appeared)
-
-                        hookLine
-                            .opacity(appeared ? 1 : 0)
-                            .animation(.easeOut(duration: 0.5).delay(0.85), value: appeared)
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 12)
+                    hookLine
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5).delay(0.85), value: appeared)
                 }
-
-                Spacer(minLength: 0)
-
-                continueButton
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 24)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.45).delay(1.0), value: appeared)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity)
             }
+
+            Spacer(minLength: 0)
+
+            continueButton
+                .padding(.horizontal, 22)
+                .padding(.bottom, 24)
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.45).delay(1.0), value: appeared)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(decorativeBackdrop)
         .onAppear {
             appeared = true
             heroPulse = true
@@ -158,6 +153,21 @@ struct InterludeTestimonialView: View {
 
     // MARK: - Background
 
+    /// Decorative chrome (gradient + glow blobs) consolidated into one
+    /// view consumed via `.background()` on the body. Out of layout flow
+    /// + hard-clipped so the 500–520pt blobs cannot bleed past the screen
+    /// edge or inflate the page width.
+    private var decorativeBackdrop: some View {
+        ZStack {
+            CooksyTheme.ambientGradient
+
+            backgroundGlow
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .clipped()
+    }
+
     private var backgroundGlow: some View {
         ZStack {
             Circle()
@@ -194,7 +204,6 @@ struct InterludeTestimonialView: View {
                 .offset(x: -150, y: 240)
                 .blur(radius: 26)
         }
-        .ignoresSafeArea()
     }
 
     // MARK: - Headline

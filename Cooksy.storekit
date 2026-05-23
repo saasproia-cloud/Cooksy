@@ -75,7 +75,14 @@
           "groupNumber" : 2,
           "internalID" : "6766951092",
           "introductoryOffers" : [
-
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "displayPrice" : "0.00",
+              "internalID" : "F7EE07AA",
+              "numberOfPeriods" : 1,
+              "paymentMode" : "free",
+              "subscriptionPeriod" : "P1W"
+            }
           ],
           "localizations" : [
             {

@@ -46,6 +46,21 @@ private struct RecipeImportFlowHost: ViewModifier {
     @State private var showsQuotaReachedSheet = false
     @State private var showsPaywallFromQuota = false
 
+    // --- Save-reminder toast (import abandoned without saving) ---
+    /// The assessment the user was reviewing — kept so the toast's
+    /// "Enregistrer" button can re-open the exact same recipe.
+    @State private var lastReviewAssessment: RecipeImportAssessment?
+    /// Set to true by the review screen's onSaved callback. When the
+    /// review closes with this still false, the import was abandoned.
+    @State private var importReviewWasSaved = false
+    /// Drives the toast visibility.
+    @State private var showsSaveReminderToast = false
+    /// How many times this same import has been abandoned — each repeat
+    /// shows the toast for a shorter duration.
+    @State private var saveReminderRepeatCount = 0
+    /// Cancellable handle for the toast's auto-dismiss timer.
+    @State private var saveReminderDismissTask: Task<Void, Never>?
+
     /// Closes the import options sheet, then surfaces `QuotaReachedSheet`.
     /// Used when a free user taps an AI-powered option (e.g. "Texte collé")
     /// while their weekly quota is exhausted — we catch it the instant the
@@ -176,6 +191,12 @@ private struct RecipeImportFlowHost: ViewModifier {
                 ),
                 onDismiss: {
                     importReviewAssessment = nil
+                    // If the review closed without a save, surface the
+                    // "1 éclair utilisé" reminder so the user can jump
+                    // straight back in and keep the recipe.
+                    if !importReviewWasSaved {
+                        triggerSaveReminderToast()
+                    }
                 }
             ) {
                 if let reviewAssessment = importReviewAssessment {
@@ -183,7 +204,8 @@ private struct RecipeImportFlowHost: ViewModifier {
                         store: recipeStore,
                         seed: reviewAssessment.seed,
                         validation: reviewAssessment.validation,
-                        preferredBookID: preferredBookID
+                        preferredBookID: preferredBookID,
+                        onSaved: { _ in importReviewWasSaved = true }
                     )
                 }
             }
@@ -235,6 +257,17 @@ private struct RecipeImportFlowHost: ViewModifier {
                     )
                 }
             }
+            .overlay(alignment: .bottom) {
+                if showsSaveReminderToast {
+                    ImportSaveReminderToast(
+                        onReturn: returnToAbandonedReview,
+                        onClose: dismissSaveReminderToast
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 28)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
     }
 
     private func presentPhotoImport(for source: QuickImportPhotoSource) {
@@ -273,8 +306,60 @@ private struct RecipeImportFlowHost: ViewModifier {
         if assessment.validation.isRejected {
             importFailureAssessment = assessment
         } else {
+            // A fresh import — clear any lingering save-reminder toast
+            // and reset the abandon tracking for this new recipe.
+            dismissSaveReminderToast()
+            saveReminderRepeatCount = 0
+            lastReviewAssessment = assessment
+            importReviewWasSaved = false
             importReviewAssessment = assessment
         }
+    }
+
+    /// Shows the "recipe not saved — 1 éclair used" toast and schedules
+    /// its auto-dismiss. Each repeat for the same import is shown for a
+    /// shorter time (7 s → 4 s → 2.5 s) so it nags less aggressively.
+    private func triggerSaveReminderToast() {
+        guard lastReviewAssessment != nil else { return }
+        saveReminderRepeatCount += 1
+
+        let duration: Double
+        switch saveReminderRepeatCount {
+        case 1: duration = 7.0
+        case 2: duration = 4.0
+        default: duration = 2.5
+        }
+
+        saveReminderDismissTask?.cancel()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            showsSaveReminderToast = true
+        }
+        saveReminderDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(duration))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showsSaveReminderToast = false
+            }
+        }
+    }
+
+    private func dismissSaveReminderToast() {
+        saveReminderDismissTask?.cancel()
+        saveReminderDismissTask = nil
+        if showsSaveReminderToast {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showsSaveReminderToast = false
+            }
+        }
+    }
+
+    /// "Enregistrer" button on the toast — re-opens the exact recipe the
+    /// user was reviewing so they can save it.
+    private func returnToAbandonedReview() {
+        guard let assessment = lastReviewAssessment else { return }
+        dismissSaveReminderToast()
+        importReviewWasSaved = false
+        importReviewAssessment = assessment
     }
 
     private func failureSource(for retrySource: ImportRetrySource?) -> RecipeImportSourceKind {
@@ -314,6 +399,65 @@ private struct RecipeImportProcessingOverlay: View {
 
     var body: some View {
         RecipeImportLoadingView(source: source)
+    }
+}
+
+/// Toast shown when the user closes the import review without saving.
+/// Reminds them the import already cost 1 éclair and offers a one-tap
+/// way back to the recipe.
+private struct ImportSaveReminderToast: View {
+    let onReturn: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(CooksyTheme.ctaOrangeDark.opacity(0.16))
+                    .frame(width: 36, height: 36)
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(CooksyTheme.ctaOrangeDark)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Recette non enregistrée")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("1 éclair a déjà été utilisé pour cet import.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: onReturn) {
+                Text("Enregistrer")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(CooksyTheme.primaryText)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Capsule(style: .continuous).fill(.white))
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(CooksyTheme.primaryText.opacity(0.96))
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 18, y: 8)
     }
 }
 

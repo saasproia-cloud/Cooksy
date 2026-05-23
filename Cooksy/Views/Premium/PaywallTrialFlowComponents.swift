@@ -297,6 +297,9 @@ struct PaywallPlansSheet: View {
     let trialDays: Int
     let trialEligible: Bool
     let isPurchasing: Bool
+    /// Active gift discount (e.g. 25) when the user has won a cadeau.
+    /// `nil` when no gift is active. Drives the discounted price display.
+    var giftDiscountPercent: Int? = nil
     let onConfirm: () -> Void
     let onClose: () -> Void
 
@@ -326,7 +329,12 @@ struct PaywallPlansSheet: View {
                     action: onConfirm
                 )
 
-                PaywallDisclaimerText(plan: selectedPlan, trialDays: trialDays, trialEligible: trialEligible)
+                PaywallDisclaimerText(
+                    plan: selectedPlan,
+                    trialDays: trialDays,
+                    trialEligible: trialEligible,
+                    giftDiscountPercent: giftDiscountPercent
+                )
                     .padding(.bottom, 18)
             }
             .padding(.horizontal, 22)
@@ -342,9 +350,19 @@ struct PaywallPlansSheet: View {
 
     private var annualCard: some View {
         let isSelected = selectedPlan == .yearly
-        let priceText = PremiumPlan.yearly.liveOrFallbackPriceString
-        let monthlyEquivalent = PremiumPlan.yearly.liveOrFallbackMonthlyEquivalent ?? "3,33 €"
-        let strikethrough = formattedStrikethroughForYearly()
+        // When a gift discount is active we surface the discounted price
+        // — otherwise StoreKit ends up debiting less than what the UI
+        // promised and the user feels deceived.
+        let hasGift = (giftDiscountPercent ?? 0) > 0
+        let priceText = PremiumPlan.yearly.liveOrFallbackPriceString(discountPercent: giftDiscountPercent)
+        let monthlyEquivalent = PremiumPlan.yearly
+            .liveOrFallbackMonthlyEquivalent(discountPercent: giftDiscountPercent) ?? "3,33 €"
+        // Strikethrough swaps role depending on context:
+        //   • gift active    → original annual price (so the −X % saving is visible)
+        //   • no gift        → monthly × 12 (so the annual saving over monthly is visible)
+        let strikethrough = hasGift
+            ? PremiumPlan.yearly.liveOrFallbackPriceString
+            : formattedStrikethroughForYearly()
 
         return Button {
             OnboardingHaptics.selection()
@@ -551,6 +569,9 @@ struct PaywallDisclaimerText: View {
     let plan: PremiumPlan
     let trialDays: Int
     let trialEligible: Bool
+    /// Active gift discount (e.g. 25) — applied to the yearly price so
+    /// the small-print never lies about what Apple will charge.
+    var giftDiscountPercent: Int? = nil
 
     var body: some View {
         Text(copy)
@@ -564,12 +585,13 @@ struct PaywallDisclaimerText: View {
 
     private var copy: String {
         if plan == .yearly, trialEligible {
-            let annual = PremiumPlan.yearly.liveOrFallbackPriceString
-            let monthly = PremiumPlan.yearly.liveOrFallbackMonthlyEquivalent ?? "3,33 €"
+            let annual = PremiumPlan.yearly.liveOrFallbackPriceString(discountPercent: giftDiscountPercent)
+            let monthly = PremiumPlan.yearly
+                .liveOrFallbackMonthlyEquivalent(discountPercent: giftDiscountPercent) ?? "3,33 €"
             return "Gratuit pendant \(trialDays) jours, puis \(annual)/an (\(monthly)/mois)."
         }
         if plan == .yearly {
-            let annual = PremiumPlan.yearly.liveOrFallbackPriceString
+            let annual = PremiumPlan.yearly.liveOrFallbackPriceString(discountPercent: giftDiscountPercent)
             return "\(annual)/an. Annulable à tout moment."
         }
         let monthly = PremiumPlan.monthly.liveOrFallbackPriceString

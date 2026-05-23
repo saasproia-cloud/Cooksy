@@ -23,75 +23,64 @@ struct InterludeNumbersView: View {
     private let targetProgress: CGFloat = 0.34
 
     var body: some View {
-        ZStack {
-            CooksyTheme.ambientGradient
-                .ignoresSafeArea()
+        // The CONTENT VStack is the layout root — it drives the screen
+        // size. Decorative layers (ambient gradient, glow blobs, sparkles)
+        // live in `.background()` modifiers, OUT of the layout flow, so
+        // their fixed pixel sizes (520pt circles) can never inflate the
+        // parent and push the content cards off-screen.
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-            // Decorative layers MUST be clamped to the screen size.
-            // `backgroundGlow` draws 520pt circles; without this frame it
-            // would inflate the parent ZStack to 520pt wide and push every
-            // content card ~63pt off each edge.
-            backgroundGlow
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(false)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    headline
+                        .padding(.top, 8)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 14)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.1), value: appeared)
 
-            SparkleCanvas(count: 14)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(appeared ? 0.55 : 0)
-                .animation(.easeOut(duration: 0.8).delay(0.2), value: appeared)
-                .allowsHitTesting(false)
+                    recipeStack
+                        .padding(.top, 4)
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5).delay(0.22), value: appeared)
 
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
+                    bigNumberBlock
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 14)
+                        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.4), value: appeared)
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 22) {
-                        headline
-                            .padding(.top, 8)
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 14)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.1), value: appeared)
+                    profileMeter
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
+                        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.55), value: appeared)
 
-                        recipeStack
-                            .padding(.top, 4)
-                            .opacity(appeared ? 1 : 0)
-                            .animation(.easeOut(duration: 0.5).delay(0.22), value: appeared)
+                    miniStatsRow
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
+                        .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.7), value: appeared)
 
-                        bigNumberBlock
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 14)
-                            .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.4), value: appeared)
-
-                        profileMeter
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 12)
-                            .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.55), value: appeared)
-
-                        miniStatsRow
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 12)
-                            .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.7), value: appeared)
-
-                        nextRevealTease
-                            .opacity(appeared ? 1 : 0)
-                            .animation(.easeOut(duration: 0.5).delay(0.85), value: appeared)
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 12)
+                    nextRevealTease
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5).delay(0.85), value: appeared)
                 }
-
-                Spacer(minLength: 0)
-
-                continueButton
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 24)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.45).delay(1.0), value: appeared)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity)
             }
+
+            Spacer(minLength: 0)
+
+            continueButton
+                .padding(.horizontal, 22)
+                .padding(.bottom, 24)
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.45).delay(1.0), value: appeared)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(decorativeBackdrop)
         .onAppear {
             appeared = true
             heroPulse = true
@@ -157,6 +146,27 @@ struct InterludeNumbersView: View {
 
     // MARK: - Background
 
+    /// All decorative chrome (gradient + glow blobs + sparkles) collapsed
+    /// into a single backdrop view. Used as a `.background()` modifier so
+    /// these layers are OUT of the layout flow — their fixed pixel sizes
+    /// can never push the content off-screen.
+    private var decorativeBackdrop: some View {
+        ZStack {
+            CooksyTheme.ambientGradient
+
+            backgroundGlow
+
+            SparkleCanvas(count: 14)
+                .opacity(appeared ? 0.55 : 0)
+                .animation(.easeOut(duration: 0.8).delay(0.2), value: appeared)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        // Hard-clip to the host's bounds so the 520pt blobs can never
+        // bleed past the screen edge and create the symmetric overflow.
+        .clipped()
+    }
+
     private var backgroundGlow: some View {
         ZStack {
             Circle()
@@ -193,7 +203,6 @@ struct InterludeNumbersView: View {
                 .offset(x: 130, y: 200)
                 .blur(radius: 28)
         }
-        .ignoresSafeArea()
     }
 
     // MARK: - Headline

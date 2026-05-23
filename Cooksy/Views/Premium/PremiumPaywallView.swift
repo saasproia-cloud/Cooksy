@@ -35,6 +35,14 @@ struct PremiumPaywallView: View {
     private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
     private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
     private var trialShown: Bool { trialEligible && selectedPlan == .yearly }
+    /// Active −X % gift discount, when applicable. Threaded into the
+    /// plans sheet and the disclaimer so the displayed price always
+    /// matches what Apple will actually charge.
+    private var effectiveGiftDiscount: Int? {
+        guard offers.giftOfferIsActive,
+              PremiumPlan.yearly.supportsPromotionalDiscount else { return nil }
+        return offers.giftDiscountPercent
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -119,6 +127,7 @@ struct PremiumPaywallView: View {
                 trialDays: trialDays,
                 trialEligible: trialEligible,
                 isPurchasing: isPurchasing,
+                giftDiscountPercent: effectiveGiftDiscount,
                 onConfirm: {
                     showsPlansSheet = false
                     handlePurchase()
@@ -173,7 +182,8 @@ struct PremiumPaywallView: View {
             PaywallDisclaimerText(
                 plan: selectedPlan,
                 trialDays: trialDays,
-                trialEligible: trialEligible
+                trialEligible: trialEligible,
+                giftDiscountPercent: effectiveGiftDiscount
             )
 
             HStack(spacing: 14) {
