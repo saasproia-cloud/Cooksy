@@ -115,7 +115,7 @@ struct FreePlanHomeBadges: View {
     private var giftPill: some View {
         Button(action: onTapGift) {
             HStack(spacing: 8) {
-                Image(systemName: "gift.fill")
+                Image(systemName: offers.giftPillIconSystemName)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 26, height: 26)
@@ -127,6 +127,11 @@ struct FreePlanHomeBadges: View {
                                 endPoint: .bottomTrailing
                             ))
                     )
+                    // A subtle cross-fade when the cycle rolls over so
+                    // the new game's glyph snaps into place instead of
+                    // hard-cutting between symbols of different widths.
+                    .animation(.easeInOut(duration: 0.25),
+                               value: offers.giftPillIconSystemName)
 
                 Text(label)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -148,9 +153,17 @@ struct FreePlanHomeBadges: View {
     }
 
     private var label: String {
+        // Active gift wins first — show the actual discount.
         if offers.giftHasBeenWon, offers.giftOfferIsActive,
            let percent = offers.giftDiscountPercent {
             return "−\(percent) %"
+        }
+        // In cooldown after a forfeited gift, surface the countdown so
+        // the user knows the gift will come back rather than thinking
+        // it's gone forever.
+        if let days = offers.giftCooldownDaysRemaining {
+            if days <= 1 { return "Bientôt" }
+            return "\(days) j"
         }
         return "Cadeau"
     }

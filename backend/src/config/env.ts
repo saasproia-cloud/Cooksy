@@ -81,6 +81,14 @@ const rawEnvSchema = z.object({
   APIFY_TIKTOK_ACTOR_ID: z.string().default("clockworks/tiktok-scraper"),
   APIFY_INSTAGRAM_ACTOR_ID: z.string().default("apify/instagram-api-scraper"),
   APIFY_PINTEREST_ACTOR_ID: z.string().default("devcake/pinterest-pin-scraping"),
+  // Toggle for the Apify "Option 2" subtitle download path. Defaults to
+  // enabled — set APIFY_SUBTITLES_ENABLED=false to emergency-disable
+  // the VTT subtitle fetch (e.g. if a creator's subtitle host is causing
+  // timeouts) without redeploying code.
+  APIFY_SUBTITLES_ENABLED: z.preprocess(
+    emptyToUndefined,
+    z.enum(["true", "false"]).default("true")
+  ),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
   GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional(),
   // Supabase — required for user authentication, entitlements lookup,
@@ -122,6 +130,7 @@ const envSchema = z.object({
   APIFY_TIKTOK_ACTOR_ID: z.string(),
   APIFY_INSTAGRAM_ACTOR_ID: z.string(),
   APIFY_PINTEREST_ACTOR_ID: z.string(),
+  APIFY_SUBTITLES_ENABLED: z.enum(["true", "false"]),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
   GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().optional(),
   SUPABASE_URL: z.string(),
@@ -172,6 +181,9 @@ function isGoogleCredentialsReadable(credentialsPath: string | undefined): boole
 export const providerStatus = {
   openAI: isConfigured(env.OPENAI_API_KEY),
   apify: isConfigured(env.APIFY_TOKEN),
+  // Apify "Option 2" — fetch the VTT subtitles produced server-side and
+  // surface them as `subtitlesText`. Toggle via APIFY_SUBTITLES_ENABLED.
+  apifySubtitles: isConfigured(env.APIFY_TOKEN) && env.APIFY_SUBTITLES_ENABLED === "true",
   serpApi: isConfigured(env.SERPAPI_KEY),
   usda: isConfigured(env.USDA_API_KEY),
   googleSpeech: isGoogleCredentialsReadable(env.GOOGLE_APPLICATION_CREDENTIALS),
@@ -202,6 +214,7 @@ export function requireProvider(provider: keyof typeof providerStatus): void {
   const envName = {
     openAI: "OPENAI_API_KEY",
     apify: "APIFY_TOKEN",
+    apifySubtitles: "APIFY_TOKEN+APIFY_SUBTITLES_ENABLED",
     serpApi: "SERPAPI_KEY",
     usda: "USDA_API_KEY",
     googleSpeech: "GOOGLE_APPLICATION_CREDENTIALS",

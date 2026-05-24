@@ -465,26 +465,81 @@ export function normalizeFrenchIngredientName(raw: string): NormalizedIngredient
 // ---------------------------------------------------------------------
 
 const UNIT_SYNONYMS: ReadonlyArray<readonly [RegExp, string]> = [
+  // — Cuillères, formes pleines —
   [/^à\s+café$/i, "c. à café"],
   [/^a\s+cafe$/i, "c. à café"],
   [/^cuillere?\s+a\s+cafe$/i, "c. à café"],
-  [/^cuillère?\s+à\s+café$/i, "c. à café"],
-  [/^cc$/i, "c. à café"],
-  [/^càc$/i, "c. à café"],
+  [/^cuillères?\s+à\s+café$/i, "c. à café"],
+  [/^cuilleree?s?\s+a\s+cafe$/i, "c. à café"],
+  [/^cuillerées?\s+à\s+café$/i, "c. à café"],
   [/^à\s+soupe$/i, "c. à soupe"],
   [/^a\s+soupe$/i, "c. à soupe"],
   [/^cuillere?\s+a\s+soupe$/i, "c. à soupe"],
-  [/^cuillère?\s+à\s+soupe$/i, "c. à soupe"],
+  [/^cuillères?\s+à\s+soupe$/i, "c. à soupe"],
+  [/^cuilleree?s?\s+a\s+soupe$/i, "c. à soupe"],
+  [/^cuillerées?\s+à\s+soupe$/i, "c. à soupe"],
+  // — Cuillères, formes abrégées (ordre important : matchs longs d'abord) —
+  [/^c\.?\s*à\.?\s*c\.?$/i, "c. à café"],          // "c. à c.", "c.à.c", "c à c"
+  [/^c\.?\s*à\.?\s*s\.?$/i, "c. à soupe"],         // "c. à s.", "c.à.s", "c à s"
+  [/^c\.?\s*a\.?\s*c\.?$/i, "c. à café"],          // "c.a.c", "c a c"
+  [/^c\.?\s*a\.?\s*s\.?$/i, "c. à soupe"],         // "c.a.s", "c a s"
+  [/^c\.\s*c\.?$/i, "c. à café"],                  // "c.c", "c.c."
+  [/^c\.\s*s\.?$/i, "c. à soupe"],                 // "c.s", "c.s."
+  [/^cc$/i, "c. à café"],
+  [/^c\.c$/i, "c. à café"],
   [/^cs$/i, "c. à soupe"],
+  [/^c\.s$/i, "c. à soupe"],
+  [/^càc$/i, "c. à café"],
   [/^càs$/i, "c. à soupe"],
+  [/^cac$/i, "c. à café"],
+  [/^cas$/i, "c. à soupe"],
+  // — Pincée, gousse, tranche, etc. (unités comptables FR) —
+  [/^pincées?$/i, "pincée"],
+  [/^pincees?$/i, "pincée"],
+  [/^pinch(?:es)?$/i, "pincée"],
+  [/^gousses?$/i, "gousse"],
+  [/^cloves?$/i, "gousse"],
+  [/^tranches?$/i, "tranche"],
+  [/^slices?$/i, "tranche"],
+  [/^sachets?$/i, "sachet"],
+  [/^feuilles?$/i, "feuille"],
+  [/^leaves?$/i, "feuille"],
+  [/^brins?$/i, "brin"],
+  [/^sprigs?$/i, "brin"],
+  [/^bouquets?$/i, "bouquet"],
+  [/^noix$/i, "noix"],                              // "1 noix de beurre"
+  [/^zestes?$/i, "zeste"],
+  [/^morceaux?$/i, "morceau"],
+  [/^bâtons?$/i, "bâton"],
+  [/^batons?$/i, "bâton"],
+  [/^filets?$/i, "filet"],                          // "1 filet d'huile"
+  [/^trait?s?$/i, "trait"],                         // "1 trait de vinaigre"
+  // — Tasses (anglo / FR) —
+  [/^tasses?$/i, "tasse"],
+  [/^cups?$/i, "tasse"],
+  // — Métrique français —
   [/^gr$/i, "g"],
   [/^gramme?s?$/i, "g"],
   [/^kilo$/i, "kg"],
   [/^kilos$/i, "kg"],
   [/^kilogrammes?$/i, "kg"],
+  [/^milligrammes?$/i, "mg"],
   [/^litres?$/i, "l"],
   [/^millilitres?$/i, "ml"],
   [/^centilitres?$/i, "cl"],
+  [/^décilitres?$/i, "dl"],
+  [/^decilitres?$/i, "dl"],
+  // — Métrique anglo —
+  [/^tablespoons?$/i, "c. à soupe"],
+  [/^tbsps?$/i, "c. à soupe"],
+  [/^tbs$/i, "c. à soupe"],
+  [/^teaspoons?$/i, "c. à café"],
+  [/^tsps?$/i, "c. à café"],
+  [/^ounces?$/i, "oz"],
+  [/^pounds?$/i, "lb"],
+  [/^fl\.?\s*oz\.?$/i, "fl oz"],
+  [/^pints?$/i, "pt"],
+  [/^quarts?$/i, "qt"],
 ];
 
 export function normalizeFrenchUnit(raw: string): string {
@@ -564,9 +619,25 @@ const NAME_LEADING_UNIT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^gousses?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "gousse"],
   [/^cloves?\b\s*(?:of\s+)?/, "gousse"],
   [/^tranches?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "tranche"],
+  [/^slices?\b\s*(?:of\s+)?/, "tranche"],
   [/^sachets?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "sachet"],
   [/^tasses?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "tasse"],
   [/^cups?\b\s*(?:of\s+)?/, "tasse"],
+  // — Unités comptables FR moins fréquentes —
+  [/^feuilles?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "feuille"],
+  [/^brins?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "brin"],
+  [/^sprigs?\b\s*(?:of\s+)?/, "brin"],
+  [/^bouquets?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "bouquet"],
+  [/^noix\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "noix"],
+  [/^zestes?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "zeste"],
+  [/^morceaux?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "morceau"],
+  [/^batons?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "bâton"],
+  [/^traits?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, "trait"],
+  // — Unités anglo restantes —
+  [/^ounces?\b\s*(?:of\s+)?/, "oz"],
+  [/^oz\b\s*(?:of\s+)?/, "oz"],
+  [/^pounds?\b\s*(?:of\s+)?/, "lb"],
+  [/^lbs?\b\s*(?:of\s+)?/, "lb"],
   [/^pieces?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, ""],
   [/^unites?\b\s*(?:de\s+|d\s+|du\s+|des\s+)?/, ""],
   // Bare metric token after stripping a number: "g farine" -> "farine".

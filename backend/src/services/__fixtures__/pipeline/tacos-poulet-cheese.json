@@ -1,0 +1,15 @@
+{
+  "name": "tacos-poulet-cheese",
+  "description": "F6 (Round 5 plan) — tacos recipe where the compiler must NOT hallucinate 'chou' (forbidden in tacos per dish_coherence). Verifies that the compiler stops at the legitimate caption ingredients without templating a generic taco template.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@cuisinier/video/tacos",
+    "socialCaption": "Tacos au poulet fromage\n\nIngrédients (2 personnes) :\n- 6 tortillas de blé\n- 2 blancs de poulet\n- 100g de cheddar râpé\n- 1 oignon rouge\n- 1 c. à café de cumin\n- 1 c. à café de paprika fumé\n- 2 c. à soupe d'huile\n- sel, poivre\n- 1 lime pour servir\n\nÉtapes :\n1. Découper le poulet en lamelles, assaisonner avec le cumin, le paprika, le sel et le poivre.\n2. Cuire à la poêle dans l'huile chaude jusqu'à dorure, environ 6 minutes.\n3. Réchauffer les tortillas.\n4. Garnir chaque tortilla de poulet, cheddar, oignon rouge émincé.\n5. Servir avec un quartier de lime."
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 7,
+    "mustContainIngredientTokens": ["tortilla", "poulet", "cheddar"],
+    "mustNotContainIngredientTokens": ["chou", "choucroute"]
+  }
+}

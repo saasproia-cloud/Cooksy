@@ -1,0 +1,15 @@
+{
+  "name": "steak-raclette",
+  "description": "F3 (Round 5 plan) — real Cooksy import: @shan_cookingg TikTok with `•` bullets for section headers + `-` for ingredients. Compiler must detect the `• oignons caramélisés`, `• sauce raclette :`, `• steak`, `• rösti` headers despite the bullet+colon-optional pattern, and produce at least 10 ingredients with 3+ sections. NO 'oops' fallback.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://vm.tiktok.com/ZNRsQ59DW/",
+    "socialCaption": "Steak haché raclette — la recette de Shan\n\nIngrédients :\n-> naan voir sur mon compte\n\n• oignons caramélisés\n- 3 oignons\n- 2 c.s de sauce soja sucrée\n- 1 c.s de sucre\n- 30g de beurre\n\n• sauce raclette :\n- 150g de lardons\n- 8 tranches de fromage raclette\n- 20cl de crème liquide\n\n• steak\n- 500g de steak haché\n- sel, poivre\n- huile d'olive\n\n• rösti\n- 4 grosses pommes de terre\n- 2 œufs\n- sel, poivre"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 10,
+    "minSections": 3,
+    "mustContainIngredientTokens": ["oignon", "lardon", "raclette", "steak", "pomme"]
+  }
+}

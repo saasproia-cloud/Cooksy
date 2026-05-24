@@ -6,10 +6,22 @@ struct ProfileView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.requestReview) private var requestReview
 
+    @StateObject private var offers = PremiumOffersService.shared
+
     @State private var toastMessage: String?
     @State private var showsEditProfile = false
     @State private var showsPaywall = false
     @State private var showsImportGuide = false
+    /// Routed to when the silent auto-show fires on Profile entry and
+    /// the user hasn't played the mini-game yet for this cycle.
+    @State private var showsGiftWheel = false
+    /// Routed to when the silent auto-show fires on Profile entry and
+    /// the user has already won the gift — re-surfaces the exclusive
+    /// offer with the live urgency timer.
+    @State private var showsExclusiveOffer = false
+    /// Per-session guard so the silent auto-show never fires twice
+    /// when the user re-enters the Profile tab in the same launch.
+    @State private var didAutoShowThisSession = false
 
     private var displayName: String {
         let raw = sessionStore.profile?.displayName?
@@ -79,6 +91,51 @@ struct ProfileView: View {
                 allowsFreeModeDismiss: true,
                 onDismissToFreeMode: { showsPaywall = false }
             )
+        }
+        .fullScreenCover(isPresented: $showsGiftWheel) {
+            GiftMiniGameHost(
+                onClose: { showsGiftWheel = false },
+                onClaim: { discount in
+                    offers.recordGiftWon(percent: discount)
+                    showsGiftWheel = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        showsExclusiveOffer = true
+                    }
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showsExclusiveOffer) {
+            ExclusiveOfferView(
+                discountPercent: offers.giftDiscountPercent
+                    ?? PremiumOffersService.defaultGiftDiscount,
+                expiresAt: offers.giftOfferExpiresAt,
+                onClose: { showsExclusiveOffer = false }
+            )
+        }
+        .onAppear { considerGiftAutoShow() }
+    }
+
+    /// Profile is a lower-intent surface than Home, so the auto-show
+    /// probability is meaningfully smaller (≈1 in 6) — see
+    /// `PremiumOffersService.AutoShowOrigin.settingsOpen`. The 6 h
+    /// persistent throttle still applies across origins, so a recent
+    /// Home auto-show prevents a settings auto-show right after.
+    private func considerGiftAutoShow() {
+        guard !sessionStore.isPremium, !didAutoShowThisSession else { return }
+        guard offers.shouldAutoShow(from: .settingsOpen) else { return }
+
+        didAutoShowThisSession = true
+        offers.recordAutoShownNow()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+            switch offers.giftPhase {
+            case .notWon:
+                showsGiftWheel = true
+            case .won where offers.giftOfferIsActive:
+                showsExclusiveOffer = true
+            default:
+                break
+            }
         }
     }
 

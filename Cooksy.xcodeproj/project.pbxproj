@@ -89,6 +89,7 @@
 		C71F0017000000000000A001 /* GiftCupShuffleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0017000000000000B001 /* GiftCupShuffleView.swift */; };
 		C71F0018000000000000A001 /* GiftBalloonPopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0018000000000000B001 /* GiftBalloonPopView.swift */; };
 		C71F0019000000000000A001 /* GiftCookingTeaserCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F0019000000000000B001 /* GiftCookingTeaserCard.swift */; };
+		C71F001A000000000000A001 /* GiftNewCycleHypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71F001A000000000000B001 /* GiftNewCycleHypeView.swift */; };
 		CF98F6DD89524FD03FDC5828 /* SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */; };
 		D24E5B03DB80D4EF19FAE868 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E76937A97BDE51B26E1F365F /* Foundation.framework */; };
 		D66E5382CB61F6BCC307F937 /* CooksyShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 04F0F4F47845626B0F2214C8 /* CooksyShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -282,6 +283,7 @@
 		C71F0017000000000000B001 /* GiftCupShuffleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftCupShuffleView.swift; sourceTree = "<group>"; };
 		C71F0018000000000000B001 /* GiftBalloonPopView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftBalloonPopView.swift; sourceTree = "<group>"; };
 		C71F0019000000000000B001 /* GiftCookingTeaserCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftCookingTeaserCard.swift; sourceTree = "<group>"; };
+		C71F001A000000000000B001 /* GiftNewCycleHypeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GiftNewCycleHypeView.swift; sourceTree = "<group>"; };
 		CDA97829844873E235C9F1E6 /* ImportGuideBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImportGuideBanner.swift; sourceTree = "<group>"; };
 		DC2E54E4E3288E49041B7CC1 /* PlaceholderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
 		DDFE043E909AA15F5CDFAE1B /* BrandHeaderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BrandHeaderView.swift; sourceTree = "<group>"; };
@@ -638,6 +640,7 @@
 				C71F0017000000000000B001 /* GiftCupShuffleView.swift */,
 				C71F0018000000000000B001 /* GiftBalloonPopView.swift */,
 				C71F0019000000000000B001 /* GiftCookingTeaserCard.swift */,
+				C71F001A000000000000B001 /* GiftNewCycleHypeView.swift */,
 				10D069CBC3AEFF15D785CBBA /* PaywallFeatureComparisonView.swift */,
 				08497B7B8296DEFBAA089F8A /* PaywallTrustStripView.swift */,
 			);
@@ -953,6 +956,7 @@
 				C71F0017000000000000A001 /* GiftCupShuffleView.swift in Sources */,
 				C71F0018000000000000A001 /* GiftBalloonPopView.swift in Sources */,
 				C71F0019000000000000A001 /* GiftCookingTeaserCard.swift in Sources */,
+				C71F001A000000000000A001 /* GiftNewCycleHypeView.swift in Sources */,
 				24368CBE04042DFA3B6F8C31 /* CooksyTheme.swift in Sources */,
 				77A3D9977418FAB24EBAFAA6 /* Recipe.swift in Sources */,
 				0DEA03C6F3737AD192298935 /* RecipeBook.swift in Sources */,

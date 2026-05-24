@@ -321,10 +321,18 @@ struct PaywallPlansSheet: View {
 
                 Spacer(minLength: 0)
 
-                PaywallReassuranceLine(plan: selectedPlan, trialEligible: trialEligible)
+                PaywallReassuranceLine(
+                    plan: selectedPlan,
+                    trialEligible: trialEligible,
+                    giftDiscountPercent: giftDiscountPercent
+                )
 
                 PaywallPrimaryCTAButton(
-                    title: PaywallCopy.ctaTitle(plan: selectedPlan, trialEligible: trialEligible),
+                    title: PaywallCopy.ctaTitle(
+                        plan: selectedPlan,
+                        trialEligible: trialEligible,
+                        giftDiscountPercent: giftDiscountPercent
+                    ),
                     isLoading: isPurchasing,
                     action: onConfirm
                 )
@@ -371,7 +379,17 @@ struct PaywallPlansSheet: View {
             }
         } label: {
             VStack(spacing: 0) {
-                if trialEligible {
+                // Banner: gift overrides trial (the gift purchase is
+                // pay-up-front so promising "Essai gratuit" would lie).
+                if hasGift, let percent = giftDiscountPercent {
+                    Text("Cadeau −\(percent) % actif")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .tracking(0.3)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .background(CooksyTheme.accentGradient)
+                } else if trialEligible {
                     Text("Essai gratuit de \(trialDays) jours")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .tracking(0.3)
@@ -508,8 +526,15 @@ struct PaywallPlansSheet: View {
 struct PaywallReassuranceLine: View {
     let plan: PremiumPlan
     let trialEligible: Bool
+    /// When set, the user has an active gift discount — purchase pays
+    /// up front, so the "Aucun paiement maintenant" copy would lie.
+    var giftDiscountPercent: Int? = nil
 
     private var copy: String {
+        // Gift overrides trial — purchaseAnnualWithPromo is pay-up-front.
+        if plan == .yearly, (giftDiscountPercent ?? 0) > 0 {
+            return "Sans engagement, annule à tout moment"
+        }
         if plan == .yearly, trialEligible {
             return "Aucun paiement maintenant"
         }
@@ -584,14 +609,20 @@ struct PaywallDisclaimerText: View {
     }
 
     private var copy: String {
-        if plan == .yearly, trialEligible {
+        // Gift mode: the GIFT25 adHocOffer is pay-up-front, no trial.
+        // Short-circuit BEFORE the trial branch so we never promise
+        // "Gratuit pendant 7 jours" while Apple is actually charging.
+        if plan == .yearly, (giftDiscountPercent ?? 0) > 0 {
             let annual = PremiumPlan.yearly.liveOrFallbackPriceString(discountPercent: giftDiscountPercent)
-            let monthly = PremiumPlan.yearly
-                .liveOrFallbackMonthlyEquivalent(discountPercent: giftDiscountPercent) ?? "3,33 €"
+            return "\(annual)/an. Annulable à tout moment."
+        }
+        if plan == .yearly, trialEligible {
+            let annual = PremiumPlan.yearly.liveOrFallbackPriceString
+            let monthly = PremiumPlan.yearly.liveOrFallbackMonthlyEquivalent ?? "3,33 €"
             return "Gratuit pendant \(trialDays) jours, puis \(annual)/an (\(monthly)/mois)."
         }
         if plan == .yearly {
-            let annual = PremiumPlan.yearly.liveOrFallbackPriceString(discountPercent: giftDiscountPercent)
+            let annual = PremiumPlan.yearly.liveOrFallbackPriceString
             return "\(annual)/an. Annulable à tout moment."
         }
         let monthly = PremiumPlan.monthly.liveOrFallbackPriceString
@@ -602,7 +633,14 @@ struct PaywallDisclaimerText: View {
 // MARK: - Copy helpers
 
 enum PaywallCopy {
-    static func ctaTitle(plan: PremiumPlan, trialEligible: Bool) -> String {
+    static func ctaTitle(
+        plan: PremiumPlan,
+        trialEligible: Bool,
+        giftDiscountPercent: Int? = nil
+    ) -> String {
+        if plan == .yearly, let percent = giftDiscountPercent, percent > 0 {
+            return "Active ton cadeau −\(percent) %"
+        }
         if plan == .yearly, trialEligible {
             return "Commence ta semaine GRATUITE"
         }

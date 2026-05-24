@@ -81,6 +81,17 @@ final class PremiumOffersService: ObservableObject {
     private let freshGiftCelebrationKey = "cooksy.gift.freshCelebrationPending"
     private let giftCycleIndexKey = "cooksy.gift.cycleIndex"
     private let freeModeKey = "cooksy.userChoseFreeMode"
+    private let lastAutoShownAtKey = "cooksy.gift.lastAutoShownAt"
+
+    // MARK: - Auto-presentation throttle
+
+    /// Minimum elapsed time between two auto-presentations of the gift,
+    /// regardless of origin. Without this floor the user could see the
+    /// gift on app launch, dismiss it, open Settings 10 seconds later
+    /// and be slapped with it again — fastest way to make the offer
+    /// feel like spam. Six hours is the smallest window that still
+    /// lets the gift surface across a typical day's usage.
+    static let autoShowMinInterval: TimeInterval = 6 * 3600
 
     // MARK: - Published state
 
@@ -124,6 +135,42 @@ final class PremiumOffersService: ObservableObject {
         case cardFlip
         case cupShuffle
         case balloonPop
+
+        /// SF Symbol that hints at this mini-game on the home gift pill,
+        /// so the user gets a visual whisper of what awaits when they tap.
+        /// Rotates with the cycle, never the same two cycles in a row.
+        var pillIconSystemName: String {
+            switch self {
+            case .wheel:       return "dial.medium"
+            case .scratchCard: return "rectangle.dashed"
+            case .mysteryBox:  return "shippingbox.fill"
+            case .cardFlip:    return "rectangle.on.rectangle.fill"
+            case .cupShuffle:  return "cup.and.saucer.fill"
+            case .balloonPop:  return "balloon.fill"
+            }
+        }
+
+        /// Human-readable label for the mini-game — used in the HYPE
+        /// takeover when announcing a fresh cycle.
+        var displayName: String {
+            switch self {
+            case .wheel:       return "la Roue de la chance"
+            case .scratchCard: return "le Ticket à gratter"
+            case .mysteryBox:  return "la Boîte mystère"
+            case .cardFlip:    return "les Cartes retournées"
+            case .cupShuffle:  return "le Bonneteau"
+            case .balloonPop:  return "les Ballons à éclater"
+            }
+        }
+    }
+
+    /// SF Symbol to render inside the home gift pill. While the gift is
+    /// in cooldown (`.forfeited`) we keep the generic gift glyph: the
+    /// tap doesn't open a game yet, so teasing the next game's shape
+    /// would over-promise. In every other phase we surface the active
+    /// cycle's game-specific glyph.
+    var giftPillIconSystemName: String {
+        giftPhase == .forfeited ? "gift.fill" : currentGiftGameKind.pillIconSystemName
     }
 
     private let defaults: UserDefaults
@@ -160,14 +207,31 @@ final class PremiumOffersService: ObservableObject {
     // MARK: - Public read API used by the UI
 
     /// True only when the gift pill should be rendered on the Home top-
-    /// bar. Hidden during cooldowns, pending trials, and after a true
-    /// conversion (until the 7 d cooldown ends).
+    /// bar.
+    ///
+    /// We keep the pill visible in `.forfeited` too (with a "Bientôt · Xj"
+    /// countdown copy) — hiding it for a full 7 days was confusing users
+    /// who wondered where the gift had gone. The cooldown is enforced at
+    /// the tap level: the wheel doesn't re-open until the timer elapses.
+    /// `.pendingFromTrial` and `.consumed` stay hidden — the user is
+    /// either already in trial (premium) or has already paid with the
+    /// gift, so the pill would be dead weight.
     var shouldShowGiftPill: Bool {
         rollOverIfNeeded()
         switch giftPhase {
-        case .notWon, .won: return true
-        case .pendingFromTrial, .consumed, .forfeited: return false
+        case .notWon, .won, .forfeited: return true
+        case .pendingFromTrial, .consumed: return false
         }
+    }
+
+    /// Whole days remaining before a forfeited gift cycle rolls over to a
+    /// fresh `.notWon`. `nil` outside `.forfeited`. Drives the "Bientôt ·
+    /// Xj" label on the Home gift pill.
+    var giftCooldownDaysRemaining: Int? {
+        guard giftPhase == .forfeited, let endsAt = giftCooldownEndsAt else { return nil }
+        let seconds = endsAt.timeIntervalSinceNow
+        guard seconds > 0 else { return 0 }
+        return max(1, Int(ceil(seconds / 86_400)))
     }
 
     /// True when the −25 % can actually be applied to a purchase made
@@ -382,13 +446,76 @@ final class PremiumOffersService: ObservableObject {
         userChoseFreeMode = false
     }
 
+    // MARK: - Auto-presentation
+
+    /// Where in the app the gift is being considered for auto-presentation.
+    /// Each origin has its own probability so the gift surfaces more
+    /// often in high-intent contexts (opening the app) than in lower-
+    /// intent ones (entering settings), without turning into spam.
+    enum AutoShowOrigin {
+        case appLaunch      // ~1 in 4 — Home appearance
+        case settingsOpen   // ~1 in 6 — Profile / settings entry
+        case importSuccess  // ~1 in 5 — right after a successful import
+
+        var probability: Double {
+            switch self {
+            case .appLaunch:     return 1.0 / 4.0
+            case .settingsOpen:  return 1.0 / 6.0
+            case .importSuccess: return 1.0 / 5.0
+            }
+        }
+    }
+
+    /// Decides whether the host view should auto-present the gift sheet
+    /// (game OR exclusive offer, depending on phase). The host is then
+    /// responsible for routing based on `giftPhase` — this method only
+    /// owns the *whether*.
+    ///
+    /// Eligibility:
+    ///   • Gift must be in `.notWon` or `.won + active` (other phases
+    ///     have nothing meaningful to present).
+    ///   • At least `autoShowMinInterval` must have elapsed since the
+    ///     last auto-show across all origins (anti-spam floor).
+    ///
+    /// Returns: `true` with the origin's probability when eligible.
+    /// The caller MUST invoke `recordAutoShownNow()` if it goes ahead
+    /// and presents — otherwise the throttle never engages.
+    func shouldAutoShow(from origin: AutoShowOrigin) -> Bool {
+        rollOverIfNeeded()
+
+        // Only meaningful in phases where there's something to present.
+        // Forfeited gives the cooldown screen — distinct UX, not part
+        // of the silent auto-show loop.
+        switch giftPhase {
+        case .notWon: break
+        case .won where giftOfferIsActive: break
+        default: return false
+        }
+
+        if let lastShown = defaults.object(forKey: lastAutoShownAtKey) as? Date,
+           Date().timeIntervalSince(lastShown) < Self.autoShowMinInterval {
+            return false
+        }
+
+        return Double.random(in: 0..<1) < origin.probability
+    }
+
+    /// Stamps "we just auto-presented the gift" so the throttle knows
+    /// when to gate the next opportunity. Call this immediately after
+    /// presenting (not on dismiss) so a quick-close still consumes the
+    /// slot for the next 6 h window.
+    func recordAutoShownNow() {
+        defaults.set(Date(), forKey: lastAutoShownAtKey)
+    }
+
     // MARK: - Debug
 
     func resetAllOffers() {
         for key in [
             firstSeenKey, giftWonAtKey, giftDiscountKey, giftPhaseKey,
             giftPendingTrialAtKey, giftConsumedAtKey, giftForfeitedAtKey,
-            freshGiftCelebrationKey, giftCycleIndexKey, freeModeKey
+            freshGiftCelebrationKey, giftCycleIndexKey, freeModeKey,
+            lastAutoShownAtKey
         ] {
             defaults.removeObject(forKey: key)
         }
@@ -490,6 +617,7 @@ final class PremiumOffersService: ObservableObject {
         defaults.removeObject(forKey: freshGiftCelebrationKey)
         defaults.removeObject(forKey: giftCycleIndexKey)
         defaults.removeObject(forKey: freeModeKey)
+        defaults.removeObject(forKey: lastAutoShownAtKey)
 
         giftPhase = .notWon
         giftDiscountPercent = nil

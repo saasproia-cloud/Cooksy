@@ -34,7 +34,6 @@ struct PremiumPaywallView: View {
 
     private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
     private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
-    private var trialShown: Bool { trialEligible && selectedPlan == .yearly }
     /// Active −X % gift discount, when applicable. Threaded into the
     /// plans sheet and the disclaimer so the displayed price always
     /// matches what Apple will actually charge.
@@ -42,6 +41,15 @@ struct PremiumPaywallView: View {
         guard offers.giftOfferIsActive,
               PremiumPlan.yearly.supportsPromotionalDiscount else { return nil }
         return offers.giftDiscountPercent
+    }
+    /// The trial timeline + "semaine GRATUITE" copy only show when the
+    /// user is actually getting a trial. When a gift is active the
+    /// purchase path is `purchaseAnnualWithPromo` (pay-up-front, no
+    /// trial), so the whole trial mode is suppressed.
+    private var trialShown: Bool {
+        trialEligible
+        && selectedPlan == .yearly
+        && effectiveGiftDiscount == nil
     }
 
     var body: some View {
@@ -171,10 +179,18 @@ struct PremiumPaywallView: View {
 
     private func bottomBar(hPad: CGFloat) -> some View {
         VStack(spacing: 12) {
-            PaywallReassuranceLine(plan: selectedPlan, trialEligible: trialEligible)
+            PaywallReassuranceLine(
+                plan: selectedPlan,
+                trialEligible: trialEligible,
+                giftDiscountPercent: effectiveGiftDiscount
+            )
 
             PaywallPrimaryCTAButton(
-                title: PaywallCopy.ctaTitle(plan: selectedPlan, trialEligible: trialEligible),
+                title: PaywallCopy.ctaTitle(
+                    plan: selectedPlan,
+                    trialEligible: trialEligible,
+                    giftDiscountPercent: effectiveGiftDiscount
+                ),
                 isLoading: isPurchasing,
                 action: handlePurchase
             )

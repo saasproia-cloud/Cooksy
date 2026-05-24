@@ -1,0 +1,15 @@
+{
+  "name": "chicken-wrap-with-protected",
+  "description": "F4 (Round 5 plan, CONTRAINTE 3) — @ammey.food chicken wrap where the caption mentions a SEPARATE Chepalgash bread recipe; that bread's ingredients (Cheddar/Farine/Lait/Yaourt/Œufs) must NOT be promoted. BUT sel, poivre, huile must NEVER be dropped (PROTECTED_INGREDIENTS guard).",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://vm.tiktok.com/ZNRsQr2VG/",
+    "socialCaption": "Poulet wrap maison à la sauce piquante\n\nIngrédients pour le poulet :\n- 2 blancs de poulet\n- 1 c.à.s de paprika\n- 1 c.à.c de cumin\n- 1 c.à.s d'huile d'olive\n- sel, poivre\n\nPour la sauce :\n- 4 c.à.s de mayonnaise\n- 2 c.à.s de sauce piquante\n- 1 gousse d'ail\n\nPour servir :\n- 2 wraps grands format\n- 1 poignée de salade\n\n(Le pain Chepalgash — recette séparée sur mon compte — Cheddar, Farine, Lait, Yaourt, Œufs, Ail)"
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 8,
+    "mustContainIngredientTokens": ["poulet", "paprika", "huile", "sel", "poivre", "wrap"],
+    "mustNotContainIngredientTokens": ["cheddar", "yaourt"]
+  }
+}

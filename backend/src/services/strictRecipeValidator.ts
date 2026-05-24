@@ -8,6 +8,7 @@ import {
   type RecipeImportResult,
 } from "../types/recipe.js";
 import { containsFoodSignal } from "./foodTermGate.js";
+import { isProtectedIngredient } from "./sourceFusion.js";
 
 // =====================================================================
 // Strict recipe validator.
@@ -419,11 +420,19 @@ export function validateStrictRecipe(
     });
   }
 
-  // --- Ingredient coverage in steps ---
+  // --- Ingredient coverage in steps (L4 coherence — Round 5 plan §5.1) ---
+  // CONTRAINTE 3 : protected ingredients (sel/poivre/huile/garniture/sauce/
+  // topping/assaisonnement/herbes/épices/pour servir…) are NEVER flagged
+  // here, even if no step mentions them — the creator's intent is implicit
+  // in the name itself. Additionally, ingredients sitting inside an
+  // explicit named section are kept (the section header IS the intent).
   const allStepText = stepText(recipe);
   const unusedIngredients: string[] = [];
   for (const ingredient of recipe.ingredientDrafts) {
     if (!isLikelyMajorIngredient(ingredient.name)) continue;
+    if (isProtectedIngredient(ingredient.name)) continue;
+    const insideNamedSection = Boolean((ingredient.group ?? "").trim());
+    if (insideNamedSection) continue;
     if (!ingredientIsUsedInSteps(ingredient.name, allStepText)) {
       unusedIngredients.push(ingredient.name);
     }

@@ -327,7 +327,12 @@ async function parseTikTokDirectSnapshot(
 
   const contentLines = extractTikTokContentLines(item);
   const ingredientLines = extractTikTokIngredientLines(contentLines);
-  const subtitleUrls = extractTikTokSubtitleUrls(item);
+  // "Option 2" — pull the VTT subtitle file that TikTok hosts alongside
+  // the video. Gated by APIFY_SUBTITLES_ENABLED so we can emergency-disable
+  // without redeploying if a creator's subtitle host starts timing out.
+  const subtitleUrls = providerStatus.apifySubtitles
+    ? extractTikTokSubtitleUrls(item)
+    : [];
   const subtitleTimeoutMs = subtitleUrls.length
     ? Math.max(800, Math.min(2_500, Math.floor((timeoutMs ?? 4_000) * 0.5)))
     : undefined;

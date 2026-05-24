@@ -60,6 +60,7 @@ import {
   validateStrictRecipe,
   type StrictIssue,
 } from "./strictRecipeValidator.js";
+import { isProtectedIngredient } from "./sourceFusion.js";
 import { platformFromUrl } from "../utils/text.js";
 
 type ImportExecutionOptions = {
@@ -1003,9 +1004,11 @@ function dropUnsupportedIngredients(
     .replace(/œ/g, "oe")
     .replace(/æ/g, "ae");
 
+  // Tiny additional basics that aren't in PROTECTED but are usually-implicit
+  // (sucre, beurre, eau, farine). These slip past the corpus check on
+  // bread/cake recipes where they're assumed but not always written out.
   const BASIC_SEASONINGS = new Set([
-    "sel", "poivre", "salt", "pepper", "huile", "oil", "beurre", "butter",
-    "sucre", "sugar", "eau", "water", "farine", "flour"
+    "sucre", "sugar", "eau", "water", "farine", "flour", "beurre", "butter"
   ]);
 
   const candidates: string[] = [];
@@ -1013,6 +1016,9 @@ function dropUnsupportedIngredients(
   for (const ing of recipe.ingredientDrafts) {
     const name = ing.name?.trim();
     if (!name) continue;
+    // CONTRAINTE 3 — protected ingredients are NEVER dropped, regardless
+    // of whether they appear in the source corpus.
+    if (isProtectedIngredient(name)) continue;
     const folded = name
       .toLowerCase()
       .normalize("NFD")
@@ -1600,22 +1606,30 @@ async function enforceRecipeValidation(
 function annotateStrictValidationFlags(
   recipe: RecipeImportResult
 ): RecipeImportResult {
-  const report = validateStrictRecipe(recipe, {
-    minimumSteps: minimumStepCountForRecipeTitle(recipe.title),
+  // First, AUTO-DROP offenders from clear-cut hard issues (NON_FOOD,
+  // INGREDIENT_INCOHERENT_WITH_DISH). These are unambiguous: a non-food
+  // ingredient or one that's been flagged by DISH_FORBIDDEN should never
+  // reach the user. We do this BEFORE the final report annotation so the
+  // recipe still ships clean. Protected ingredients are guarded by
+  // isProtectedIngredient even here.
+  const cleaned = autoDropValidatorOffenders(recipe);
+
+  const report = validateStrictRecipe(cleaned, {
+    minimumSteps: minimumStepCountForRecipeTitle(cleaned.title),
   });
 
   if (report.ok) {
     // Clear any stale needsReview from upstream; everything checks out.
-    if (recipe.flags?.needsReview) {
+    if (cleaned.flags?.needsReview) {
       return {
-        ...recipe,
+        ...cleaned,
         flags: {
-          ...normalizeRecipeImportFlags(recipe.flags),
+          ...normalizeRecipeImportFlags(cleaned.flags),
           needsReview: false,
         },
       };
     }
-    return recipe;
+    return cleaned;
   }
 
   const hardCodes = report.hardIssues.map((issue: StrictIssue) => issue.code).join(", ");
@@ -1624,11 +1638,49 @@ function annotateStrictValidationFlags(
   );
 
   return {
-    ...recipe,
+    ...cleaned,
     flags: {
-      ...normalizeRecipeImportFlags(recipe.flags),
+      ...normalizeRecipeImportFlags(cleaned.flags),
       needsReview: true,
     },
+  };
+}
+
+/**
+ * Sprint 1.5 — auto-drop ingredients flagged with clear-cut hard issues
+ * (NON_FOOD_INGREDIENT, INGREDIENT_INCOHERENT_WITH_DISH). Never drops
+ * protected ingredients (CONTRAINTE 3). This is the last line of defense
+ * before the response leaves the backend — better to ship a slightly
+ * leaner recipe than to ship "chou" in tacos or "Sticker" as an
+ * ingredient.
+ */
+function autoDropValidatorOffenders(
+  recipe: RecipeImportResult
+): RecipeImportResult {
+  const preReport = validateStrictRecipe(recipe, {
+    minimumSteps: minimumStepCountForRecipeTitle(recipe.title),
+  });
+  if (preReport.ok) return recipe;
+
+  const dropCodes = new Set(["NON_FOOD_INGREDIENT", "INGREDIENT_INCOHERENT_WITH_DISH"]);
+  const offenders = new Set<string>();
+  for (const issue of preReport.hardIssues) {
+    if (!dropCodes.has(issue.code)) continue;
+    for (const name of issue.offenders ?? []) {
+      if (!isProtectedIngredient(name)) {
+        offenders.add(name);
+      }
+    }
+  }
+  if (offenders.size === 0) return recipe;
+
+  console.warn(
+    `[autoDropValidatorOffenders] Dropping ${offenders.size} validator-flagged ingredient(s): ${[...offenders].join(", ")}`
+  );
+
+  return {
+    ...recipe,
+    ingredientDrafts: recipe.ingredientDrafts.filter((d) => !offenders.has(d.name)),
   };
 }
 

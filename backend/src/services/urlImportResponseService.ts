@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
+import { isProtectedIngredient } from "./sourceFusion.js";
 import {
   hasCookabilityGaps,
   sanitizeRecipeImport,
@@ -89,7 +90,9 @@ export async function buildURLImportResponse(input: {
   }
 
   try {
-    const repairedRecipe = roundCountableIngredientQuantities(repairPerPortionRecipe(input.recipe));
+    const repairedRecipe = mergeIntraSectionDuplicates(
+      roundCountableIngredientQuantities(repairPerPortionRecipe(input.recipe))
+    );
     const recipeWithNutrition = await ensureRecipeNutrition(repairedRecipe);
     const title = stableTitle(recipeWithNutrition.title);
     let ingredients = normalizeIngredients(recipeWithNutrition.ingredientDrafts, title);
@@ -134,9 +137,95 @@ export async function buildURLImportResponse(input: {
       debug: input.debug
     });
 
+    // M5 (Round 5 plan) — quality gate + structured telemetry per import.
+    // Emit ONE JSON line summarizing KPI §2 values so we can grep prod logs
+    // for `event:"import_quality"` and aggregate daily. No PII — just the
+    // public source URL + computed scores.
+    logImportQuality({
+      sourceUrl: normalizedSourceUrl,
+      response,
+      droppedCount: droppedNames.size,
+      recipe: recipeWithNutrition
+    });
+
     return response;
   } catch {
     return buildURLImportFailureResponse();
+  }
+}
+
+/**
+ * M5 — Structured per-import telemetry. Emits a single JSON line on
+ * stdout with the KPI §2 fields so we can build a basic quality dashboard
+ * from Railway logs. Score thresholds (0.45 / 0.75) match the plan's
+ * quality gate boundaries.
+ */
+function logImportQuality(args: {
+  sourceUrl: string;
+  response: URLImportSuccessResponse;
+  droppedCount: number;
+  recipe: RecipeImportResult;
+}): void {
+  const data = args.response.data;
+  const ingredientCount = data.ingredients.length;
+  const stepCount = data.steps.length;
+  const sectionSet = new Set<string>();
+  for (const step of data.steps) {
+    const section = (step.section ?? "").trim();
+    if (section) sectionSet.add(section);
+  }
+  const sectionCount = sectionSet.size;
+
+  // Unit-in-name violations: ingredient.name should NEVER start with a
+  // unit token after Round 4-5 fixes. Cheap regex check on the final
+  // output as a last-line-of-defense KPI.
+  let unitInNameViolations = 0;
+  const UNIT_LEAK_RE =
+    /^(?:à\s+(?:café|soupe)|c\.?\s*à\.?\s*[csc]\.?|cas|cac|cuillere|cuillère|pincee|pincée|gramme|grammes|gr|kg|ml|cl|dl)\b/i;
+  for (const ing of data.ingredients) {
+    if (UNIT_LEAK_RE.test(ing.name)) unitInNameViolations += 1;
+  }
+
+  const caloriesPerServing = data.nutrition.calories;
+  const nutritionPlausible =
+    caloriesPerServing === 0 ||
+    (caloriesPerServing >= 80 && caloriesPerServing <= 1500);
+
+  const ingredientsOk = ingredientCount >= 3;
+  const stepsOk = stepCount >= 2;
+  const unitCorrectness = unitInNameViolations === 0;
+  const sectionsPresent = sectionCount > 0;
+
+  const score =
+    (ingredientsOk ? 1 : 0) * 0.3 +
+    (stepsOk ? 1 : 0) * 0.2 +
+    (nutritionPlausible ? 1 : 0) * 0.2 +
+    (unitCorrectness ? 1 : 0) * 0.2 +
+    (sectionsPresent ? 1 : 0.5) * 0.1;
+
+  const quality = score < 0.45 ? "low" : score >= 0.75 ? "high" : "medium";
+
+  // Single-line JSON for easy log parsing.
+  try {
+    console.log(
+      JSON.stringify({
+        event: "import_quality",
+        sourceUrl: args.sourceUrl,
+        score: Math.round(score * 100) / 100,
+        quality,
+        ingredientCount,
+        stepCount,
+        sectionCount,
+        nutritionPlausible,
+        unitCorrectness,
+        unitInNameViolations,
+        droppedCount: args.droppedCount,
+        caloriesPerServing,
+        timestamp: new Date().toISOString()
+      })
+    );
+  } catch {
+    // Never let telemetry crash the import path.
   }
 }
 
@@ -219,6 +308,78 @@ function normalizeIngredients(
  * to natural cooking quantities. We also patch `servingsText` so the
  * downstream nutrition divisor stays in sync.
  */
+/**
+ * M3 (Round 5 plan) — Intra-section duplicate merge.
+ *
+ * When the same ingredient (canonicalized name) appears twice in the SAME
+ * section/group, fuse them into a single entry. Same unit → sum quantities;
+ * different units → keep the first occurrence (signal that something is off,
+ * surfaced separately by strictRecipeValidator's DUPLICATE_CROSS_SECTION).
+ *
+ * Cross-section duplicates (same name, DIFFERENT groups) are preserved
+ * because the creator's intent — e.g. "oignon" in `marinade` AND in
+ * `garniture` — is legitimate and the validator handles that case
+ * separately via DUPLICATE_CROSS_SECTION soft warn.
+ */
+function mergeIntraSectionDuplicates(recipe: RecipeImportResult): RecipeImportResult {
+  if (recipe.ingredientDrafts.length < 2) return recipe;
+
+  type Bucket = { draft: RecipeIngredientDraft; numericAmount: number | null };
+  const buckets = new Map<string, Bucket>();
+  const orderedKeys: string[] = [];
+
+  for (const draft of recipe.ingredientDrafts) {
+    const nameKey = normalizeIngredientKey(draft.name);
+    if (!nameKey) {
+      // Unparseable name — keep as-is, but under a unique key so it's not
+      // merged with anything else.
+      const uniqueKey = `__keep_${orderedKeys.length}`;
+      buckets.set(uniqueKey, { draft, numericAmount: null });
+      orderedKeys.push(uniqueKey);
+      continue;
+    }
+    const group = (draft.group ?? "").trim().toLocaleLowerCase("fr-FR");
+    const bucketKey = `${group}::${nameKey}`;
+    const existing = buckets.get(bucketKey);
+    const currentNumeric = parseRawAmount(draft.amount);
+
+    if (!existing) {
+      buckets.set(bucketKey, { draft, numericAmount: currentNumeric });
+      orderedKeys.push(bucketKey);
+      continue;
+    }
+
+    // Same name AND same section → merge. Strategy:
+    //   - Same unit (after normalization) and both numeric → sum.
+    //   - Otherwise → keep first occurrence (most-trusted under caption-first).
+    const existingUnit = (existing.draft.unit ?? "").trim().toLocaleLowerCase("fr-FR");
+    const draftUnit = (draft.unit ?? "").trim().toLocaleLowerCase("fr-FR");
+    const sameUnit = existingUnit === draftUnit;
+
+    if (sameUnit && existing.numericAmount !== null && currentNumeric !== null) {
+      const summed = existing.numericAmount + currentNumeric;
+      const rounded = roundToNaturalQuantity(summed, existing.draft.unit);
+      existing.draft = {
+        ...existing.draft,
+        amount: formatNaturalAmount(rounded)
+      };
+      existing.numericAmount = rounded;
+      console.warn(
+        `[mergeIntraSectionDuplicates] Merged duplicate "${draft.name}" in section "${draft.group ?? ""}" → ${existing.draft.amount} ${existing.draft.unit ?? ""}`
+      );
+    }
+    // If units differ or amounts unparseable, silently keep first (avoids
+    // accidental sum like "2 cups + 200 g"). The validator will flag.
+  }
+
+  return {
+    ...recipe,
+    ingredientDrafts: orderedKeys
+      .map((key) => buckets.get(key)?.draft)
+      .filter((d): d is RecipeIngredientDraft => Boolean(d))
+  };
+}
+
 function repairPerPortionRecipe(recipe: RecipeImportResult): RecipeImportResult {
   const factor = detectPerPortionFactor(
     recipe.ingredientDrafts,
@@ -1049,26 +1210,31 @@ function dropUnreferencedIngredients(
     .join(" | ");
   if (!allStepText) return new Set();
 
-  // Whitelist short basic seasonings that often go unmentioned in steps.
-  const BASIC_SEASONINGS = new Set([
-    "sel",
-    "poivre",
-    "salt",
-    "pepper",
-    "huile",
-    "oil",
+  // CONTRAINTE 3 (Round 5 plan §4.6) — never drop protected ingredients
+  // even if no step references them. Single source of truth lives in
+  // sourceFusion.isProtectedIngredient (covers sel / poivre / huile /
+  // garniture / sauce / topping / assaisonnement / herbes / épices /
+  // pour servir / pour la déco / pour la garniture / pour décorer).
+  // Tiny set of beurre+sucre+eau additions are usually-implicit basics
+  // that creators rarely re-mention in steps but always want kept.
+  const ADDITIONAL_KEEP = new Set([
     "beurre",
     "butter",
     "sucre",
     "sugar",
     "eau",
-    "water"
+    "water",
+    "salt",
+    "pepper",
+    "oil"
   ]);
 
   const candidates: string[] = [];
   for (const ing of ingredients) {
     const normalized = normalizeIngredientKey(ing.name);
-    if (!normalized || BASIC_SEASONINGS.has(normalized)) continue;
+    if (!normalized) continue;
+    if (isProtectedIngredient(ing.name)) continue;
+    if (ADDITIONAL_KEEP.has(normalized)) continue;
 
     const tokens = normalized.split(" ").filter((t) => t.length >= 4);
     if (tokens.length === 0) continue;

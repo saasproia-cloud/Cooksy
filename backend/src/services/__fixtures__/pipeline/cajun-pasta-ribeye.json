@@ -1,0 +1,15 @@
+{
+  "name": "cajun-pasta-ribeye",
+  "description": "F7 (Round 5 plan) — cajun pasta caption with 'ribeye' and 'rigatoni'. Validates the §4.3 specificity_score path: 'ribeye' (tier 1.0) must NOT be generified into 'steak' or 'viande', and 'rigatoni' must NOT collapse into 'pâtes'. Both names appear verbatim in the final ingredient list.",
+  "input": {
+    "mode": "url",
+    "sourceUrl": "https://tiktok.com/@chef/video/cajun-ribeye-pasta",
+    "socialCaption": "Cajun ribeye pasta\n\nIngredients (4 portions) :\n- 500g de ribeye\n- 400g de rigatoni\n- 200ml de crème liquide entière\n- 2 c. à soupe de cajun seasoning\n- 80g de parmesan râpé\n- 3 gousses d'ail\n- 1 c. à soupe d'huile d'olive\n- 30g de beurre\n- 1 c. à café de paprika fumé\n- sel, poivre\n- persil pour servir\n\nÉtapes :\n1. Assaisonner le ribeye avec le cajun seasoning, le sel et le poivre.\n2. Saisir le ribeye dans l'huile chaude 3 min de chaque côté.\n3. Cuire les rigatoni dans l'eau bouillante salée jusqu'à al dente.\n4. Faire fondre le beurre, faire revenir l'ail.\n5. Ajouter la crème, le parmesan et le paprika, laisser épaissir.\n6. Mélanger les rigatoni à la sauce, dresser avec le ribeye tranché et le persil."
+  },
+  "expect": {
+    "primarySource": "caption",
+    "minIngredients": 9,
+    "mustContainIngredientTokens": ["ribeye", "rigatoni", "parmesan", "cajun"],
+    "mustNotContainIngredientTokens": ["steak haché", "viande hachée", "pâte alimentaire"]
+  }
+}

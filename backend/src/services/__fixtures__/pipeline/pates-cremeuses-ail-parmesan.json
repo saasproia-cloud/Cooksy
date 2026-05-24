@@ -1,0 +1,13 @@
+{
+  "name": "pates-cremeuses-ail-parmesan",
+  "description": "F5 (Round 5 plan) — paste-text demo import 'Pâtes crémeuses à l'ail et au parmesan'. Verifies that ingredient quantities stay in their natural total form (no /3 division leaking like 13.3, 33.3), units stay separated from name (NO 'À soupe huile' / 'À café Sel' in name), and core pasta ingredients survive.",
+  "input": {
+    "mode": "text",
+    "sharedText": "Pâtes crémeuses à l'ail et au parmesan\n\nIngrédients (4 personnes) :\n- 400g de rigatoni\n- 200ml de crème liquide entière\n- 80g de parmesan râpé\n- 4 gousses d'ail\n- 30g de beurre\n- 2 c. à soupe d'huile d'olive\n- 1 c. à café de sel\n- 1 c. à café de poivre noir\n- 1 bouquet de persil frais\n\nÉtapes :\n1. Cuire les pâtes dans l'eau bouillante salée selon les indications.\n2. Faire fondre le beurre avec l'huile, ajouter l'ail émincé.\n3. Verser la crème, laisser réduire 2 minutes.\n4. Ajouter le parmesan râpé, remuer jusqu'à liaison.\n5. Mélanger les pâtes égouttées à la sauce, garnir de persil et servir."
+  },
+  "expect": {
+    "minIngredients": 8,
+    "mustContainIngredientTokens": ["rigatoni", "parmesan", "ail", "huile", "sel", "persil"],
+    "mustNotContainIngredientTokens": ["à soupe", "à café", "c.à"]
+  }
+}

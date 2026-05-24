@@ -23,6 +23,7 @@ struct ExclusiveOfferView: View {
     @State private var sparkle: Bool = false
     @State private var sealWiggle: Bool = false
     @State private var shimmer: Bool = false
+    @State private var timerPulse: Bool = false
 
     private let yearlyPlan: PremiumPlan = .yearly
 
@@ -77,6 +78,7 @@ struct ExclusiveOfferView: View {
                     Color.clear.frame(height: 56) // top chrome breathing room
 
                     title
+                    urgencyTimer
                     giftIllustration
                         .frame(height: 230)
 
@@ -119,7 +121,124 @@ struct ExclusiveOfferView: View {
             withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
                 shimmer = true
             }
+            withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+                timerPulse = true
+            }
         }
+    }
+
+    // MARK: - Urgency timer
+
+    /// Big live HH:MM:SS countdown — anchored visually to the title so
+    /// it's the first thing the user reads after "Votre offre unique".
+    /// Once `remaining` drops under 2 h the banner flips into "critical"
+    /// mode (deep red, heavier pulse, "DERNIÈRES HEURES !" copy) so the
+    /// user feels the runway shrinking instead of just numbers ticking.
+    @ViewBuilder
+    private var urgencyTimer: some View {
+        if let expiresAt {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let remaining = max(0, expiresAt.timeIntervalSince(context.date))
+                let total = Int(remaining)
+                let hours = total / 3600
+                let minutes = (total % 3600) / 60
+                let seconds = total % 60
+                let isCritical = remaining > 0 && remaining <= 2 * 3600
+                let isExpired = remaining <= 0
+
+                VStack(spacing: 10) {
+                    HStack(spacing: 7) {
+                        Image(systemName: isCritical
+                              ? "exclamationmark.triangle.fill"
+                              : "alarm.fill")
+                            .font(.system(size: 12, weight: .black))
+                            .scaleEffect(timerPulse ? 1.18 : 0.94)
+                        Text(timerLabel(isCritical: isCritical, isExpired: isExpired))
+                            .font(.system(size: 11.5, weight: .black, design: .rounded))
+                            .tracking(1.6)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(.white)
+
+                    HStack(spacing: 8) {
+                        timerUnitBox(value: hours, unit: "H")
+                        timerSeparator
+                        timerUnitBox(value: minutes, unit: "M")
+                        timerSeparator
+                        timerUnitBox(value: seconds, unit: "S")
+                    }
+                    .opacity(isExpired ? 0.55 : 1)
+                }
+                .padding(.vertical, 14)
+                .padding(.horizontal, 18)
+                .frame(maxWidth: .infinity)
+                .background(timerBackground(isCritical: isCritical))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(
+                            .white.opacity(isCritical ? 0.45 : 0.28),
+                            lineWidth: isCritical ? 1.5 : 1
+                        )
+                )
+                .shadow(
+                    color: (isCritical
+                            ? Color(hex: 0xC8311B)
+                            : CooksyTheme.ctaOrangeDark).opacity(0.45),
+                    radius: timerPulse ? 22 : 14,
+                    y: 10
+                )
+                .animation(.easeInOut(duration: 0.4), value: isCritical)
+            }
+        }
+    }
+
+    private func timerLabel(isCritical: Bool, isExpired: Bool) -> String {
+        if isExpired { return "OFFRE EXPIRÉE" }
+        if isCritical { return "DERNIÈRES HEURES !" }
+        return "OFFRE EXPIRE DANS"
+    }
+
+    private func timerUnitBox(value: Int, unit: String) -> some View {
+        VStack(spacing: 1) {
+            Text(String(format: "%02d", max(0, value)))
+                .font(.system(size: 30, weight: .black, design: .rounded)
+                    .monospacedDigit())
+                .foregroundStyle(.white)
+            Text(unit)
+                .font(.system(size: 9.5, weight: .black, design: .rounded))
+                .tracking(1.4)
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .frame(width: 64, height: 62)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.white.opacity(0.16))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.white.opacity(0.30), lineWidth: 1)
+        )
+    }
+
+    private var timerSeparator: some View {
+        Text(":")
+            .font(.system(size: 26, weight: .black, design: .rounded))
+            .foregroundStyle(.white.opacity(0.7))
+            .opacity(timerPulse ? 1 : 0.45)
+    }
+
+    private func timerBackground(isCritical: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: isCritical
+                        ? [Color(hex: 0xE13D1E), Color(hex: 0xA61D08)]
+                        : [CooksyTheme.ctaOrange, CooksyTheme.ctaOrangeDark],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
     }
 
     // MARK: - Background aura

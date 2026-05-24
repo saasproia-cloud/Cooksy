@@ -15,6 +15,10 @@ struct HomeView: View {
 
     @State private var showsGiftWheel: Bool = false
     @State private var showsExclusiveOffer: Bool = false
+    /// Shown when the user taps the gift pill while in the post-forfeit
+    /// cooldown — explains the gift will return rather than re-opening
+    /// the wheel (which is a one-spin-per-cycle flow).
+    @State private var showsGiftCooldownAlert: Bool = false
     @State private var showsPaywallFromBadge: Bool = false
     @State private var showsQuotaInfo: Bool = false
     @State private var showsImportGuide: Bool = false
@@ -24,6 +28,13 @@ struct HomeView: View {
     /// drives a soft reminder banner that the user can still play to
     /// unlock −25 %.
     @State private var paywallShowsGiftReminder: Bool = false
+    /// Full-screen "shock" moment that fires once when a fresh gift
+    /// cycle becomes available after a cooldown — see GiftNewCycleHypeView.
+    @State private var showsHypeTakeover: Bool = false
+    /// Per-session guard so the silent auto-show fires at most once
+    /// between two cold starts (the persistent 6 h throttle in
+    /// PremiumOffersService.shouldAutoShow handles the longer floor).
+    @State private var didAutoShowThisSession: Bool = false
 
     init(
         store: RecipeStore,
@@ -86,6 +97,8 @@ struct HomeView: View {
                     showsImportGuide = true
                 }
             }
+
+            considerGiftPresentation()
         }
         .onChange(of: sessionStore.profile?.displayName) { _, newValue in
             viewModel.setDisplayName(newValue)
@@ -95,6 +108,26 @@ struct HomeView: View {
                 hasSeenImportGuide = true
                 showsImportGuide = false
             })
+        }
+        .fullScreenCover(isPresented: $showsHypeTakeover) {
+            // The "shock" moment: a fresh cycle just unlocked. Both
+            // routes acknowledge so the takeover doesn't re-fire on
+            // every subsequent launch — once the user has seen it,
+            // we're done.
+            GiftNewCycleHypeView(
+                offers: offers,
+                onPlay: {
+                    offers.acknowledgeFreshGiftCelebration()
+                    showsHypeTakeover = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        showsGiftWheel = true
+                    }
+                },
+                onDismiss: {
+                    offers.acknowledgeFreshGiftCelebration()
+                    showsHypeTakeover = false
+                }
+            )
         }
         .fullScreenCover(isPresented: $showsGiftWheel) {
             // Routes to whichever mini-game is active for the current
@@ -122,6 +155,19 @@ struct HomeView: View {
                 expiresAt: offers.giftOfferExpiresAt,
                 onClose: { showsExclusiveOffer = false }
             )
+        }
+        .alert("Ton cadeau revient bientôt 🎁", isPresented: $showsGiftCooldownAlert) {
+            Button("OK", role: .cancel) { showsGiftCooldownAlert = false }
+        } message: {
+            if let days = offers.giftCooldownDaysRemaining {
+                Text(
+                    days <= 1
+                    ? "Un nouveau cadeau se débloque dans moins de 24 h."
+                    : "Un nouveau cadeau se débloque dans \(days) jours."
+                )
+            } else {
+                Text("Un nouveau cadeau se débloque très bientôt.")
+            }
         }
         .fullScreenCover(isPresented: $showsPaywallFromBadge) {
             PremiumPaywallView(
@@ -172,6 +218,49 @@ struct HomeView: View {
         }
     }
 
+    /// Decides what gift-related surface (if any) to auto-present after
+    /// the home appears. Priority order, applied at most once per
+    /// session:
+    ///   1. **HYPE takeover** when a fresh cycle just unlocked — wins
+    ///      over the silent auto-show because the user has been waiting
+    ///      a week for this moment.
+    ///   2. **Silent auto-show** of the active gift (game or exclusive
+    ///      offer) ~1 in 4 launches, gated by the 6 h persistent
+    ///      throttle in PremiumOffersService.
+    ///
+    /// Skipped entirely for premium users (no offer applies) and on the
+    /// very first launch (the import guide owns that moment).
+    private func considerGiftPresentation() {
+        let isPremium = sessionStore.profile?.isPremium ?? false
+        guard !isPremium, !didAutoShowThisSession else { return }
+
+        if offers.hasFreshGiftCelebrationPending {
+            didAutoShowThisSession = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                showsHypeTakeover = true
+            }
+            return
+        }
+
+        // Don't compete with the first-launch import guide.
+        guard hasSeenImportGuide else { return }
+
+        guard offers.shouldAutoShow(from: .appLaunch) else { return }
+        didAutoShowThisSession = true
+        offers.recordAutoShownNow()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            switch offers.giftPhase {
+            case .notWon:
+                showsGiftWheel = true
+            case .won where offers.giftOfferIsActive:
+                showsExclusiveOffer = true
+            default:
+                break
+            }
+        }
+    }
+
     private var topBar: some View {
         HStack(spacing: 10) {
             Image("HeaderLogo")
@@ -190,13 +279,22 @@ struct HomeView: View {
             FreePlanHomeBadges(
                 onTapQuota: { showsQuotaInfo = true },
                 onTapGift: {
-                    // If the discount is already won and still active,
-                    // jump straight to the exclusive offer page (the
-                    // wheel was a one-shot flow, not meant to be
-                    // re-spun). Otherwise present the wheel.
-                    if offers.giftHasBeenWon && offers.giftOfferIsActive {
+                    // Route the tap based on the gift's current phase:
+                    //   • won + still in 24 h claim window → open the
+                    //     exclusive offer view directly
+                    //   • notWon → open the mini-game so they can spin
+                    //   • forfeited → cooldown is active; show a brief
+                    //     toast/alert rather than re-opening the wheel
+                    //     (the wheel is a one-shot flow per cycle)
+                    switch offers.giftPhase {
+                    case .won where offers.giftOfferIsActive:
                         showsExclusiveOffer = true
-                    } else {
+                    case .notWon:
+                        showsGiftWheel = true
+                    case .forfeited:
+                        OnboardingHaptics.selection()
+                        showsGiftCooldownAlert = true
+                    default:
                         showsGiftWheel = true
                     }
                 }
