@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { enrichRecipeNutrition } from "./usdaNutritionService.js";
 import { isProtectedIngredient } from "./sourceFusion.js";
+import { currentTotals } from "./tokenUsageTracker.js";
 import {
   hasCookabilityGaps,
   sanitizeRecipeImport,
@@ -205,6 +206,12 @@ function logImportQuality(args: {
 
   const quality = score < 0.45 ? "low" : score >= 0.75 ? "high" : "medium";
 
+  // Cost telemetry — tokenUsageTracker aggregates every OpenAI call that
+  // happened inside this request's runWithCounters scope. Empty fields
+  // (zero everywhere) when the route handler forgot to wrap the call,
+  // which is itself a signal we want to see.
+  const usage = currentTotals();
+
   // Single-line JSON for easy log parsing.
   try {
     console.log(
@@ -221,6 +228,11 @@ function logImportQuality(args: {
         unitInNameViolations,
         droppedCount: args.droppedCount,
         caloriesPerServing,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        totalTokens: usage.totalTokens,
+        estimatedCostUsd: usage.estimatedCostUsd,
+        callsByModel: usage.callsByModel,
         timestamp: new Date().toISOString()
       })
     );

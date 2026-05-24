@@ -9,6 +9,7 @@ import ffmpegStatic from "ffmpeg-static";
 
 import { env, requireProvider } from "../config/env.js";
 import { fetchRemoteBuffer, fetchRemoteFile } from "./generalPageService.js";
+import { parseResponsesUsage, recordUsage } from "./tokenUsageTracker.js";
 import {
   recipeImportSchema,
   sanitizeRecipeImport,
@@ -734,6 +735,10 @@ export async function distillTranscriptForRecipe(
     }
 
     const json = await response.json() as Record<string, unknown>;
+    // Record digest distillation token usage.
+    const usage = parseResponsesUsage(json, env.OPENAI_RECIPE_MODEL);
+    if (usage) recordUsage(usage);
+
     const text = resolveOpenAIOutputText(json);
     if (!text) {
       return null;
@@ -1023,6 +1028,10 @@ async function requestStructuredRecipeFromOpenAI(input: {
   }
 
   const json = await response.json() as Record<string, unknown>;
+  // Record token usage for per-import cost telemetry.
+  const usage = parseResponsesUsage(json, env.OPENAI_RECIPE_MODEL);
+  if (usage) recordUsage(usage);
+
   const outputText = resolveOpenAIOutputText(json);
   if (!outputText) {
     console.error(

@@ -29,6 +29,15 @@ import { registerDeviceRoutes } from "./routes/devices.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerNotificationPrefsRoutes } from "./routes/notificationPrefs.js";
 import { startNotificationCron } from "./services/notifications/cronRunner.js";
+import { runWithCounters } from "./services/tokenUsageTracker.js";
+
+// Tight burst limit applied to /api/import/* endpoints specifically.
+// Combined with the per-user `consumeImportSlot` quota (5 free / 100
+// premium per week), this caps short-window abuse: even an authenticated
+// premium user can't burn through their entire weekly quota in 10 seconds,
+// which would otherwise cause a $5+ OpenAI spike. 8 imports per minute
+// is generous for real human usage but tight enough to absorb a bug.
+const IMPORT_BURST_RATE_LIMIT = { max: 8, timeWindow: "1 minute" } as const;
 
 const isProduction = env.APP_ENV === "production";
 
@@ -166,7 +175,10 @@ app.get("/api/me/entitlement", { preHandler: requireAuth }, async (request) => {
 
 app.post(
   "/api/import/url",
-  { preHandler: requireAuth },
+  {
+    preHandler: requireAuth,
+    config: { rateLimit: IMPORT_BURST_RATE_LIMIT }
+  },
   async (request, reply) => {
   try {
     // Authoritative quota check. Free users get 5 imports / week,
@@ -177,16 +189,22 @@ app.post(
     const body = urlImportSchema.parse(request.body);
     const debugRequested = body.debug === true
       || (request.query as Record<string, unknown> | undefined)?.debug === "true";
-    const imported = await importFromUrl(body, {
-      previewMode: body.previewMode,
-      sharedMode: body.sharedMode,
-      debug: debugRequested
+    // Wrap the whole pipeline in a token-usage scope so every OpenAI
+    // call inside reports back to the per-request counter.
+    const result = await runWithCounters(async () => {
+      const imported = await importFromUrl(body, {
+        previewMode: body.previewMode,
+        sharedMode: body.sharedMode,
+        debug: debugRequested
+      });
+      const response = await buildURLImportResponse({
+        recipe: imported.recipe,
+        sourceUrl: body.url,
+        debug: imported.debug
+      });
+      return { imported, response };
     });
-    const response = await buildURLImportResponse({
-      recipe: imported.recipe,
-      sourceUrl: body.url,
-      debug: imported.debug
-    });
+    const { imported, response } = result;
 
     request.log.info(
       { event: "import.url.success", hasDebug: debugRequested },
@@ -233,23 +251,31 @@ app.post(
 
 app.post(
   "/api/import/text",
-  { preHandler: requireAuth },
+  {
+    preHandler: requireAuth,
+    config: { rateLimit: IMPORT_BURST_RATE_LIMIT }
+  },
   async (request) => {
     await consumeImportSlot(request.user!.id);
     const body = textImportSchema.parse(request.body);
-    return importFromText({
-      text: body.text,
-      imageDataUrl: body.imageBase64 ? toDataUrl(body.imageBase64) : undefined
-    }, {
-      previewMode: body.previewMode,
-      sharedMode: body.sharedMode
-    });
+    return runWithCounters(async () =>
+      importFromText({
+        text: body.text,
+        imageDataUrl: body.imageBase64 ? toDataUrl(body.imageBase64) : undefined
+      }, {
+        previewMode: body.previewMode,
+        sharedMode: body.sharedMode
+      })
+    );
   }
 );
 
 app.post(
   "/api/import/photo",
-  { preHandler: requireAuth },
+  {
+    preHandler: requireAuth,
+    config: { rateLimit: IMPORT_BURST_RATE_LIMIT }
+  },
   async (request, reply) => {
     await consumeImportSlot(request.user!.id);
     const parts = request.parts();
@@ -284,9 +310,11 @@ app.post(
       };
     }
 
-    return importFromPhoto({
-      imageDataUrl: `data:${imageMimeType};base64,${imageBuffer.toString("base64")}`
-    });
+    return runWithCounters(async () =>
+      importFromPhoto({
+        imageDataUrl: `data:${imageMimeType};base64,${imageBuffer.toString("base64")}`
+      })
+    );
   }
 );
 
