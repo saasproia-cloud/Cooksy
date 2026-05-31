@@ -117,6 +117,32 @@ export async function registerChatRoutes(app: FastifyInstance): Promise<void> {
       config: { rateLimit: CHAT_BURST_RATE_LIMIT }
     },
     async (request, reply) => {
+      // Diagnostic: surface the inbound body shape so we can pinpoint
+      // exactly which key the iOS payload is sending wrong when Zod
+      // rejects it. Logged at debug level so it stays out of production
+      // logs by default; bump APP_ENV to non-production to see it.
+      request.log.warn(
+        {
+          event: "chat.message.raw_body",
+          bodyKeys: typeof request.body === "object" && request.body !== null
+            ? Object.keys(request.body as Record<string, unknown>)
+            : null,
+          recipeType: Array.isArray((request.body as Record<string, unknown> | null)?.recipe)
+            ? "array"
+            : typeof (request.body as Record<string, unknown> | null)?.recipe,
+          recipeSample: (() => {
+            const r = (request.body as Record<string, unknown> | null)?.recipe;
+            if (Array.isArray(r)) {
+              return { length: r.length, firstItem: r[0] };
+            }
+            if (r && typeof r === "object") {
+              return { keys: Object.keys(r) };
+            }
+            return r;
+          })()
+        },
+        "chat /message inbound body shape"
+      );
       const body = messageSchema.parse(request.body);
       try {
         const result = await sendUserMessage({
