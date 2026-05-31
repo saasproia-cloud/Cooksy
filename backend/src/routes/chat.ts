@@ -33,29 +33,43 @@ import { NutritionPatchSchema, PendingModificationSchema } from "../services/cha
 
 const CHAT_BURST_RATE_LIMIT = { max: 20, timeWindow: "1 minute" } as const;
 
+// Swift's JSONEncoder omits an Optional key entirely when the value is
+// `nil` — it does NOT emit `"key": null`. With `.nullable()` Zod treats
+// a missing key as "Required" and rejects the whole payload (this was
+// the cause of the 15× "Required" errors on /api/chat/message). Use the
+// helper below so the schema accepts both "key missing" and "key present
+// with value null", and normalises `undefined` to `null` so downstream
+// types (InboundRecipePayload: `string | null`) keep working.
+const nullishToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.nullable().optional().transform((v) => v ?? null);
+
 const recipePayloadSchema = z.object({
   recipeId: z.string().uuid(),
   title: z.string().min(1).max(200),
-  servings: z.string().nullable(),
-  prepTimeMinutes: z.number().int().nonnegative().nullable(),
-  cookTimeMinutes: z.number().int().nonnegative().nullable(),
+  servings: nullishToNull(z.string()),
+  prepTimeMinutes: nullishToNull(z.number().int().nonnegative()),
+  cookTimeMinutes: nullishToNull(z.number().int().nonnegative()),
   ingredients: z.array(
     z.object({
       id: z.string().uuid(),
       name: z.string().min(1).max(200),
-      amount: z.string().nullable(),
-      unit: z.string().nullable(),
-      originName: z.string().nullable()
+      amount: nullishToNull(z.string()),
+      unit: nullishToNull(z.string()),
+      originName: nullishToNull(z.string())
     })
   ).max(80),
   steps: z.array(
     z.object({
       id: z.string().uuid(),
-      title: z.string().nullable(),
+      title: nullishToNull(z.string()),
       detail: z.string().min(1).max(1_500)
     })
   ).max(40),
-  nutritionPerServing: NutritionPatchSchema.nullable(),
+  nutritionPerServing: nullishToNull(NutritionPatchSchema),
+  // `allergens` and `appliedModifications` are non-optional `[Type]` on the
+  // Swift side, so they always serialise to at least `[]` — keeping them
+  // strictly-required here keeps a real bug surfacing if iOS ever drops
+  // them by accident.
   allergens: z.array(z.string().max(40)).max(20),
   appliedModifications: z.array(
     z.object({
