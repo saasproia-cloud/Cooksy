@@ -385,6 +385,18 @@ if (!isProduction) {
 
 app.setErrorHandler((error, request, reply) => {
   if (error instanceof ZodError) {
+    // Surface the exact field-level failures in the Railway logs so we
+    // can debug schema mismatches without having to scrape the response
+    // body. The flattened shape lists every offending path + message.
+    request.log.warn(
+      {
+        event: "validation.zod_rejected",
+        url: request.url,
+        method: request.method,
+        details: error.flatten()
+      },
+      "Zod validation failed"
+    );
     reply.status(400).send({
       error: "Bad Request",
       details: error.flatten()

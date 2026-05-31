@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import OSLog
 import Supabase
@@ -17,6 +18,7 @@ final class SessionStore: ObservableObject {
     private let client: SupabaseClient
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "SessionStore")
     private var authListenerTask: Task<Void, Never>?
+    private var entitlementCancellable: AnyCancellable?
     /// Set by `setPremium(true)` right after a StoreKit purchase succeeds.
     /// While this date is in the future, any background `loadProfile` call
     /// (auth listener token refresh, manual refresh) preserves an active
@@ -48,10 +50,72 @@ final class SessionStore: ObservableObject {
 
     init(client: SupabaseClient = SupabaseClientProvider.shared) {
         self.client = client
+        observeRevenueCatEntitlement()
+    }
+
+    /// Subscribes to `PurchaseService.shared.$isPremium` so the moment
+    /// RevenueCat reports an entitlement change (renewal failed, refund,
+    /// user cancelled in App Store Settings) we mirror it onto
+    /// `profile.isPremium`. Without this the local profile would stay
+    /// stuck on `true` until the Supabase row was independently
+    /// refreshed, and the user would keep seeing the premium home tab
+    /// despite their subscription having ended.
+    ///
+    /// The grace window opened by `setPremium(true)` is honoured: during
+    /// those ~120 s right after a purchase, an RC false reading is
+    /// treated as sandbox lag and ignored — the truthful "true" lands
+    /// once the webhook propagates.
+    private func observeRevenueCatEntitlement() {
+        entitlementCancellable = PurchaseService.shared.$isPremium
+            .receive(on: DispatchQueue.main)
+            .removeDuplicates()
+            .sink { [weak self] rcIsPremium in
+                guard let self else { return }
+                Task { @MainActor [weak self] in
+                    await self?.reconcileWithRevenueCat(rcIsPremium: rcIsPremium)
+                }
+            }
+    }
+
+    private func reconcileWithRevenueCat(rcIsPremium: Bool) async {
+        guard isSignedIn, let user = currentUser else { return }
+        guard let currentProfile = profile else { return }
+
+        if rcIsPremium {
+            // RC granted premium and SessionStore hasn't picked it up yet
+            // (e.g. RC delegate fires before our `setPremium(true)`).
+            // Flip optimistically and let Supabase confirm via webhook.
+            if !currentProfile.isPremium {
+                logger.info("RC entitlement now active — upgrading local profile")
+                premiumGraceUntil = Date().addingTimeInterval(120)
+                profile?.isPremium = true
+                ImportQuotaService.shared.isPremium = true
+                await loadProfilePreservingPremium(for: user.id)
+            }
+        } else {
+            // RC says the entitlement is no longer active. If we're in
+            // the post-purchase grace window, this is almost certainly
+            // sandbox lag — ignore. Otherwise downgrade locally so the
+            // router immediately routes the user back to the free tier.
+            if isInPremiumGrace {
+                logger.info("RC reports no entitlement but in grace window — keeping premium")
+                return
+            }
+            if currentProfile.isPremium {
+                logger.info("RC entitlement no longer active — downgrading local profile")
+                profile?.isPremium = false
+                ImportQuotaService.shared.isPremium = false
+                await loadProfile(for: user.id)
+            }
+        }
     }
 
     deinit {
         authListenerTask?.cancel()
+        // `entitlementCancellable` and the auth listener Task are
+        // safe to leave attached — SessionStore lives for the entire
+        // app lifetime, and Swift 6 actor isolation forbids touching
+        // non-Sendable properties from a nonisolated deinit.
     }
 
     func bootstrap() async {

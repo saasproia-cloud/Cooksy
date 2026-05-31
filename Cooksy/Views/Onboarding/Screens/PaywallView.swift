@@ -114,8 +114,11 @@ struct PaywallView: View {
 
                 Button("Restaurer") {
                     Task {
-                        try? await PurchaseService.shared.restorePurchases()
-                        if PurchaseService.shared.isPremium {
+                        // Restore is read-only — it can never grant
+                        // premium unless RC reports an actually-active
+                        // entitlement on the restored CustomerInfo.
+                        let restored = (try? await PurchaseService.shared.restorePurchases()) ?? false
+                        if restored {
                             await sessionStore.setPremium(true)
                         }
                     }
@@ -155,14 +158,22 @@ struct PaywallView: View {
         OnboardingHaptics.success()
         Task {
             do {
-                try await PurchaseService.shared.purchase(plan: selectedPlan)
-                await PurchaseService.shared.forcePremiumAfterPurchase()
-                await sessionStore.setPremium(true)
-                if PurchaseService.shared.isInTrial {
-                    PurchaseService.shared.recordTrialStarted()
+                let outcome = try await PurchaseService.shared.purchase(plan: selectedPlan)
+                // Cancellation is a no-op (user stays on the onboarding
+                // paywall). On `.success` we trust StoreKit — Apple has
+                // accepted the transaction, PurchaseService has flipped
+                // the optimistic flag, and SessionStore's grace window
+                // covers the RC propagation lag.
+                if outcome == .success {
+                    await sessionStore.setPremium(true)
+                    if PurchaseService.shared.isInTrial {
+                        PurchaseService.shared.recordTrialStarted()
+                    }
                 }
             } catch {
-                // User cancelled → silently ignore.
+                // Network / package errors → leave the user on the
+                // paywall, no premium granted. The StoreKit sheet
+                // surfaces the failure to the user already.
             }
             await MainActor.run { isActivating = false }
         }

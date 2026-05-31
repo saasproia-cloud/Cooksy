@@ -18,6 +18,7 @@ struct ExclusiveOfferView: View {
     @StateObject private var purchaseService = PurchaseService.shared
 
     @State private var isPurchasing: Bool = false
+    @State private var purchaseError: String? = nil
     @State private var giftFloat: Bool = false
     @State private var sparkle: Bool = false
     @State private var sealWiggle: Bool = false
@@ -114,6 +115,14 @@ struct ExclusiveOfferView: View {
             .opacity(isPurchasing ? 0.4 : 1)
         }
         .ignoresSafeArea(edges: .bottom)
+        .alert("Erreur", isPresented: .init(
+            get: { purchaseError != nil },
+            set: { if !$0 { purchaseError = nil } }
+        )) {
+            Button("OK", role: .cancel) { purchaseError = nil }
+        } message: {
+            Text(purchaseError ?? "")
+        }
         .onAppear {
             giftFloat = true
             sparkle = true
@@ -670,10 +679,11 @@ struct ExclusiveOfferView: View {
     // MARK: - Purchase
 
     /// Run the full purchase locally — execute the purchase, and only
-    /// after StoreKit confirms the entitlement do we mutate the gift
-    /// state machine. The previous version mutated the gift BEFORE
-    /// the purchase, which silently consumed the gift if the user
-    /// cancelled the StoreKit sheet.
+    /// after StoreKit + RC confirm the entitlement is active do we mutate
+    /// the gift state machine. The previous version both pre-mutated the
+    /// gift state AND granted premium on cancellation (RC silently
+    /// returns on `userCancelled`); this version branches on the
+    /// `PurchaseOutcome` enum so cancellation can never bogus-grant.
     private func handlePurchase() {
         guard !isPurchasing else { return }
         OnboardingHaptics.medium()
@@ -683,22 +693,26 @@ struct ExclusiveOfferView: View {
 
         Task {
             var didSucceed = false
+            var failureMessage: String? = nil
             do {
-                // Try the matching Promotional Offer first ("GIFT25")
-                // — Apple applies a real reduction if the offer is
-                // configured server-side. Otherwise this falls back
-                // silently to the regular annual price.
-                try await PurchaseService.shared.purchaseAnnualWithPromo(
+                let outcome = try await PurchaseService.shared.purchaseAnnualWithPromo(
                     offerIdentifier: "GIFT\(percent)"
                 )
-                // Trust StoreKit's transaction success — RC's entitlement
-                // may lag 1–2 s in sandbox. Force-grant premium locally
-                // so the UI transitions off the offer screen immediately.
-                await PurchaseService.shared.forcePremiumAfterPurchase()
-                didSucceed = true
-                await sessionStore.setPremium(true)
+                switch outcome {
+                case .cancelled:
+                    break // User dismissed the sheet — no state change.
+                case .success:
+                    // StoreKit accepted the gift purchase. PurchaseService
+                    // already flipped `isPremium` and is polling RC in
+                    // the background; SessionStore's observer + grace
+                    // window finish the propagation. No second guard
+                    // here so a slow RC backend can't morph a real
+                    // purchase into a fake error alert.
+                    await sessionStore.setPremium(true)
+                    didSucceed = true
+                }
             } catch {
-                // User cancelled or error — gift state unchanged.
+                failureMessage = error.localizedDescription
             }
 
             await MainActor.run {
@@ -706,9 +720,18 @@ struct ExclusiveOfferView: View {
                     let inTrial = PurchaseService.shared.isInTrial
                     offers.recordPurchaseCompleted(plan: yearlyPlan, inTrial: inTrial)
                     offers.clearFreeModeChoice()
+                    isPurchasing = false
+                    onClose()
+                } else {
+                    // Cancellation or recoverable error — stay on the
+                    // offer screen so the user can retry without losing
+                    // the still-valid gift. The error toast (when any)
+                    // surfaces via the optional message.
+                    isPurchasing = false
+                    if let failureMessage {
+                        purchaseError = failureMessage
+                    }
                 }
-                isPurchasing = false
-                onClose()
             }
         }
     }

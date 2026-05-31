@@ -306,9 +306,37 @@ final class PurchaseService: NSObject, ObservableObject {
 
     // MARK: - Purchase
 
+    /// Distinguishes the two non-error outcomes of a StoreKit purchase
+    /// flow so callers can route correctly:
+    ///   • `.success`   — entitlement is now active on the returned
+    ///                    CustomerInfo, premium can be granted.
+    ///   • `.cancelled` — user dismissed the payment sheet; **do NOT**
+    ///                    grant premium. Previous versions of this
+    ///                    service swallowed cancellation as a silent
+    ///                    success, which let the paywall mark users
+    ///                    premium without billing them.
+    enum PurchaseOutcome {
+        case success
+        case cancelled
+    }
+
     /// Presents the native StoreKit payment sheet for the given plan.
-    /// Throws `PurchaseError` on failure; silently returns if the user cancels.
-    func purchase(plan: PremiumPlan) async throws {
+    /// Throws `PurchaseError` on network / package failures. Returns
+    /// `.cancelled` if the user closed the sheet, `.success` if Apple
+    /// processed the transaction.
+    ///
+    /// When `result.userCancelled` is false, StoreKit has accepted the
+    /// transaction and Apple WILL bill the user — even if the returned
+    /// `CustomerInfo` doesn't yet reflect the new entitlement (RC's
+    /// backend can lag 1–30 s in sandbox before the entitlement
+    /// propagates). We therefore trust the StoreKit success signal
+    /// and optimistically flip `isPremium = true`, then kick off a
+    /// background poll so the canonical RC state catches up.
+    /// Refusing to grant premium in this window was the source of the
+    /// "ça met une erreur et faut quitter l'app" bug — Apple billed,
+    /// the user paid, and the app was still showing the paywall.
+    @discardableResult
+    func purchase(plan: PremiumPlan) async throws -> PurchaseOutcome {
         guard let offering = currentOffering else { throw PurchaseError.noOffering }
 
         let package: Package? = plan == .monthly ? offering.monthly : offering.annual
@@ -318,8 +346,27 @@ final class PurchaseService: NSObject, ObservableObject {
         defer { isLoading = false }
 
         let result = try await Purchases.shared.purchase(package: pkg)
-        guard !result.userCancelled else { return }
+        if result.userCancelled { return .cancelled }
         syncStatus(from: result.customerInfo)
+        await reinforcePremiumAfterStoreKitSuccess()
+        return .success
+    }
+
+    /// Called right after `Purchases.shared.purchase(...)` returns with
+    /// `userCancelled == false`. StoreKit has accepted the transaction,
+    /// but RC's backend may take a few seconds to mark the entitlement
+    /// active. We:
+    ///   1. Pin `isPremium = true` locally so the paywall transitions
+    ///      out of the "purchasing" state and the router routes to the
+    ///      premium home immediately.
+    ///   2. Spawn a detached poll so the canonical RC CustomerInfo gets
+    ///      refreshed once the propagation catches up. The observer in
+    ///      SessionStore reconciles automatically when that happens.
+    private func reinforcePremiumAfterStoreKitSuccess() async {
+        isPremium = true
+        Task { @MainActor [weak self] in
+            _ = await self?.confirmEntitlementActive(maxAttempts: 8)
+        }
     }
 
     /// Annual purchase that tries to apply a Promotional Offer matching
@@ -335,7 +382,8 @@ final class PurchaseService: NSObject, ObservableObject {
     /// returning subscribers.
     static let giftYearlyProductID = "cooksy_premium_yearly_gift"
 
-    func purchaseAnnualWithPromo(offerIdentifier: String) async throws {
+    @discardableResult
+    func purchaseAnnualWithPromo(offerIdentifier: String) async throws -> PurchaseOutcome {
         // Strategy: purchase the dedicated 29,99 € product
         // `cooksy_premium_yearly_gift`. This sidesteps Apple's rule
         // that Promotional Offers only apply to existing/expired
@@ -350,9 +398,10 @@ final class PurchaseService: NSObject, ObservableObject {
             isLoading = true
             defer { isLoading = false }
             let result = try await Purchases.shared.purchase(product: giftProduct)
-            guard !result.userCancelled else { return }
+            if result.userCancelled { return .cancelled }
             syncStatus(from: result.customerInfo)
-            return
+            await reinforcePremiumAfterStoreKitSuccess()
+            return .success
         }
 
         logger.warning("Gift product \(Self.giftYearlyProductID, privacy: .public) not found — attempting Promotional Offer fallback")
@@ -375,9 +424,10 @@ final class PurchaseService: NSObject, ObservableObject {
                 isLoading = true
                 defer { isLoading = false }
                 let result = try await Purchases.shared.purchase(package: pkg, promotionalOffer: promoOffer)
-                guard !result.userCancelled else { return }
+                if result.userCancelled { return .cancelled }
                 syncStatus(from: result.customerInfo)
-                return
+                await reinforcePremiumAfterStoreKitSuccess()
+                return .success
             } catch {
                 logger.warning("Promo offer \(offerIdentifier, privacy: .public) failed (\(error.localizedDescription, privacy: .public)) — falling back to regular annual price")
                 try? await Task.sleep(nanoseconds: 600_000_000)
@@ -385,63 +435,61 @@ final class PurchaseService: NSObject, ObservableObject {
         } else {
             logger.info("No promo offer \(offerIdentifier, privacy: .public) configured on annual product — using regular price")
         }
-        try await purchase(plan: .yearly)
+        return try await purchase(plan: .yearly)
     }
 
     /// Convenience overload that defaults to the annual plan (used by the
     /// onboarding paywall which has its own plan enum).
-    func purchaseAnnual() async throws {
+    @discardableResult
+    func purchaseAnnual() async throws -> PurchaseOutcome {
         try await purchase(plan: .yearly)
     }
 
-    /// Force `isPremium` to `true` and persist a server-side refresh in
-    /// the background. Use this immediately after a StoreKit purchase
-    /// has *succeeded* (no `userCancelled`, no error) so the UI can
-    /// react instantly — without waiting for RevenueCat's webhook /
-    /// CustomerInfo poll to confirm.
+    /// Polls RevenueCat's CustomerInfo with backoff to confirm the
+    /// `premium` entitlement is **actually** active. Used right after
+    /// a successful StoreKit transaction to absorb the 1–2 s sandbox
+    /// lag between StoreKit reporting success and RC's backend
+    /// reflecting the new entitlement.
     ///
-    /// Two practical reasons this exists:
-    ///   • RevenueCat's `Purchases.shared.purchase(...)` returns a
-    ///     `CustomerInfo` that *should* reflect the new entitlement,
-    ///     but in sandbox/test environments the entitlement is
-    ///     sometimes still empty for ~1–2 s while RC's backend catches
-    ///     up. Without this method the paywall would stay open until
-    ///     the next CustomerInfo refresh, and the user has to background
-    ///     the app to unstick it.
-    ///   • Even in production, network jitter between StoreKit success
-    ///     and RC's server can produce the same race. Trusting the
-    ///     transaction success is correct UX — the worst case is that
-    ///     we grant premium for a few seconds before the server-side
-    ///     entitlement lands (which it always does, otherwise StoreKit
-    ///     would have reported failure).
-    func forcePremiumAfterPurchase() async {
-        isPremium = true
-        // Best-effort: pull the latest CustomerInfo so any other
-        // downstream consumers (sessionStore, RootView) see the
-        // server-confirmed value as soon as it's available.
-        do {
-            let info = try await Purchases.shared.customerInfo()
-            syncStatus(from: info)
-            // syncStatus may have flipped isPremium back to false if RC
-            // is still catching up — reinforce the optimistic value so
-            // the UI doesn't flicker. The next CustomerInfo refresh will
-            // confirm it for real.
-            if !isPremium {
-                isPremium = true
-                logger.info("RC entitlement not yet active after purchase — keeping optimistic isPremium=true")
+    /// Returns `true` only when RC confirms the entitlement is active.
+    /// On `false`, callers MUST NOT grant premium locally — the
+    /// previous "always-grant + reinforce" path was the source of the
+    /// "cancel and still go premium" bug.
+    @discardableResult
+    func confirmEntitlementActive(maxAttempts: Int = 5) async -> Bool {
+        for attempt in 0..<maxAttempts {
+            if attempt > 0 {
+                // 0.4s, 0.8s, 1.2s, 1.6s — totals ~4 s of grace,
+                // enough to swallow sandbox lag without freezing the UI.
+                let delayNs = UInt64(400_000_000) * UInt64(attempt)
+                try? await Task.sleep(nanoseconds: delayNs)
             }
-        } catch {
-            logger.warning("RC customerInfo refresh after purchase failed: \(error.localizedDescription, privacy: .public)")
+            do {
+                let info = try await Purchases.shared.customerInfo()
+                syncStatus(from: info)
+                if info.entitlements["premium"]?.isActive == true {
+                    return true
+                }
+            } catch {
+                logger.warning("RC customerInfo poll attempt \(attempt, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
+        return false
     }
 
     // MARK: - Restore
 
-    func restorePurchases() async throws {
+    /// Restores previously purchased entitlements. Returns `true` when
+    /// the restored CustomerInfo actually contains an active premium
+    /// entitlement, `false` when there was nothing to restore. Throws
+    /// only on network / RC errors.
+    @discardableResult
+    func restorePurchases() async throws -> Bool {
         isLoading = true
         defer { isLoading = false }
         let info = try await Purchases.shared.restorePurchases()
         syncStatus(from: info)
+        return info.entitlements["premium"]?.isActive == true
     }
 
     // MARK: - Refresh
@@ -468,11 +516,13 @@ final class PurchaseService: NSObject, ObservableObject {
     enum PurchaseError: LocalizedError {
         case noOffering
         case packageNotFound
+        case entitlementNotActivated
 
         var errorDescription: String? {
             switch self {
-            case .noOffering:      return "Offres indisponibles. Réessaie dans un instant."
-            case .packageNotFound: return "Plan introuvable. Réessaie dans un instant."
+            case .noOffering:               return "Offres indisponibles. Réessaie dans un instant."
+            case .packageNotFound:          return "Plan introuvable. Réessaie dans un instant."
+            case .entitlementNotActivated:  return "L'abonnement n'a pas encore été validé. Patiente quelques secondes et réessaie."
             }
         }
     }

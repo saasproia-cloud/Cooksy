@@ -338,15 +338,32 @@ struct PremiumPaywallView: View {
             }
 
             do {
+                let outcome: PurchaseService.PurchaseOutcome
                 if plan == .yearly, giftActive, let percent = giftPercent {
-                    try await PurchaseService.shared.purchaseAnnualWithPromo(
+                    outcome = try await PurchaseService.shared.purchaseAnnualWithPromo(
                         offerIdentifier: "GIFT\(percent)"
                     )
                 } else {
-                    try await PurchaseService.shared.purchase(plan: plan)
+                    outcome = try await PurchaseService.shared.purchase(plan: plan)
                 }
 
-                await PurchaseService.shared.forcePremiumAfterPurchase()
+                // Cancellation MUST NOT grant premium. RC silently returns
+                // on `result.userCancelled = true`, so without this guard
+                // the old code marked the user premium for free every time
+                // they closed the StoreKit sheet.
+                guard outcome == .success else {
+                    await MainActor.run { isPurchasing = false }
+                    return
+                }
+
+                // StoreKit accepted the transaction — Apple WILL bill the
+                // user. `purchase()` has already set `PurchaseService.isPremium`
+                // optimistically and kicked off a background poll for the
+                // RC entitlement, so we don't gate on a second confirmation
+                // here (that turned sandbox propagation lag into a fake
+                // "error" alert + force-quit-to-relaunch UX). The SessionStore
+                // grace window protects the optimistic flag until the
+                // backend webhook lands.
                 await sessionStore.setPremium(true)
                 let inTrial = PurchaseService.shared.isInTrial
 
@@ -400,14 +417,14 @@ struct PremiumPaywallView: View {
         isPurchasing = true
         Task {
             do {
-                try await PurchaseService.shared.restorePurchases()
-                if PurchaseService.shared.isPremium {
+                let restored = try await PurchaseService.shared.restorePurchases()
+                if restored {
                     await sessionStore.setPremium(true)
                 } else {
-                    purchaseError = "Aucun abonnement actif trouvé."
+                    purchaseError = "Aucun abonnement actif trouvé sur ce compte Apple."
                 }
             } catch {
-                purchaseError = error.localizedDescription
+                purchaseError = friendlyPurchaseErrorMessage(error)
             }
             isPurchasing = false
         }

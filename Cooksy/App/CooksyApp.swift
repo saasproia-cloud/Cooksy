@@ -55,6 +55,7 @@ struct CooksyApp: App {
     @UIApplicationDelegateAdaptor(CooksyAppDelegate.self) private var appDelegate
     @StateObject private var recipeStore = RecipeStore()
     @StateObject private var sessionStore = SessionStore()
+    @Environment(\.scenePhase) private var scenePhase
     private let sharedLinkInbox = SharedLinkInbox()
 
     init() {
@@ -68,6 +69,16 @@ struct CooksyApp: App {
             RootRouter(sharedLinkInbox: sharedLinkInbox, appDelegate: appDelegate)
                 .environmentObject(recipeStore)
                 .environmentObject(sessionStore)
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .active else { return }
+                    // Subscription state can change while the app is
+                    // backgrounded (renewal succeeds, renewal fails,
+                    // user cancels in App Store Settings, Apple
+                    // processes a refund). Re-pull RC's CustomerInfo
+                    // on every foreground so the SessionStore observer
+                    // can immediately reconcile premium / non-premium.
+                    Task { await PurchaseService.shared.refreshStatus() }
+                }
                 .task {
                     await sessionStore.bootstrap()
                     await PurchaseService.shared.fetchOfferings()
