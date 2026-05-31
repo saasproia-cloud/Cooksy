@@ -17,7 +17,6 @@ struct ExclusiveOfferView: View {
     @StateObject private var offers = PremiumOffersService.shared
     @StateObject private var purchaseService = PurchaseService.shared
 
-    @State private var trialEnabled: Bool = true
     @State private var isPurchasing: Bool = false
     @State private var giftFloat: Bool = false
     @State private var sparkle: Bool = false
@@ -27,12 +26,13 @@ struct ExclusiveOfferView: View {
 
     private let yearlyPlan: PremiumPlan = .yearly
 
-    /// Whether Apple still allows the trial for the current Apple ID.
-    private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
-    /// Real trial duration from the storefront (e.g. 7).
-    private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
-    /// `true` when the trial banner should be shown to the user.
-    private var trialShown: Bool { trialEnabled && trialEligible }
+    /// The gift purchase always buys the dedicated discounted SKU
+    /// (`cooksy_premium_yearly_gift`) via `purchaseAnnualWithPromo`,
+    /// which is pay-up-front and has no introductory free trial.
+    /// Promising "X jours gratuits" here would lie about what Apple
+    /// is going to bill, so the trial UI is suppressed entirely on
+    /// this screen — gift overrides trial, end of story.
+    private var trialShown: Bool { false }
 
     /// Live monthly equivalent of the discounted annual plan, formatted
     /// in the user's currency. Reflects what Apple will bill via the
@@ -544,17 +544,13 @@ struct ExclusiveOfferView: View {
     }
 
     private var headerLabel: String {
-        if trialShown {
-            return "\(trialDays) jours gratuits, puis offre exclusive activée"
-        }
-        return "Offre exclusive sur l'annuel"
+        "Offre exclusive sur l'annuel"
     }
 
     // MARK: - Sticky stack (toggle + plan card + CTA + footer)
 
     private var stickyStack: some View {
         VStack(spacing: 12) {
-            trialToggleRow
             planCard
             cta
             footer
@@ -569,41 +565,6 @@ struct ExclusiveOfferView: View {
                 .frame(height: 1),
             alignment: .top
         )
-    }
-
-    @ViewBuilder
-    private var trialToggleRow: some View {
-        if trialEligible {
-            Toggle(isOn: $trialEnabled.animation(.spring(response: 0.35))) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(trialEnabled
-                         ? "Essai gratuit \(trialDays) jours activé"
-                         : "Activer \(trialDays) jours d'essai gratuit")
-                        .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    Text("Aucun paiement aujourd'hui. Annulable à tout moment.")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(CooksyTheme.secondaryText)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
-                }
-            }
-            .tint(CooksyTheme.primaryAccent)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(CooksyTheme.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(CooksyTheme.stroke, lineWidth: 1)
-                    )
-            )
-            .disabled(isPurchasing)
-            .opacity(isPurchasing ? 0.55 : 1)
-        }
     }
 
     private var planCard: some View {
@@ -656,9 +617,7 @@ struct ExclusiveOfferView: View {
         )
     }
 
-    private var planChip: String {
-        trialShown ? "\(trialDays) J GRATUITS · CADEAU EXCLUSIF" : "CADEAU EXCLUSIF"
-    }
+    private var planChip: String { "CADEAU EXCLUSIF" }
 
     private var cta: some View {
         Button(action: handlePurchase) {
@@ -690,9 +649,6 @@ struct ExclusiveOfferView: View {
         if isPurchasing {
             return "Activation…"
         }
-        if trialShown {
-            return "Commencer mes \(trialDays) jours gratuits"
-        }
         return "S'abonner à \(discountedYearlyPriceString)\(yearlyPlan.unitLabel)"
     }
 
@@ -708,9 +664,7 @@ struct ExclusiveOfferView: View {
     }
 
     private var footerLabel: String {
-        trialShown
-            ? "Pas de paiement maintenant"
-            : "Aucun engagement, annulez à tout moment"
+        "Aucun engagement, annulez à tout moment"
     }
 
     // MARK: - Purchase

@@ -79,6 +79,19 @@ struct CooksyApp: App {
                     // user for at least 2 hours and segmentation rolls a
                     // fresh last_active_at. Cheap, idempotent server-side.
                     await NotificationsCenter.shared.trackAppOpened()
+
+                    // Rebuild the engagement queue every launch so the
+                    // next 6 days are always lined up with fresh, varied
+                    // content. Activity gate uses the lifetime import
+                    // counter as a proxy: 0 imports + signed in for 3+
+                    // days = inactive (gets the gentler reactivation
+                    // copy variants). Logic is cheap (UserDefaults reads
+                    // only) and tolerates running on cold start.
+                    let lifetimeImports = UserDefaults.standard.integer(forKey: "cooksy.notif.lifetimeImports")
+                    let isInactive = lifetimeImports == 0
+                        && sessionStore.profile?.onboardingCompletedAt
+                            .map { Date().timeIntervalSince($0) > 3 * 86_400 } ?? false
+                    NotificationScheduler.scheduleEngagementQueue(isUserInactive: isInactive)
                 }
                 .task(id: sessionStore.phase) {
                     switch sessionStore.phase {

@@ -1,6 +1,15 @@
 import Combine
 import Foundation
 
+/// Posted by `SessionStore.deleteAccount()` after the server-side row has
+/// been deleted. RecipeStore observes this to wipe every local artefact
+/// belonging to the deleted account — JSON library, recipe images, share
+/// extension's pending imports — so the next signup on the same device
+/// doesn't inherit recipes from the previous user.
+extension Notification.Name {
+    static let cooksyAccountDeleted = Notification.Name("cooksy.account.deleted")
+}
+
 @MainActor
 final class RecipeStore: ObservableObject {
     @Published private(set) var recipes: [Recipe] = []
@@ -11,6 +20,7 @@ final class RecipeStore: ObservableObject {
     private let decoder: JSONDecoder
     private let fileManager: FileManager
     private let mealPlanCalendar: Calendar
+    private var accountDeletionObserver: NSObjectProtocol?
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -30,6 +40,39 @@ final class RecipeStore: ObservableObject {
         self.decoder = decoder
 
         load()
+
+        // RecipeStore is held for the entire app lifetime, so the
+        // observer doesn't need cleanup (a `deinit` would also fight
+        // Swift 6's actor-isolation rules around NSObjectProtocol).
+        accountDeletionObserver = NotificationCenter.default.addObserver(
+            forName: .cooksyAccountDeleted,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.wipeAllForAccountDeletion()
+            }
+        }
+    }
+
+    /// Wipes every locally persisted artefact tied to the previous user:
+    /// the library JSON, the cached recipe images directory and the share
+    /// extension's pending-imports inbox. Called from the account-deletion
+    /// flow via `Notification.Name.cooksyAccountDeleted` so a new signup
+    /// on the same device starts from a clean slate.
+    func wipeAllForAccountDeletion() {
+        recipes = []
+        books = []
+        mealPlanEntries = []
+
+        let baseCooksyDirectory = storageURL.deletingLastPathComponent()
+        try? fileManager.removeItem(at: storageURL)
+        let imagesDirectory = baseCooksyDirectory.appendingPathComponent("Images", isDirectory: true)
+        try? fileManager.removeItem(at: imagesDirectory)
+        let pendingImports = baseCooksyDirectory.appendingPathComponent("PendingImports", isDirectory: true)
+        try? fileManager.removeItem(at: pendingImports)
+
+        seedLibrary()
     }
 
     var uncategorizedBookID: RecipeBook.ID? {
@@ -121,6 +164,113 @@ final class RecipeStore: ObservableObject {
         recipes[index] = updatedRecipe
         attach(recipeID: updatedRecipe.id, to: destinationID)
         save()
+    }
+
+    // ------------------------------------------------------------------
+    // Chat-assistant modifications (apply / revert)
+    // ------------------------------------------------------------------
+    //
+    // Both methods take a `MutatedRecipePayload` produced by the backend
+    // (which already validated + computed the diff) and project it onto
+    // the local `Recipe`. We deliberately keep the ingredient ids intact
+    // so the ↺ button keeps working through subsequent edits.
+    //
+    // The recipe.allergens, recipe.nutrition, recipe.details.servings,
+    // and the per-ingredient origin* snapshot are mirrored from the
+    // payload so the local store stays the single source of truth.
+
+    @discardableResult
+    func applyAssistantMutation(
+        recipeID: Recipe.ID,
+        payload: CooksyChatService.MutatedRecipePayload,
+        modificationId: UUID
+    ) -> Recipe? {
+        guard let index = recipes.firstIndex(where: { $0.id == recipeID }) else { return nil }
+        var updated = recipes[index]
+        applyMutation(to: &updated, payload: payload, modificationId: modificationId)
+        updated.updatedAt = .now
+        recipes[index] = updated
+        save()
+        return updated
+    }
+
+    @discardableResult
+    func revertAssistantMutation(
+        recipeID: Recipe.ID,
+        payload: CooksyChatService.MutatedRecipePayload
+    ) -> Recipe? {
+        guard let index = recipes.firstIndex(where: { $0.id == recipeID }) else { return nil }
+        var updated = recipes[index]
+        // Revert clears lastModificationId on the affected ingredients
+        // so the ↺ chip disappears.
+        applyMutation(to: &updated, payload: payload, modificationId: nil)
+        updated.updatedAt = .now
+        recipes[index] = updated
+        save()
+        return updated
+    }
+
+    private func applyMutation(
+        to recipe: inout Recipe,
+        payload: CooksyChatService.MutatedRecipePayload,
+        modificationId: UUID?
+    ) {
+        let mutatedIngredientById = Dictionary(
+            uniqueKeysWithValues: payload.ingredients.map { ($0.id, $0) }
+        )
+        recipe.ingredients = recipe.ingredients.map { existing in
+            guard let mutated = mutatedIngredientById[existing.id] else { return existing }
+            var copy = existing
+            copy.name = mutated.name
+            copy.amount = mutated.amount
+            copy.unit = mutated.unit
+            // The backend nulls originName on revert, sets it on first swap.
+            // Mirror that signal locally so the ↺ chip disappears on revert.
+            let nameChanged = existing.name != mutated.name
+            if let origin = mutated.originName, !origin.isEmpty {
+                copy.originIngredientId = existing.originIngredientId ?? existing.id
+                copy.originName = origin
+                copy.originAmount = copy.originAmount ?? existing.amount
+                copy.originUnit = copy.originUnit ?? existing.unit
+                if nameChanged, let modId = modificationId {
+                    copy.lastModificationId = modId
+                }
+            } else {
+                copy.originIngredientId = nil
+                copy.originName = nil
+                copy.originAmount = nil
+                copy.originUnit = nil
+                copy.lastModificationId = nil
+            }
+            return copy
+        }
+
+        let mutatedStepById = Dictionary(
+            uniqueKeysWithValues: payload.steps.map { ($0.id, $0) }
+        )
+        recipe.steps = recipe.steps.map { existing in
+            guard let mutated = mutatedStepById[existing.id] else { return existing }
+            var copy = existing
+            copy.detail = mutated.detail
+            return copy
+        }
+
+        recipe.allergens = payload.allergens
+        if let mutatedNutrition = payload.nutritionPerServing {
+            recipe.nutrition = RecipeNutrition(
+                calories: mutatedNutrition.calories,
+                protein: mutatedNutrition.protein,
+                carbs: mutatedNutrition.carbs,
+                fat: mutatedNutrition.fat,
+                fiber: mutatedNutrition.fiber,
+                sugar: mutatedNutrition.sugar,
+                salt: mutatedNutrition.salt,
+                saturatedFat: mutatedNutrition.saturatedFat
+            )
+        }
+        if let servings = payload.servings {
+            recipe.details.servings = servings
+        }
     }
 
     func deleteRecipe(id: Recipe.ID) {

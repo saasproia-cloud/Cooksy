@@ -9,6 +9,7 @@ struct RecipeLibraryScreen: View {
     /// `nil` = "Toutes les recettes" (no filter).
     @State private var selectedBookID: RecipeBook.ID? = nil
     @State private var showsCreateBookSheet = false
+    @FocusState private var isSearchFocused: Bool
 
     init(
         store: RecipeStore,
@@ -124,6 +125,21 @@ struct RecipeLibraryScreen: View {
                 .foregroundStyle(CooksyTheme.primaryText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isSearchFocused)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                    isSearchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(CooksyTheme.secondaryText.opacity(0.65))
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
         }
         .padding(.horizontal, 14)
         .frame(height: 46)
@@ -133,8 +149,15 @@ struct RecipeLibraryScreen: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(CooksyTheme.stroke, lineWidth: 1)
+                .stroke(
+                    isSearchFocused ? CooksyTheme.ctaOrange.opacity(0.6) : CooksyTheme.stroke,
+                    lineWidth: 1
+                )
         )
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onTapGesture { isSearchFocused = true }
+        .animation(.easeInOut(duration: 0.15), value: searchText.isEmpty)
+        .animation(.easeInOut(duration: 0.15), value: isSearchFocused)
     }
 
     private var bookPickerStrip: some View {

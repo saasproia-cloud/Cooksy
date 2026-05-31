@@ -290,15 +290,17 @@ struct PremiumPaywallView: View {
 
     private func handleFreeModeDismiss() {
         OnboardingHaptics.selection()
-        let canSurpriseWithWheel = !hasTriggeredExitIntent
-            && !offers.giftHasBeenWon
-            && offers.shouldShowGiftPill
-        if canSurpriseWithWheel {
-            hasTriggeredExitIntent = true
-            showsGiftWheel = true
-            return
-        }
-
+        // App Store Guideline 5.6 — Developer Code of Conduct:
+        // surfacing a "last-chance" wheel immediately after the user
+        // closed the paywall is treated as manipulation and gets the
+        // build rejected. The gift remains discoverable through the
+        // Home top-bar pill (via the standard `shouldShowGiftPill`
+        // path) on the user's own initiative, which is compliant.
+        //
+        // We still flip `hasTriggeredExitIntent` so any callers that
+        // gate copy on "user has already tried to dismiss once" keep
+        // working — they just don't trigger an interstitial anymore.
+        hasTriggeredExitIntent = true
         offers.chooseFreeMode()
         onDismissToFreeMode?()
     }
@@ -322,8 +324,17 @@ struct PremiumPaywallView: View {
         let giftPercent = offers.giftDiscountPercent
 
         Task {
+            // Resilient offering fetch — App Review (Guideline 2.1(b))
+            // expects the purchase flow to function even when the
+            // storefront is slow to respond. Try up to 3 times with
+            // increasing back-off before surfacing an error.
             if PurchaseService.shared.currentOffering == nil {
-                await PurchaseService.shared.fetchOfferings()
+                for attempt in 0..<3 {
+                    await PurchaseService.shared.fetchOfferings()
+                    if PurchaseService.shared.currentOffering != nil { break }
+                    let delay = UInt64(400_000_000) * UInt64(attempt + 1)
+                    try? await Task.sleep(nanoseconds: delay)
+                }
             }
 
             do {
@@ -358,14 +369,30 @@ struct PremiumPaywallView: View {
     }
 
     /// Translates RevenueCat/StoreKit failures into actionable copy.
+    ///
+    /// IMPORTANT (App Review): never mention "sandbox" or any internal
+    /// store mode in user-facing copy — Apple's reviewers landed on
+    /// that string in the previous submission and treated it as a
+    /// broken purchase flow (Guideline 2.1(b) — App Completeness).
+    /// Stay in plain user language and offer a retry.
     private func friendlyPurchaseErrorMessage(_ error: Error) -> String {
         let raw = error.localizedDescription
-        if raw.localizedCaseInsensitiveContains("offre")
-            || raw.localizedCaseInsensitiveContains("offering")
-            || raw.localizedCaseInsensitiveContains("package") {
-            return "Les offres n'ont pas pu être chargées. Vérifie ta connexion, puis réessaie. Si le problème persiste, déconnecte-toi de l'App Store puis reconnecte-toi avec ton compte sandbox."
+        let lower = raw.lowercased()
+        if lower.contains("cancel") || lower.contains("annul") {
+            return "Achat annulé. Tu peux réessayer quand tu veux."
         }
-        return raw
+        if lower.contains("network") || lower.contains("réseau")
+            || lower.contains("internet") || lower.contains("connexion") {
+            return "Connexion internet instable. Vérifie ta connexion puis réessaie."
+        }
+        if lower.contains("offre") || lower.contains("offering")
+            || lower.contains("package") || lower.contains("product") {
+            return "Les abonnements ne sont pas disponibles pour le moment. Patiente quelques secondes et réessaie."
+        }
+        if lower.contains("payment") || lower.contains("paiement") {
+            return "Le paiement n'a pas pu être traité. Vérifie ton moyen de paiement dans Réglages > Apple ID."
+        }
+        return "Une erreur est survenue. Réessaie dans quelques instants."
     }
 
     private func handleRestore() {

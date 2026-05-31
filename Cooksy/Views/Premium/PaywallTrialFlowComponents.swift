@@ -399,29 +399,47 @@ struct PaywallPlansSheet: View {
                         .background(CooksyTheme.accentGradient)
                 }
 
+                // Pricing hierarchy required by App Store Guideline 3.1.2(c):
+                // the actually-billed amount (here, the annual price)
+                // MUST be the most clear and conspicuous pricing element.
+                //
+                // We keep `39,99 €/an` as the visually dominant element
+                // (24pt heavy, primary text color) and place the
+                // calculated `soit X €/mois` in a subordinate slot —
+                // smaller (13pt) and lighter weight (semibold) than the
+                // billed amount, but still rendered in the primary text
+                // color (not gray) so it stays clearly legible without
+                // overtaking the headline price.
                 HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Annuel")
-                            .font(.system(size: 16, weight: .heavy, design: .rounded))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                        HStack(spacing: 6) {
-                            if let strikethrough {
-                                Text(strikethrough)
-                                    .strikethrough()
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(CooksyTheme.secondaryText)
-                            }
-                            Text("\(priceText)/an")
-                                .font(.system(size: 13, weight: .heavy, design: .rounded))
-                                .foregroundStyle(CooksyTheme.primaryText)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                        if let strikethrough {
+                            Text(strikethrough)
+                                .strikethrough()
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(CooksyTheme.secondaryText.opacity(0.7))
                         }
                     }
                     Spacer(minLength: 8)
-                    Text("\(monthlyEquivalent)/mois")
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        // ── Primary, billed amount (Apple-mandated headline) ──
+                        Text("\(priceText)/an")
+                            .font(.system(size: 24, weight: .heavy, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        // ── Subordinate, calculated per-month ──
+                        // Smaller and lighter than the billed amount,
+                        // but in primary text color so it stays readable
+                        // at a glance.
+                        Text("soit \(monthlyEquivalent)/mois")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(CooksyTheme.primaryText.opacity(0.85))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)

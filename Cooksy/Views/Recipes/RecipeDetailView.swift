@@ -104,11 +104,9 @@ struct RecipeDetailView: View {
             StepByStepCookingView(recipeTitle: viewModel.title, steps: viewModel.instructions)
         }
         .fullScreenCover(isPresented: $showsAssistant) {
-            CooksyAssistantView(
-                recipeTitle: viewModel.title,
-                responseForPreset: { viewModel.assistantReply(for: $0) },
-                responseForQuestion: { viewModel.assistantReply(for: $0) }
-            )
+            if let recipeID = viewModel.recipe?.id {
+                RecipeAssistantSheet(store: store, recipeID: recipeID)
+            }
         }
         .fullScreenCover(isPresented: $showsPaywall) {
             PremiumPaywallView(
@@ -573,7 +571,10 @@ struct RecipeDetailView: View {
             RecipeIngredientsTabView(
                 ingredients: viewModel.displayedIngredients,
                 currentServings: viewModel.currentServings,
-                checkedIngredients: $checkedIngredients
+                checkedIngredients: $checkedIngredients,
+                onRevertSwap: { ingredientId in
+                    Task { await viewModel.revertSwap(ingredientId: ingredientId) }
+                }
             )
         case .steps:
             RecipeStepsTabView(
@@ -638,6 +639,7 @@ struct RecipeIngredientsTabView: View {
     let ingredients: [RecipeIngredientPresentation]
     let currentServings: Int
     @Binding var checkedIngredients: Set<UUID>
+    var onRevertSwap: ((UUID) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -682,7 +684,8 @@ struct RecipeIngredientsTabView: View {
                             ingredient: ingredient,
                             isChecked: checkedIngredients.contains(ingredient.id),
                             isFirst: index == 0,
-                            isLast: index == ingredients.count - 1
+                            isLast: index == ingredients.count - 1,
+                            onRevertSwap: onRevertSwap
                         ) {
                             withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                                 if checkedIngredients.contains(ingredient.id) {
@@ -719,6 +722,7 @@ struct RecipeIngredientRow: View {
     let isChecked: Bool
     let isFirst: Bool
     let isLast: Bool
+    var onRevertSwap: ((UUID) -> Void)? = nil
     let onToggle: () -> Void
 
     private var display: IngredientDisplayRow {
@@ -764,8 +768,30 @@ struct RecipeIngredientRow: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(isChecked ? CooksyTheme.secondaryText.opacity(0.6) : CooksyTheme.accentWarm)
                     }
+
+                    if ingredient.isSwapped, let originName = ingredient.originName {
+                        Text("Remplace : \(originName)")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(CooksyTheme.secondaryText)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                if ingredient.isSwapped, let revert = onRevertSwap {
+                    Button {
+                        revert(ingredient.id)
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(CooksyTheme.accentWarm)
+                            .padding(8)
+                            .background(
+                                Circle().fill(CooksyTheme.accentWarm.opacity(0.12))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Annuler la modification")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -1385,157 +1411,11 @@ private struct RecipePlanSelectionSheet: View {
     }()
 }
 
-private struct CooksyAssistantView: View {
-    @Environment(\.dismiss) private var dismiss
+// NOTE: The old client-side CooksyAssistantView (hardcoded preset
+// matcher, no LLM, no history) has been retired in favor of
+// `RecipeAssistantSheet` + `RecipeAssistantViewModel`, which talk to
+// `/api/chat/*` and persist the conversation in Supabase.
 
-    let recipeTitle: String
-    let responseForPreset: (RecipeDetailViewModel.AssistantPreset) -> String
-    let responseForQuestion: (String) -> String
-
-    @State private var messages: [String] = []
-    @State private var draft = ""
-
-    var body: some View {
-        ZStack {
-            CooksyTheme.backgroundCalm
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                HStack(spacing: 16) {
-                    Button(action: { dismiss() }) {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.white)
-                            .frame(width: 42, height: 42)
-                            .overlay {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(CooksyTheme.primaryText)
-                            }
-                    }
-                    .buttonStyle(.plain)
-
-                    Text(recipeTitle)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(CooksyTheme.primaryText)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
-
-                Divider().overlay(CooksyTheme.dividerSubtle)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Besoin d'un coup de main ?")
-                            .font(.system(size: 26, weight: .regular, design: .serif))
-                            .foregroundStyle(CooksyTheme.primaryText)
-
-                        assistantOption(title: "Remplacer un ingrédient", systemImage: "arrow.triangle.2.circlepath") {
-                            messages.append(responseForPreset(.replaceIngredient))
-                        }
-                        assistantOption(title: "Simplifier", systemImage: "slider.horizontal.3") {
-                            messages.append(responseForPreset(.simplify))
-                        }
-                        assistantOption(title: "Rendre plus saine", systemImage: "leaf") {
-                            messages.append(responseForPreset(.healthier))
-                        }
-
-                        if !messages.isEmpty {
-                            ForEach(Array(messages.enumerated()), id: \.offset) { _, message in
-                                Text(message)
-                                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                                    .foregroundStyle(CooksyTheme.primaryText)
-                                    .padding(14)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(Color.white)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
-                                    )
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 20)
-                    .padding(.bottom, 120)
-                }
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 10) {
-                TextField("Posez une question", text: $draft)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-                    .padding(.horizontal, 14)
-                    .frame(height: 46)
-                    .background(Capsule(style: .continuous).fill(Color.white))
-                    .overlay(Capsule(style: .continuous).stroke(CooksyTheme.dividerSubtle, lineWidth: 1))
-
-                Button(action: submitQuestion) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 46, height: 46)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(CooksyTheme.accentWarm)
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .opacity(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(CooksyTheme.backgroundCalm.opacity(0.95))
-        }
-    }
-
-    private func assistantOption(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(CooksyTheme.accentWarm)
-                    .frame(width: 24)
-
-                Text(title)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(CooksyTheme.primaryText)
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(CooksyTheme.secondaryText)
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 54)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(CooksyTheme.dividerSubtle, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func submitQuestion() {
-        let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !question.isEmpty else { return }
-        messages.append(responseForQuestion(question))
-        draft = ""
-    }
-}
 
 // MARK: - Utility Types
 

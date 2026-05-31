@@ -343,6 +343,159 @@ enum NotificationScheduler {
         )
     }
 
+    // MARK: - Engagement queue (variety + intrigue)
+
+    /// Number of distinct templates to keep pending at any time. The
+    /// queue is rebuilt on every app launch so the user always has the
+    /// next 6 days lined up; running this is idempotent (it cancels the
+    /// previous queue and reschedules).
+    private static let engagementQueueSize = 6
+
+    /// Number of days back we treat a template as "recently sent" and
+    /// avoid picking again. Tuned so the user never sees the same nudge
+    /// in less than a month.
+    private static let engagementCooldownDays = 30
+
+    private static let recentlySentKey = "cooksy.notif.engagement.recentlySent"
+
+    /// (Re)build the engagement queue — schedules `engagementQueueSize`
+    /// varied local notifications across the coming days. Categories,
+    /// time-of-day slots, and inactivity gates are all respected; nothing
+    /// fires before 09:00 or after 20:00 local; weekend-specific copy
+    /// only lands on Sat/Sun.
+    ///
+    /// Safe to call from anywhere — old engagement requests are wiped
+    /// before the new batch is added.
+    static func scheduleEngagementQueue(isUserInactive: Bool = false) {
+        cancelEngagementQueue()
+
+        let recentlySent = loadRecentlySentTemplateIDs()
+        var freshlyPicked: [String] = []
+
+        let now = Date()
+        let cal = Calendar.current
+        let currentHour = cal.component(.hour, from: now)
+
+        // If we're early enough in the day, start the queue today;
+        // otherwise the first slot is tomorrow. Keeps a fresh-install
+        // user from waiting 24 h to see ANY engagement push.
+        let startsToday = currentHour < 18
+
+        var scheduledCount = 0
+        var dayOffset = startsToday ? 0 : 1
+
+        // Track which (day-bucket) we've already filled so we never put
+        // 2 notifications on the same calendar day.
+        var filledDayKeys = Set<String>()
+
+        while scheduledCount < engagementQueueSize && dayOffset < 14 {
+            defer { dayOffset += 1 }
+
+            guard let targetDate = cal.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+            let weekday = cal.component(.weekday, from: targetDate)
+            let dayKey = engagementDateKey(targetDate)
+            if filledDayKeys.contains(dayKey) { continue }
+
+            // Filter the pool down to whatever is allowed today.
+            let allowed = EngagementTemplate.pool.filter { template in
+                if recentlySent.contains(template.id) { return false }
+                if freshlyPicked.contains(template.id) { return false }
+                if let needed = template.weekday, needed != weekday { return false }
+                if template.requiresInactivity && !isUserInactive { return false }
+                return true
+            }
+            guard let pick = allowed.randomElement() else { continue }
+
+            // Build the fire date, respecting the daytime window. If the
+            // selected hour is already in the past for "today", roll
+            // forward to the next slot in the same window instead of
+            // firing immediately.
+            guard var fireAt = cal.date(
+                bySettingHour: pick.preferredHour,
+                minute: pick.preferredMinute,
+                second: 0,
+                of: targetDate
+            ) else { continue }
+            if fireAt <= now.addingTimeInterval(30) {
+                // Today's slot has passed — push to tomorrow same hour.
+                guard let bumped = cal.date(byAdding: .day, value: 1, to: fireAt) else { continue }
+                fireAt = bumped
+            }
+            fireAt = clampToDaytime(fireAt)
+
+            let scheduledID = "cooksy.local.engagement.\(scheduledCount + 1)"
+            NotificationsCenter.shared.scheduleLocalNotification(
+                id: scheduledID,
+                title: pick.title,
+                body: pick.body,
+                fireAt: fireAt,
+                deepLink: pick.deepLink
+            )
+            logger.info(
+                "Engagement queued [\(pick.id, privacy: .public)] at \(fireAt, privacy: .public)"
+            )
+
+            freshlyPicked.append(pick.id)
+            filledDayKeys.insert(dayKey)
+            scheduledCount += 1
+        }
+
+        // Persist the freshly picked IDs so the next rebuild avoids them
+        // for ~30 days. Prepend so the oldest entries fall off naturally.
+        if !freshlyPicked.isEmpty {
+            persistRecentlySent(freshlyPicked + recentlySent)
+        }
+    }
+
+    /// Cancel every previously scheduled engagement request. Always
+    /// called before a re-schedule so we don't stack queues.
+    static func cancelEngagementQueue() {
+        let ids = (1...engagementQueueSize).map { "cooksy.local.engagement.\($0)" }
+        NotificationsCenter.shared.cancelLocalNotifications(ids: ids)
+    }
+
+    // MARK: Engagement persistence
+
+    private static func loadRecentlySentTemplateIDs() -> [String] {
+        guard let raw = UserDefaults.standard.array(forKey: recentlySentKey) as? [[String: Any]]
+        else { return [] }
+        let cutoff = Date().addingTimeInterval(-TimeInterval(engagementCooldownDays) * 86_400)
+        return raw.compactMap { entry -> String? in
+            guard let id = entry["id"] as? String,
+                  let stamp = entry["at"] as? TimeInterval else { return nil }
+            return Date(timeIntervalSince1970: stamp) >= cutoff ? id : nil
+        }
+    }
+
+    private static func persistRecentlySent(_ ids: [String]) {
+        // Coalesce: union by id, keep the newest timestamp per id.
+        var index: [String: TimeInterval] = [:]
+        if let raw = UserDefaults.standard.array(forKey: recentlySentKey) as? [[String: Any]] {
+            for entry in raw {
+                if let id = entry["id"] as? String,
+                   let stamp = entry["at"] as? TimeInterval {
+                    index[id] = max(index[id] ?? 0, stamp)
+                }
+            }
+        }
+        let now = Date().timeIntervalSince1970
+        for id in ids { index[id] = now }
+
+        // Drop entries older than the cooldown window.
+        let cutoff = now - TimeInterval(engagementCooldownDays) * 86_400
+        let cleaned = index
+            .filter { $1 >= cutoff }
+            .map { ["id": $0.key, "at": $0.value] as [String: Any] }
+        UserDefaults.standard.set(cleaned, forKey: recentlySentKey)
+    }
+
+    private static func engagementDateKey(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
     // MARK: - Date helpers
 
     /// Build a fire date `days` from `base`, set to `hour:minute` local time.

@@ -112,7 +112,14 @@ const rawEnvSchema = z.object({
   APNS_ENVIRONMENT: z.preprocess(
     emptyToUndefined,
     z.enum(["production", "sandbox"]).default("production")
-  )
+  ),
+  // Premium chat assistant — reuses OPENAI_API_KEY (already configured
+  // for recipe extraction). CHAT_MODEL picks which OpenAI chat model to
+  // use; default is gpt-4.1-mini for the price/quality sweet spot on
+  // French instruction-following + JSON-mode output.
+  CHAT_MODEL: z.string().default("gpt-4.1-mini"),
+  CHAT_MAX_HISTORY_TURNS: z.coerce.number().int().positive().default(6),
+  CHAT_HOURLY_CAP: z.coerce.number().int().positive().default(60)
 });
 
 const envSchema = z.object({
@@ -141,7 +148,10 @@ const envSchema = z.object({
   APNS_KEY_ID: z.string(),
   APNS_TEAM_ID: z.string(),
   APNS_BUNDLE_ID: z.string(),
-  APNS_ENVIRONMENT: z.enum(["production", "sandbox"])
+  APNS_ENVIRONMENT: z.enum(["production", "sandbox"]),
+  CHAT_MODEL: z.string(),
+  CHAT_MAX_HISTORY_TURNS: z.coerce.number().int().positive(),
+  CHAT_HOURLY_CAP: z.coerce.number().int().positive()
 });
 
 function isConfigured(value: string): boolean {

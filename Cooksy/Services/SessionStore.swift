@@ -17,6 +17,12 @@ final class SessionStore: ObservableObject {
     private let client: SupabaseClient
     private let logger = Logger(subsystem: "com.cooksy.ios", category: "SessionStore")
     private var authListenerTask: Task<Void, Never>?
+    /// Set by `setPremium(true)` right after a StoreKit purchase succeeds.
+    /// While this date is in the future, any background `loadProfile` call
+    /// (auth listener token refresh, manual refresh) preserves an active
+    /// optimistic `isPremium = true` instead of letting a still-lagging
+    /// server `false` flip the user back to the paywall.
+    private var premiumGraceUntil: Date?
 
     var currentUser: User? {
         if case .signedIn(let user) = phase { return user }
@@ -33,6 +39,11 @@ final class SessionStore: ObservableObject {
 
     var isPremium: Bool {
         profile?.isPremium ?? false
+    }
+
+    private var isInPremiumGrace: Bool {
+        guard let until = premiumGraceUntil else { return false }
+        return until > Date()
     }
 
     init(client: SupabaseClient = SupabaseClientProvider.shared) {
@@ -161,10 +172,61 @@ final class SessionStore: ObservableObject {
             throw error
         }
 
+        // Wipe every locally persisted artefact before signing out so the
+        // next signup on the same device starts from a clean slate. The
+        // notification is observed by RecipeStore (library JSON, cached
+        // recipe images, share-extension pending imports); the other
+        // services are reset inline. Without this the previous user's
+        // recipes, gift state and quota all bleed into the new account.
+        NotificationCenter.default.post(name: .cooksyAccountDeleted, object: nil)
+        ImportQuotaService.shared.resetForDebug()
+        InviteRewardService.shared.resetForDebug()
+        PremiumOffersService.shared.resetAllOffers()
+        purgeAccountScopedUserDefaults()
+
         // The RPC removes the auth row; the access token is now invalid.
         // signOut() locally clears keychain + state and resets the
         // freshness anchor, mirroring the standard sign-out path.
         await signOut()
+    }
+
+    /// Removes the long-lived UserDefaults keys that survive a Supabase
+    /// sign-out (gift cycle anchors, trial cooldown, onboarding latches,
+    /// notification milestones, etc.) so a new signup on the same device
+    /// behaves like a fresh install. Keys that are *device* scoped
+    /// (`cooksy.hasLaunched`, settings.units) are intentionally left
+    /// untouched.
+    private func purgeAccountScopedUserDefaults() {
+        let defaults = UserDefaults.standard
+        let keys: [String] = [
+            "cooksy.gift.consumedAt",
+            "cooksy.gift.cycleIndex",
+            "cooksy.gift.discountPercent",
+            "cooksy.gift.forfeitedAt",
+            "cooksy.gift.freshCelebrationPending",
+            "cooksy.gift.lastAutoShownAt",
+            "cooksy.gift.pendingTrialAt",
+            "cooksy.gift.phase",
+            "cooksy.gift.wonAt",
+            "cooksy.trial.startedAt",
+            "cooksy.trial.cooldownUntil",
+            "cooksy.notif.lifetimeImports",
+            "cooksy.onboarding.didAskReview",
+            "cooksy.onboarding.didSaveAnswers",
+            "cooksy.onboarding.draft.v1",
+            "cooksy.onboarding.step.v1",
+            "cooksy.paywall.firstSeenAt",
+            "cooksy.userChoseFreeMode",
+            "cooksy.hasSeenTutorial",
+            "cooksy.hasSeenImportGuide",
+            "cooksy.invite.bonusUnlocked",
+            "cooksy.invite.invitesSent",
+            "cooksy.invite.recipients",
+            "cooksy.desktop.earlyAccessRequested",
+            "cooksy.pending.shared.import",
+            "cooksy.pending.shared.import.acknowledged.handoff"
+        ]
+        for key in keys { defaults.removeObject(forKey: key) }
     }
 
     // MARK: - Sign out
@@ -330,11 +392,58 @@ final class SessionStore: ObservableObject {
         profile?.isPremium = premium
         ImportQuotaService.shared.isPremium = premium
 
-        // Re-sync from server-of-truth. If the webhook has landed by
-        // now, the profile reflects it; otherwise we'll catch it the
-        // next time `loadProfile` runs (e.g. on auth state change or
-        // explicit refresh).
-        await loadProfile(for: user.id)
+        if premium {
+            // After a purchase the RevenueCat → backend webhook can take
+            // several seconds to flip Supabase's `is_premium` column. The
+            // plain `loadProfile()` path would overwrite our optimistic
+            // local `true` with the still-stale server `false`, kicking
+            // the router straight back to the paywall and forcing the
+            // user to relaunch. Open a grace window that the auth-event
+            // and refresh paths honour, then poll explicitly until the
+            // webhook lands.
+            premiumGraceUntil = Date().addingTimeInterval(120)
+            await loadProfilePreservingPremium(for: user.id)
+        } else {
+            premiumGraceUntil = nil
+            await loadProfile(for: user.id)
+        }
+    }
+
+    /// Server-poll variant of `loadProfile` used right after a successful
+    /// purchase. Tries up to ~10 s with backoff to pick up the webhook,
+    /// and clamps `isPremium` to `true` on the cached profile so the
+    /// router stays on the premium side of the gate the whole time.
+    private func loadProfilePreservingPremium(for userID: UUID) async {
+        let attemptDelaysMs: [UInt64] = [0, 800, 1_500, 2_500, 3_000]
+        for (index, delay) in attemptDelaysMs.enumerated() {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay * 1_000_000)
+            }
+            do {
+                let loaded: CooksyProfile = try await client
+                    .from("profiles")
+                    .select()
+                    .eq("id", value: userID)
+                    .single()
+                    .execute()
+                    .value
+                if loaded.isPremium {
+                    profile = loaded
+                    ImportQuotaService.shared.isPremium = true
+                    return
+                }
+                // Server hasn't caught up yet — try again, but keep the
+                // optimistic flag pinned so the router doesn't flicker.
+                var preserved = loaded
+                preserved.isPremium = true
+                profile = preserved
+                ImportQuotaService.shared.isPremium = true
+            } catch {
+                if index == attemptDelaysMs.count - 1 {
+                    logger.debug("loadProfilePreservingPremium failed after retries: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
     }
 
     // MARK: - Session / listener
@@ -404,10 +513,15 @@ final class SessionStore: ObservableObject {
                     .single()
                     .execute()
                     .value
-                profile = loaded
-                // Mirror premium state into the import quota service so the
-                // free-tier gate uses the live value without polling.
-                ImportQuotaService.shared.isPremium = loaded.isPremium
+                var final = loaded
+                // Honour an active "just-purchased" grace window so a
+                // background token refresh can't flip the user back to
+                // free while the RevenueCat webhook is still in flight.
+                if isInPremiumGrace, profile?.isPremium == true, !loaded.isPremium {
+                    final.isPremium = true
+                }
+                profile = final
+                ImportQuotaService.shared.isPremium = final.isPremium
                 return
             } catch {
                 if index == attemptDelaysMs.count - 1 {

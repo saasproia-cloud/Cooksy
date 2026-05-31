@@ -21,13 +21,27 @@ struct RecipeIngredientPresentation: Identifiable, Hashable {
     let rawAmount: String?
     let rawUnit: String?
     let name: String
+    let originName: String?
+    let lastModificationId: UUID?
 
-    init(id: RecipeIngredient.ID, quantityText: String?, rawAmount: String? = nil, rawUnit: String? = nil, name: String) {
+    var isSwapped: Bool { originName?.isEmpty == false }
+
+    init(
+        id: RecipeIngredient.ID,
+        quantityText: String?,
+        rawAmount: String? = nil,
+        rawUnit: String? = nil,
+        name: String,
+        originName: String? = nil,
+        lastModificationId: UUID? = nil
+    ) {
         self.id = id
         self.quantityText = quantityText
         self.rawAmount = rawAmount
         self.rawUnit = rawUnit
         self.name = name
+        self.originName = originName
+        self.lastModificationId = lastModificationId
     }
 
     var fullLine: String {

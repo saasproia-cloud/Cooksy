@@ -28,6 +28,7 @@ import { registerRevenueCatWebhook } from "./routes/webhookRevenueCat.js";
 import { registerDeviceRoutes } from "./routes/devices.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerNotificationPrefsRoutes } from "./routes/notificationPrefs.js";
+import { registerChatRoutes } from "./routes/chat.js";
 import { startNotificationCron } from "./services/notifications/cronRunner.js";
 import { runWithCounters } from "./services/tokenUsageTracker.js";
 
@@ -356,6 +357,11 @@ await registerRevenueCatWebhook(app);
 await registerDeviceRoutes(app);
 await registerEventRoutes(app);
 await registerNotificationPrefsRoutes(app);
+
+// Premium chat assistant — JWT-gated, premium-gated, with its own
+// per-route burst limit (20 req/min) on top of the global 30 req/min and
+// an hourly per-user message cap enforced inside the service.
+await registerChatRoutes(app);
 
 // Diagnostic endpoints are intentionally restricted to non-production
 // environments. They can leak raw transcripts and rack up Google STT

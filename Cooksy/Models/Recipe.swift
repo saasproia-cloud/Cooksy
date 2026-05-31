@@ -14,6 +14,7 @@ struct Recipe: Identifiable, Codable, Hashable {
     var ingredients: [RecipeIngredient]
     var steps: [RecipeStep]
     var notes: String?
+    var allergens: [String]?
     var createdAt: Date
     var updatedAt: Date
     var bookID: RecipeBook.ID?
@@ -32,6 +33,7 @@ struct Recipe: Identifiable, Codable, Hashable {
         ingredients: [RecipeIngredient] = [],
         steps: [RecipeStep] = [],
         notes: String? = nil,
+        allergens: [String]? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         bookID: RecipeBook.ID? = nil
@@ -49,6 +51,7 @@ struct Recipe: Identifiable, Codable, Hashable {
         self.ingredients = ingredients
         self.steps = steps
         self.notes = notes
+        self.allergens = allergens
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.bookID = bookID
@@ -114,13 +117,43 @@ struct RecipeIngredient: Identifiable, Codable, Hashable {
     var amount: String?
     var unit: String?
     var name: String
+    // Set when this ingredient has been swapped by the chat assistant.
+    // `originIngredientId` always equals `id` for the first swap and
+    // never changes on subsequent swaps, so multiple successive swaps
+    // still walk back to the true original.
+    var originIngredientId: UUID?
+    var originName: String?
+    var originAmount: String?
+    var originUnit: String?
+    /// Server-side id of the chat modification that produced the current
+    /// swap. Stamped on the ingredient when an `ingredient_swap` is
+    /// applied so the per-row ↺ chip can revert without first listing
+    /// modifications. Cleared on revert.
+    var lastModificationId: UUID?
 
-    init(id: UUID = UUID(), amount: String? = nil, unit: String? = nil, name: String) {
+    init(
+        id: UUID = UUID(),
+        amount: String? = nil,
+        unit: String? = nil,
+        name: String,
+        originIngredientId: UUID? = nil,
+        originName: String? = nil,
+        originAmount: String? = nil,
+        originUnit: String? = nil,
+        lastModificationId: UUID? = nil
+    ) {
         self.id = id
         self.amount = amount
         self.unit = unit
         self.name = name
+        self.originIngredientId = originIngredientId
+        self.originName = originName
+        self.originAmount = originAmount
+        self.originUnit = originUnit
+        self.lastModificationId = lastModificationId
     }
+
+    var isSwapped: Bool { originIngredientId != nil }
 
     var line: String {
         [amount, unit, name]

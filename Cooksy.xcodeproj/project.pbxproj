@@ -99,6 +99,11 @@
 		E89AAE3F2FAB9F7100C4F1D0 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = E89AAE3E2FAB9F7100C4F1D0 /* RevenueCat */; };
 		E89AAE412FAB9F7100C4F1D0 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = E89AAE402FAB9F7100C4F1D0 /* RevenueCatUI */; };
 		E8A69E052FABDFBF00A00B2B /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */; };
+		CB7A0002000000000000C001 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7A0001000000000000C001 /* ChatMessage.swift */; };
+		CB7A0012000000000000C001 /* RecipeModification.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7A0011000000000000C001 /* RecipeModification.swift */; };
+		CB7A0022000000000000C001 /* CooksyChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7A0021000000000000C001 /* CooksyChatService.swift */; };
+		CB7A0032000000000000C001 /* RecipeAssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7A0031000000000000C001 /* RecipeAssistantViewModel.swift */; };
+		CB7A0042000000000000C001 /* RecipeAssistantSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7A0041000000000000C001 /* RecipeAssistantSheet.swift */; };
 		E8B6A0142F962D6B00310B81 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E8B6A0132F962D6B00310B81 /* Supabase */; };
 		E8D8F1E02FBA3BB400D6D10D /* Cooksy.storekit in Resources */ = {isa = PBXBuildFile; fileRef = E8D8F1DF2FBA3BB400D6D10D /* Cooksy.storekit */; };
 		E8FEED9C2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E8FEED9B2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy */; };
@@ -124,6 +129,7 @@
 		F40000000000000000000311 /* NotificationsCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000301 /* NotificationsCenter.swift */; };
 		F40000000000000000000312 /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000302 /* DeepLinkRouter.swift */; };
 		F40000000000000000000314 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000304 /* NotificationScheduler.swift */; };
+		F40000000000000000000315 /* EngagementNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000305 /* EngagementNotifications.swift */; };
 		F20000000000000000000012 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SessionStore.swift */; };
 		F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SessionFreshnessGuard.swift */; };
 		F2985BD33313CEC500D7D470 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EFE4892EC339B197010542 /* AppAppearance.swift */; };
@@ -292,6 +298,11 @@
 		E76937A97BDE51B26E1F365F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E86461F12F82EF5800DCF323 /* Cooksy-2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Cooksy-2.mp4"; sourceTree = "<group>"; };
 		E8A69E042FABDFBF00A00B2B /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
+		CB7A0001000000000000C001 /* ChatMessage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		CB7A0011000000000000C001 /* RecipeModification.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeModification.swift; sourceTree = "<group>"; };
+		CB7A0021000000000000C001 /* CooksyChatService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CooksyChatService.swift; sourceTree = "<group>"; };
+		CB7A0031000000000000C001 /* RecipeAssistantViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeAssistantViewModel.swift; sourceTree = "<group>"; };
+		CB7A0041000000000000C001 /* RecipeAssistantSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeAssistantSheet.swift; sourceTree = "<group>"; };
 		E8D8F1DF2FBA3BB400D6D10D /* Cooksy.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Cooksy.storekit; sourceTree = "<group>"; };
 		E8FEED9B2FBB60C900BE49F9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		EBF6FF4B24BF8DEECDA34BC1 /* SharedLinkInbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedLinkInbox.swift; sourceTree = "<group>"; };
@@ -316,6 +327,7 @@
 		F40000000000000000000301 /* NotificationsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationsCenter.swift; sourceTree = "<group>"; };
 		F40000000000000000000302 /* DeepLinkRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkRouter.swift; sourceTree = "<group>"; };
 		F40000000000000000000304 /* NotificationScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		F40000000000000000000305 /* EngagementNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngagementNotifications.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* SessionFreshnessGuard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionFreshnessGuard.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* OnboardingFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
@@ -427,6 +439,7 @@
 				2E794E10F13FD478C88E8D95 /* RecipeImportPipeline.swift */,
 				9D16EF4EF5B58B719693A654 /* IngredientPhotoClassifierService.swift */,
 				DED1EC53F7C3443DB07312EE /* CooksyBackendService.swift */,
+				CB7A0021000000000000C001 /* CooksyChatService.swift */,
 				F20000000000000000000001 /* SupabaseClientProvider.swift */,
 				F20000000000000000000002 /* SessionStore.swift */,
 				F20000000000000000000003 /* SessionFreshnessGuard.swift */,
@@ -437,6 +450,7 @@
 				F40000000000000000000301 /* NotificationsCenter.swift */,
 				F40000000000000000000302 /* DeepLinkRouter.swift */,
 				F40000000000000000000304 /* NotificationScheduler.swift */,
+				F40000000000000000000305 /* EngagementNotifications.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -528,6 +542,7 @@
 				8E1A0A25123456789ABCDE02 /* RecipeLibraryScreen.swift */,
 				8E1A0A23123456789ABCDE01 /* RecipeDetailView.swift */,
 				8E1A0A24123456789ABCDE01 /* StepByStepCookingView.swift */,
+				CB7A0041000000000000C001 /* RecipeAssistantSheet.swift */,
 			);
 			path = Recipes;
 			sourceTree = "<group>";
@@ -539,6 +554,7 @@
 				5EDCBDB118D39C396F9B5882 /* HomeViewModel.swift */,
 				A1C0F1061A11111111111111 /* MealPlanViewModel.swift */,
 				8E1A0A22123456789ABCDE01 /* RecipeDetailViewModel.swift */,
+				CB7A0031000000000000C001 /* RecipeAssistantViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -577,6 +593,8 @@
 				A1C0F1051A11111111111111 /* MealPlanEntry.swift */,
 				1D7C4B30F11A4E6CA2918C53 /* RecipeEditorSeed.swift */,
 				A178E636136507ED9665AA0A /* SharedImportDraft.swift */,
+				CB7A0001000000000000C001 /* ChatMessage.swift */,
+				CB7A0011000000000000C001 /* RecipeModification.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -976,6 +994,11 @@
 				21A26D0F6BCAD5F6BDAC0D99 /* HomeViewModel.swift in Sources */,
 				A1C0F0061A11111111111111 /* MealPlanViewModel.swift in Sources */,
 				8E1A0A12123456789ABCDE01 /* RecipeDetailViewModel.swift in Sources */,
+				CB7A0002000000000000C001 /* ChatMessage.swift in Sources */,
+				CB7A0012000000000000C001 /* RecipeModification.swift in Sources */,
+				CB7A0022000000000000C001 /* CooksyChatService.swift in Sources */,
+				CB7A0032000000000000C001 /* RecipeAssistantViewModel.swift in Sources */,
+				CB7A0042000000000000C001 /* RecipeAssistantSheet.swift in Sources */,
 				1C2D52E6A11B4E2292A91C10 /* CreateRecipeView.swift in Sources */,
 				32A9D223A55E4F0B9E4B7F61 /* PasteTextImportView.swift in Sources */,
 				5B78639BF09ECAFF9589AE2A /* HomeView.swift in Sources */,
@@ -1010,6 +1033,7 @@
 				F40000000000000000000311 /* NotificationsCenter.swift in Sources */,
 				F40000000000000000000312 /* DeepLinkRouter.swift in Sources */,
 				F40000000000000000000314 /* NotificationScheduler.swift in Sources */,
+				F40000000000000000000315 /* EngagementNotifications.swift in Sources */,
 				F20000000000000000000012 /* SessionStore.swift in Sources */,
 				F20000000000000000000013 /* SessionFreshnessGuard.swift in Sources */,
 				F30000000000000000000101 /* OnboardingFlow.swift in Sources */,
