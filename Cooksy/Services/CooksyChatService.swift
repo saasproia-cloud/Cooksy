@@ -162,10 +162,13 @@ enum CooksyChatService {
         }
     }
 
-    /// Backend `PersistedChatMessage` row — Snake_case columns mapped via
-    /// CodingKeys (the JSONDecoder does NOT use `convertFromSnakeCase`
-    /// globally so the JSONB payloads inside, which are already camelCase,
-    /// are not corrupted).
+    /// Backend `PersistedChatMessage` shape — the server maps every DB
+    /// row from snake_case to camelCase via `rowToMessage()` before
+    /// serialising, so the JSON keys this struct decodes are already
+    /// camelCase and match the property names directly. (We used to have
+    /// snake_case CodingKeys here; that was the cause of the
+    /// "Réponse invalide du backend" error after sending a message — the
+    /// `assistantMessage` failed to decode because every key was renamed.)
     struct WireChatMessage: Decodable {
         let id: UUID
         let threadId: UUID
@@ -174,16 +177,6 @@ enum CooksyChatService {
         let suggestionsJson: ChatSuggestionGroup?
         let pendingModificationJson: PendingModification?
         let createdAt: Date
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case threadId = "thread_id"
-            case role
-            case contentText = "content_text"
-            case suggestionsJson = "suggestions_json"
-            case pendingModificationJson = "pending_modification_json"
-            case createdAt = "created_at"
-        }
     }
 
     // ------------------------------------------------------------------
