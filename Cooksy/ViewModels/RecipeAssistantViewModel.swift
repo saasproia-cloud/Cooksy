@@ -267,6 +267,8 @@ private extension RecipeDiff {
             return qty.isEmpty ? diff.before.name : "\(qty) \(diff.before.name)"
         case .scalePortions(let diff):
             return diff.before.servings ?? "portions d'origine"
+        case .addComponents:
+            return "recette actuelle"
         }
     }
 }

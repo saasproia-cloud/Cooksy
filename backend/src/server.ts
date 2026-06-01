@@ -28,6 +28,7 @@ import { registerRevenueCatWebhook } from "./routes/webhookRevenueCat.js";
 import { registerDeviceRoutes } from "./routes/devices.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerNotificationPrefsRoutes } from "./routes/notificationPrefs.js";
+import { registerSyncedRecipesRoutes } from "./routes/syncedRecipes.js";
 import { registerChatRoutes } from "./routes/chat.js";
 import { startNotificationCron } from "./services/notifications/cronRunner.js";
 import { runWithCounters } from "./services/tokenUsageTracker.js";
@@ -357,6 +358,11 @@ await registerRevenueCatWebhook(app);
 await registerDeviceRoutes(app);
 await registerEventRoutes(app);
 await registerNotificationPrefsRoutes(app);
+
+// Cloud sync of the local recipe library — survives reinstall / sign-in
+// from a fresh device. Single jsonb-payload-per-recipe table to keep
+// the iOS Recipe model free to evolve without backend releases.
+await registerSyncedRecipesRoutes(app);
 
 // Premium chat assistant — JWT-gated, premium-gated, with its own
 // per-route burst limit (20 req/min) on top of the global 30 req/min and

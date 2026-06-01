@@ -395,7 +395,37 @@ struct RecipeAssistantSheet: View {
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
             }
+        case .addComponents(let add):
+            VStack(alignment: .leading, spacing: 6) {
+                if !add.label.isEmpty {
+                    Text(add.label)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                }
+                ForEach(add.addedIngredients, id: \.id) { ing in
+                    Text("+ \(formatIngredientLine(ing))")
+                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.primaryText)
+                }
+                if !add.addedSteps.isEmpty {
+                    Text("+ \(add.addedSteps.count) étape(s) ajoutée(s)")
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                }
+                if !add.allergensAdded.isEmpty {
+                    Text("Allergènes : \(add.allergensAdded.joined(separator: ", "))")
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(CooksyTheme.secondaryText)
+                }
+            }
         }
+    }
+
+    private func formatIngredientLine(_ ing: AddedIngredientPayload) -> String {
+        let amount = (ing.amount ?? "").trimmingCharacters(in: .whitespaces)
+        let unit = (ing.unit ?? "").trimmingCharacters(in: .whitespaces)
+        let qty = [amount, unit].filter { !$0.isEmpty }.joined(separator: " ")
+        return qty.isEmpty ? ing.name : "\(qty) \(ing.name)"
     }
 
     // ------------------------------------------------------------------

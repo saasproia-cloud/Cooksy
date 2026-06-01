@@ -90,9 +90,41 @@ export const ScalePortionsDiffSchema = z.object({
 });
 export type ScalePortionsDiff = z.infer<typeof ScalePortionsDiffSchema>;
 
+// AddComponents — "ajoute une sauce maison", "ajoute un accompagnement",
+// "rajoute une étape". The diff carries the ingredients + step(s) the
+// assistant proposes. Apply = push the items onto the recipe lists.
+// Revert = remove items whose ids match.
+export const AddedIngredientSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(160),
+  amount: z.string().max(60).nullable().optional(),
+  unit: z.string().max(40).nullable().optional()
+});
+
+export const AddedStepSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().max(160).nullable().optional(),
+  detail: z.string().min(1).max(1_500)
+});
+
+export const AddComponentsDiffSchema = z.object({
+  kind: z.literal("add_components"),
+  // Short label used by the UI ("Sauce maison", "Accompagnement riz",
+  // "Garniture", etc.). Surfaces in the assistant card + audit row.
+  label: z.string().min(1).max(80),
+  addedIngredients: z.array(AddedIngredientSchema).max(15).default([]),
+  addedSteps: z.array(AddedStepSchema).max(5).default([]),
+  // Nutritional delta applied additively on top of current nutrition.
+  nutritionDelta: NutritionPatchSchema.nullable().optional(),
+  // Allergens introduced by the addition (e.g. mayonnaise → "œuf").
+  allergensAdded: z.array(z.string().max(40)).max(20).default([])
+});
+export type AddComponentsDiff = z.infer<typeof AddComponentsDiffSchema>;
+
 export const RecipeDiffSchema = z.discriminatedUnion("kind", [
   IngredientSwapDiffSchema,
-  ScalePortionsDiffSchema
+  ScalePortionsDiffSchema,
+  AddComponentsDiffSchema
 ]);
 export type RecipeDiff = z.infer<typeof RecipeDiffSchema>;
 
@@ -109,7 +141,12 @@ export type PendingModification = z.infer<typeof PendingModificationSchema>;
 // ---------------------------------------------------------------------------
 export const AssistantReplySchema = z.object({
   reply: z.string().min(1).max(4_000),
-  suggestions: SuggestionGroupSchema.nullable().optional()
+  suggestions: SuggestionGroupSchema.nullable().optional(),
+  // For requests that ADD content (sauce, side, extra step), the assistant
+  // emits the structured diff directly here. The route persists it onto
+  // chat_messages.pending_modification_json so the iOS card renders the
+  // orange "Ajouter à la recette" CTA without needing a second turn.
+  pendingModification: PendingModificationSchema.nullable().optional()
 });
 export type AssistantReply = z.infer<typeof AssistantReplySchema>;
 

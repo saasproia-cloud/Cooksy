@@ -1,4 +1,5 @@
 import SwiftUI
+import RevenueCat
 
 /// Cooksy premium paywall — ReciMe-style trial flow.
 ///
@@ -392,7 +393,46 @@ struct PremiumPaywallView: View {
     /// that string in the previous submission and treated it as a
     /// broken purchase flow (Guideline 2.1(b) — App Completeness).
     /// Stay in plain user language and offer a retry.
+    ///
+    /// We dispatch on RC's `ErrorCode` enum first (most reliable signal:
+    /// "card declined", "Ask to Buy pending", "purchase not allowed"
+    /// each have a distinct code) and only fall back to substring
+    /// matching when the error didn't come from RC.
     private func friendlyPurchaseErrorMessage(_ error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == RevenueCat.ErrorCode.errorDomain,
+           let code = RevenueCat.ErrorCode(rawValue: nsError.code) {
+            switch code {
+            case .purchaseCancelledError:
+                return "Achat annulé. Tu peux réessayer quand tu veux."
+            case .paymentPendingError:
+                return "Ton achat est en attente d'approbation (contrôle parental ou validation bancaire). Une fois approuvé, ton abonnement Premium s'activera automatiquement."
+            case .purchaseNotAllowedError:
+                return "Les achats sont désactivés sur cet appareil. Va dans Réglages > Temps d'écran > Restrictions pour les autoriser, puis réessaie."
+            case .purchaseInvalidError:
+                return "Ton moyen de paiement a été refusé. Vérifie ta carte dans Réglages > Apple ID > Paiement, puis réessaie."
+            case .productNotAvailableForPurchaseError, .productAlreadyPurchasedError:
+                return "Ce forfait n'est pas disponible pour le moment. Réessaie dans un instant."
+            case .receiptAlreadyInUseError, .receiptInUseByOtherSubscriberError:
+                return "Cet abonnement est déjà associé à un autre compte Apple. Connecte-toi avec l'Apple ID utilisé pour l'achat."
+            case .networkError:
+                return "Connexion internet instable. Vérifie ta connexion puis réessaie."
+            case .storeProblemError:
+                return "L'App Store rencontre un problème temporaire. Réessaie dans quelques minutes."
+            case .invalidReceiptError, .missingReceiptFileError:
+                return "Impossible de valider l'achat. Réessaie dans un instant — aucune somme ne sera prélevée tant que la validation n'a pas abouti."
+            case .ineligibleError:
+                return "Tu n'es pas éligible à cette offre. Choisis un autre forfait pour continuer."
+            case .invalidCredentialsError, .invalidAppUserIdError:
+                return "Ta session a expiré. Reconnecte-toi puis réessaie l'achat."
+            default:
+                break
+            }
+        }
+
+        // Non-RC error (or a code we didn't enumerate above) — fall
+        // back to substring matching on the localizedDescription so we
+        // still surface something more useful than the raw debug string.
         let raw = error.localizedDescription
         let lower = raw.lowercased()
         if lower.contains("cancel") || lower.contains("annul") {
@@ -406,8 +446,9 @@ struct PremiumPaywallView: View {
             || lower.contains("package") || lower.contains("product") {
             return "Les abonnements ne sont pas disponibles pour le moment. Patiente quelques secondes et réessaie."
         }
-        if lower.contains("payment") || lower.contains("paiement") {
-            return "Le paiement n'a pas pu être traité. Vérifie ton moyen de paiement dans Réglages > Apple ID."
+        if lower.contains("payment") || lower.contains("paiement")
+            || lower.contains("declined") || lower.contains("refus") {
+            return "Ton moyen de paiement a été refusé. Vérifie ta carte dans Réglages > Apple ID > Paiement, puis réessaie."
         }
         return "Une erreur est survenue. Réessaie dans quelques instants."
     }

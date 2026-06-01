@@ -136,7 +136,11 @@ export async function sendUserMessage(args: {
       recipe_id: args.recipe.recipeId,
       role: "assistant",
       content_text: parsed.reply,
-      suggestions_json: parsed.suggestions ?? null
+      suggestions_json: parsed.suggestions ?? null,
+      // When the assistant emits an add_components diff in its reply,
+      // persist it directly so the iOS bubble renders the orange
+      // "Ajouter à la recette" CTA without a second turn.
+      pending_modification_json: parsed.pendingModification ?? null
     })
     .select("id, thread_id, role, content_text, suggestions_json, pending_modification_json, created_at")
     .single();
@@ -663,6 +667,30 @@ function applyDiffToInboundRecipe(
     if (diff.after.servings != null) {
       servings = diff.after.servings;
     }
+  } else if (pending.diff.kind === "add_components") {
+    const diff = pending.diff;
+    for (const ing of diff.addedIngredients) {
+      ingredients.push({
+        id: ing.id,
+        name: ing.name,
+        amount: ing.amount ?? null,
+        unit: ing.unit ?? null,
+        originName: null
+      });
+    }
+    for (const step of diff.addedSteps) {
+      steps.push({
+        id: step.id,
+        title: step.title ?? null,
+        detail: step.detail
+      });
+    }
+    if (diff.nutritionDelta) {
+      nutrition = { ...(nutrition ?? {}), ...diff.nutritionDelta };
+    }
+    for (const a of diff.allergensAdded) {
+      if (!allergens.includes(a)) allergens.push(a);
+    }
   }
 
   return { ingredients, steps, nutritionPerServing: nutrition, allergens, servings };
@@ -708,6 +736,20 @@ function revertDiffOnInboundRecipe(
     if (diff.before.servings != null) {
       servings = diff.before.servings;
     }
+  } else if (pending.diff.kind === "add_components") {
+    // Reverse the addition: drop the rows whose ids match what we added.
+    // Nutrition / allergens are best-effort — we never reverse a nutrition
+    // delta exactly (would require persisting the pre-delta snapshot too).
+    const diff = pending.diff;
+    const addedIngIds = new Set(diff.addedIngredients.map((i) => i.id));
+    const addedStepIds = new Set(diff.addedSteps.map((s) => s.id));
+    return {
+      ingredients: ingredients.filter((i) => !addedIngIds.has(i.id)),
+      steps: steps.filter((s) => !addedStepIds.has(s.id)),
+      nutritionPerServing: nutrition,
+      allergens: allergens.filter((a) => !diff.allergensAdded.includes(a)),
+      servings
+    };
   }
 
   return { ingredients, steps, nutritionPerServing: nutrition, allergens, servings };

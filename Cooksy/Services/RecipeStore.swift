@@ -110,6 +110,10 @@ final class RecipeStore: ObservableObject {
         recipes.insert(storedRecipe, at: 0)
         attach(recipeID: storedRecipe.id, to: destinationID)
         save()
+        // Cloud sync — fire-and-forget so a reinstall + sign-in restores
+        // the library byte-for-byte. The push is best-effort; failures
+        // are tolerated because the next mutation will retry.
+        RecipeSyncService.shared.push(storedRecipe)
         // Counts toward the free-tier weekly quota only when the recipe
         // was produced via an AI-powered import path (text, photo, URL,
         // shared draft). "Depuis zéro" creations and demo-catalogue saves
@@ -164,6 +168,7 @@ final class RecipeStore: ObservableObject {
         recipes[index] = updatedRecipe
         attach(recipeID: updatedRecipe.id, to: destinationID)
         save()
+        RecipeSyncService.shared.push(updatedRecipe)
     }
 
     // ------------------------------------------------------------------
@@ -288,6 +293,62 @@ final class RecipeStore: ObservableObject {
 
         mealPlanEntries.removeAll { $0.recipeID == id }
         save()
+        // Cloud tombstone — other devices signed into the same account
+        // will pick this up and prune their local copy.
+        RecipeSyncService.shared.tombstone(recipeID: id)
+    }
+
+    // MARK: - Cloud hydration
+
+    /// Pull every recipe stored on the cloud for the current user and
+    /// merge them into the local library, preferring whichever side has
+    /// the fresher `updatedAt`. Called by `SessionStore` once a Supabase
+    /// session is established (sign-in, reinstall + sign-in).
+    ///
+    /// Returns the count of recipes added or refreshed locally.
+    @discardableResult
+    func hydrateFromCloud() async -> Int {
+        let cloud = await RecipeSyncService.shared.pull()
+        var changed = 0
+        var localById: [UUID: Recipe] = [:]
+        for recipe in recipes { localById[recipe.id] = recipe }
+
+        for incoming in cloud {
+            if let existing = localById[incoming.id] {
+                // Last-write-wins by updatedAt.
+                if incoming.updatedAt > existing.updatedAt {
+                    if let index = recipes.firstIndex(where: { $0.id == incoming.id }) {
+                        var merged = incoming
+                        merged.bookID = existing.bookID ?? incoming.bookID
+                        recipes[index] = merged
+                        changed += 1
+                    }
+                }
+            } else {
+                // New row from the cloud — add it. Anchor it in the
+                // uncategorized book if its bookID is stale.
+                var imported = incoming
+                if imported.bookID == nil || books.first(where: { $0.id == imported.bookID }) == nil {
+                    imported.bookID = uncategorizedBookID
+                }
+                recipes.insert(imported, at: 0)
+                attach(recipeID: imported.id, to: imported.bookID)
+                changed += 1
+            }
+        }
+
+        // Push any recipes that exist locally but not yet on the cloud
+        // (first-ever sign-in with a pre-existing library).
+        let cloudIDs = Set(cloud.map(\.id))
+        let toPush = recipes.filter { !cloudIDs.contains($0.id) }
+        if !toPush.isEmpty {
+            RecipeSyncService.shared.pushBatch(toPush)
+        }
+
+        if changed > 0 {
+            save()
+        }
+        return changed
     }
 
     func storeImageData(_ data: Data, for recipeID: Recipe.ID) -> URL? {

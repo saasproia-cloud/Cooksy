@@ -347,6 +347,13 @@ final class PurchaseService: NSObject, ObservableObject {
 
         let result = try await Purchases.shared.purchase(package: pkg)
         if result.userCancelled { return .cancelled }
+        // Defensive belt-and-braces: RC can theoretically return a
+        // non-cancelled result with no concrete transaction (e.g. the
+        // backend rejected the receipt at the very last moment). Treat
+        // that as a refusal — no premium grant.
+        guard result.transaction?.transactionIdentifier.isEmpty == false else {
+            throw PurchaseError.entitlementNotActivated
+        }
         syncStatus(from: result.customerInfo)
         await reinforcePremiumAfterStoreKitSuccess()
         return .success
@@ -399,6 +406,9 @@ final class PurchaseService: NSObject, ObservableObject {
             defer { isLoading = false }
             let result = try await Purchases.shared.purchase(product: giftProduct)
             if result.userCancelled { return .cancelled }
+            guard result.transaction?.transactionIdentifier.isEmpty == false else {
+                throw PurchaseError.entitlementNotActivated
+            }
             syncStatus(from: result.customerInfo)
             await reinforcePremiumAfterStoreKitSuccess()
             return .success
@@ -425,6 +435,9 @@ final class PurchaseService: NSObject, ObservableObject {
                 defer { isLoading = false }
                 let result = try await Purchases.shared.purchase(package: pkg, promotionalOffer: promoOffer)
                 if result.userCancelled { return .cancelled }
+                guard result.transaction?.transactionIdentifier.isEmpty == false else {
+                    throw PurchaseError.entitlementNotActivated
+                }
                 syncStatus(from: result.customerInfo)
                 await reinforcePremiumAfterStoreKitSuccess()
                 return .success

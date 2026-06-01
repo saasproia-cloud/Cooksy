@@ -456,6 +456,14 @@ extension NotificationsCenter: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // Mirror the delivered notification into the in-app inbox so
+        // the home-screen bell badge picks it up immediately, even if
+        // the user never taps the iOS banner. UNNotification itself
+        // isn't Sendable — extract a value-typed snapshot here.
+        let payload = NotificationInbox.IncomingPayload(from: notification)
+        Task { @MainActor in
+            NotificationInbox.shared.record(payload)
+        }
         completionHandler([.list, .sound])
     }
 
@@ -474,12 +482,26 @@ extension NotificationsCenter: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let userInfo = response.notification.request.content.userInfo
+        let notification = response.notification
+        let userInfo = notification.request.content.userInfo
         let dispatchId = userInfo["cooksy_dispatch_id"] as? String
         let deepLinkString = userInfo["cooksy_deep_link"] as? String
+        // Snapshot the notification into a Sendable struct here so the
+        // off-actor Task below stays Swift-6 strict-concurrency clean.
+        let inboxPayload = NotificationInbox.IncomingPayload(from: notification)
+        let requestID = notification.request.identifier
 
         // Fire-and-forget side effects.
         Task { @MainActor in
+            // Ensure the tapped notification is in the inbox AND
+            // marked read (the user has clearly seen it).
+            NotificationInbox.shared.record(inboxPayload)
+            if let existing = NotificationInbox.shared.items.first(where: {
+                $0.requestIdentifier == requestID
+            }) {
+                NotificationInbox.shared.markRead(id: existing.id)
+            }
+
             if let dispatchId {
                 await NotificationsCenter.shared.reportPushBeacon(
                     dispatchId: dispatchId,

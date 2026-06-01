@@ -112,6 +112,12 @@ struct CooksyApp: App {
                         if PurchaseService.shared.isPremium != sessionStore.isPremium {
                             await sessionStore.setPremium(PurchaseService.shared.isPremium)
                         }
+                        // Pull the user's cloud library so a reinstall +
+                        // Apple sign-in rehydrates every recipe + book
+                        // they had on their previous device. The pull
+                        // also catches up writes made on another iPhone
+                        // signed into the same account.
+                        await recipeStore.hydrateFromCloud()
                     case .signedOut:
                         await PurchaseService.shared.logout()
                     case .loading:

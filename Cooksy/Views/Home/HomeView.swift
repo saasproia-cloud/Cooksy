@@ -23,6 +23,11 @@ struct HomeView: View {
     @State private var showsQuotaInfo: Bool = false
     @State private var showsImportGuide: Bool = false
     @State private var showsInviteFriends: Bool = false
+    /// In-app notifications inbox — replaces the bell's previous shortcut
+    /// to the Profile tab. Observed so the unread dot on the bell stays
+    /// in sync the moment a notification lands while Home is on screen.
+    @State private var showsNotificationsInbox: Bool = false
+    @StateObject private var notificationsInbox = NotificationInbox.shared
     @AppStorage("cooksy.hasSeenImportGuide") private var hasSeenImportGuide: Bool = false
     /// True when the paywall is opened from the gift wheel's "Plus tard" —
     /// drives a soft reminder banner that the user can still play to
@@ -216,6 +221,9 @@ struct HomeView: View {
                     }
             }
         }
+        .sheet(isPresented: $showsNotificationsInbox) {
+            NotificationsInboxView()
+        }
     }
 
     /// Decides what gift-related surface (if any) to auto-present after
@@ -301,8 +309,11 @@ struct HomeView: View {
             )
 
             if sessionStore.profile?.isPremium ?? false {
-                HomeCircleIconButton(systemName: "bell") {
-                    openProfileTab()
+                HomeCircleIconButton(
+                    systemName: "bell",
+                    unreadCount: notificationsInbox.unreadCount
+                ) {
+                    showsNotificationsInbox = true
                 }
 
                 Button(action: openProfileTab) {
@@ -533,6 +544,10 @@ struct HomeView: View {
 
 private struct HomeCircleIconButton: View {
     let systemName: String
+    /// When non-zero, a small orange dot sits on the top-right of the
+    /// button to signal pending unread state (used by the bell icon
+    /// for the in-app notifications inbox).
+    var unreadCount: Int = 0
     let action: () -> Void
 
     var body: some View {
@@ -549,6 +564,19 @@ private struct HomeCircleIconButton: View {
                     Circle()
                         .stroke(CooksyTheme.stroke.opacity(0.92), lineWidth: 1)
                 )
+                .overlay(alignment: .topTrailing) {
+                    if unreadCount > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(CooksyTheme.ctaOrange)
+                            Circle()
+                                .stroke(Color.white, lineWidth: 1.5)
+                        }
+                        .frame(width: 11, height: 11)
+                        .offset(x: 2, y: -2)
+                        .accessibilityLabel("\(unreadCount) notifications non lues")
+                    }
+                }
         }
         .buttonStyle(.plain)
     }

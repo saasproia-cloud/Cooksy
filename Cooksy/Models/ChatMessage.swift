@@ -111,11 +111,13 @@ struct IngredientScalePatch: Codable, Hashable {
 enum RecipeDiff: Codable, Hashable {
     case ingredientSwap(IngredientSwapDiff)
     case scalePortions(ScalePortionsDiff)
+    case addComponents(AddComponentsDiff)
 
     private enum CodingKeys: String, CodingKey { case kind }
     private enum Kind: String, Codable {
         case ingredientSwap = "ingredient_swap"
         case scalePortions = "scale_portions"
+        case addComponents = "add_components"
     }
 
     init(from decoder: Decoder) throws {
@@ -127,6 +129,8 @@ enum RecipeDiff: Codable, Hashable {
             self = .ingredientSwap(try single.decode(IngredientSwapDiff.self))
         case .scalePortions:
             self = .scalePortions(try single.decode(ScalePortionsDiff.self))
+        case .addComponents:
+            self = .addComponents(try single.decode(AddComponentsDiff.self))
         }
     }
 
@@ -135,8 +139,37 @@ enum RecipeDiff: Codable, Hashable {
         switch self {
         case .ingredientSwap(let payload): try single.encode(payload)
         case .scalePortions(let payload): try single.encode(payload)
+        case .addComponents(let payload): try single.encode(payload)
         }
     }
+}
+
+// New ingredient injected via the chat (e.g. "ajoute une sauce maison").
+struct AddedIngredientPayload: Codable, Hashable {
+    var id: UUID
+    var name: String
+    var amount: String?
+    var unit: String?
+}
+
+// New cooking step injected via the chat.
+struct AddedStepPayload: Codable, Hashable {
+    var id: UUID
+    var title: String?
+    var detail: String
+}
+
+struct AddComponentsDiff: Codable, Hashable {
+    var kind: String = "add_components"
+    /// Short label rendered on the assistant card (e.g. "Sauce maison").
+    var label: String
+    var addedIngredients: [AddedIngredientPayload]
+    var addedSteps: [AddedStepPayload]
+    /// Nutrition delta applied additively when the modification is
+    /// accepted. `nil` when the assistant chose not to estimate one.
+    var nutritionDelta: NutritionPatch?
+    /// New allergens introduced by the addition.
+    var allergensAdded: [String]
 }
 
 struct IngredientSwapDiff: Codable, Hashable {
