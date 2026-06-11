@@ -87,8 +87,8 @@ struct StepByStepCookingView: View {
                             )
                             .shadow(color: CooksyTheme.shadow, radius: 18, y: 10)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 160)
+                        .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
+                        .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width) + 40)
                     }
                 } else {
                     Spacer()

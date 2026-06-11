@@ -114,19 +114,35 @@ struct GiftWheelView: View {
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .tracking(2.0)
                 .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
+            // Apple Guideline 4: must wrap correctly on iPad — Apple
+            // Review saw "Tente ta chance avan…" truncated to one line.
+            // Allow up to 3 lines, shrink to 70%, fix vertical sizing
+            // so the explicit `\n` always honours its line break.
             Text(headerTitle)
                 .font(.system(size: 30, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(-2)
+                .lineLimit(3)
+                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
 
+            // Same fix for the subtitle — Apple Review saw "Une seule
+            // chance. La meilleure remise est à ga…" truncated.
             Text(headerSubtitle)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(CooksyTheme.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 18)
                 .lineSpacing(1)
+                .lineLimit(4)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
         }
     }
 

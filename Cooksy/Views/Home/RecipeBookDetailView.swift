@@ -25,9 +25,9 @@ struct RecipeBookDetailView: View {
                             populatedState
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                     .padding(.top, 12)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
                 }
             }
         }
@@ -136,7 +136,7 @@ struct RecipeBookDetailView: View {
             .buttonStyle(.plain)
 
             EmptyRecipeBookIllustration()
-                .padding(.top, 60)
+                .padding(.top, min(60, ScreenMetrics.height * 0.07))
 
             Text("Aucune recette enregistrée")
                 .font(.system(size: 29, weight: .regular, design: .serif))

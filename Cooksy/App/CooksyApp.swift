@@ -78,10 +78,26 @@ struct CooksyApp: App {
                     // on every foreground so the SessionStore observer
                     // can immediately reconcile premium / non-premium.
                     Task { await PurchaseService.shared.refreshStatus() }
+                    // Re-sweep the iOS delivered queue on every
+                    // foreground so notifs received while the app was
+                    // in the background land in the bell inbox.
+                    Task { await NotificationsCenter.shared.importDeliveredNotifications() }
                 }
                 .task {
                     await sessionStore.bootstrap()
-                    await PurchaseService.shared.fetchOfferings()
+                    // Pre-warm offerings hard at launch with multiple
+                    // retries — Apple Review (Guideline 2.1(b)) requires
+                    // the paywall CTA to always have a valid offering
+                    // ready. We retry up to 6× with exponential back-off
+                    // so a flaky first response doesn't leave the
+                    // reviewer staring at "Les abonnements ne sont pas
+                    // disponibles".
+                    for attempt in 0..<6 {
+                        await PurchaseService.shared.fetchOfferings()
+                        if PurchaseService.shared.currentOffering != nil { break }
+                        let delay = UInt64(500_000_000) * UInt64(attempt + 1)
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
                     // Refresh APNs authorization state on every cold
                     // start so the Notifications settings screen renders
                     // accurate copy without an extra round-trip.
@@ -90,6 +106,13 @@ struct CooksyApp: App {
                     // user for at least 2 hours and segmentation rolls a
                     // fresh last_active_at. Cheap, idempotent server-side.
                     await NotificationsCenter.shared.trackAppOpened()
+
+                    // Sweep iOS's delivered queue into the in-app inbox
+                    // so notifs the user swiped away while the app was
+                    // backgrounded still surface under the bell. The
+                    // willPresent / didReceive paths only handle the
+                    // foreground + tap cases — this fills the gap.
+                    await NotificationsCenter.shared.importDeliveredNotifications()
 
                     // Rebuild the engagement queue every launch so the
                     // next 6 days are always lined up with fresh, varied

@@ -8,7 +8,7 @@ struct PhotoSharingView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tes plats…\ntu les partages ?",
+            title: "Tes plats… tu les partages ?",
             subtitle: "Pour savoir si on doit pousser le visuel ou rester sobre.",
             canAdvance: coordinator.canAdvance(from: .photoSharing),
             progress: progress(for: .photoSharing),

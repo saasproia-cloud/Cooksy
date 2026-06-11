@@ -130,7 +130,7 @@ struct QuickImportSheetView: View {
             .padding(.bottom, 20)
             .background(CooksyTheme.background)
         }
-        .presentationDetents([.height(475)])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         .presentationBackground(CooksyTheme.background)

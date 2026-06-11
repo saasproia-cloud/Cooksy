@@ -77,9 +77,11 @@ struct InviteFriendsView: View {
                         .padding(.horizontal, 12)
                         .padding(.top, 4)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                 .padding(.top, 8)
-                .padding(.bottom, 100)
+                .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
+                .frame(maxWidth: Layout.maxReadingWidth)
+                .frame(maxWidth: .infinity)
             }
 
             if let toast {

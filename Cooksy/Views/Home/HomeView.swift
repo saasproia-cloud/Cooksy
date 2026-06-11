@@ -60,22 +60,28 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color(hex: 0xFCF9F4)
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let cls = Layout.DeviceClass.from(width: width)
+            ZStack {
+                Color(hex: 0xFCF9F4)
+                    .ignoresSafeArea()
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 28) {
-                    topBar
-                    welcomeBlock
-                    giftCookingTeaser
-                    importGuideCard
-                    recentImportsSection
-                    trendingTodaySection
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: cls.isTablet ? 36 : 28) {
+                        topBar
+                        welcomeBlock
+                        giftCookingTeaser
+                        importGuideCard
+                        recentImportsSection
+                        trendingTodaySection
+                    }
+                    .padding(.horizontal, Layout.horizontalPadding(for: width))
+                    .padding(.top, Layout.topPadding(for: width))
+                    .padding(.bottom, Layout.bottomScrollPadding(for: width))
+                    .frame(maxWidth: cls.isTablet ? Layout.maxReadingWidth : .infinity)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .padding(.bottom, 120)
             }
         }
         // The fresh-gift celebration is now owned by the in-scroll
@@ -204,7 +210,7 @@ struct HomeView: View {
                     }
                 }
             )
-            .presentationDetents([.height(420)])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: $showsInviteFriends) {
@@ -226,47 +232,20 @@ struct HomeView: View {
         }
     }
 
-    /// Decides what gift-related surface (if any) to auto-present after
-    /// the home appears. Priority order, applied at most once per
-    /// session:
-    ///   1. **HYPE takeover** when a fresh cycle just unlocked — wins
-    ///      over the silent auto-show because the user has been waiting
-    ///      a week for this moment.
-    ///   2. **Silent auto-show** of the active gift (game or exclusive
-    ///      offer) ~1 in 4 launches, gated by the 6 h persistent
-    ///      throttle in PremiumOffersService.
+    /// Compliance note (Apple App Store Guideline 5.6 — Developer Code
+    /// of Conduct): Apple's reviewers rejected a previous submission
+    /// because auto-presenting a gift / discount surface right after
+    /// the user closed the paywall was treated as manipulating users
+    /// into making unwanted In-App Purchases.
     ///
-    /// Skipped entirely for premium users (no offer applies) and on the
-    /// very first launch (the import guide owns that moment).
+    /// We now NEVER auto-show the wheel, exclusive offer, or hype
+    /// takeover from Home. The gift remains fully discoverable via the
+    /// "cadeau" pill in the top bar — user-initiated, compliant.
+    ///
+    /// The function is kept as a no-op so the existing onAppear call
+    /// site can stay untouched.
     private func considerGiftPresentation() {
-        let isPremium = sessionStore.profile?.isPremium ?? false
-        guard !isPremium, !didAutoShowThisSession else { return }
-
-        if offers.hasFreshGiftCelebrationPending {
-            didAutoShowThisSession = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                showsHypeTakeover = true
-            }
-            return
-        }
-
-        // Don't compete with the first-launch import guide.
-        guard hasSeenImportGuide else { return }
-
-        guard offers.shouldAutoShow(from: .appLaunch) else { return }
-        didAutoShowThisSession = true
-        offers.recordAutoShownNow()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-            switch offers.giftPhase {
-            case .notWon:
-                showsGiftWheel = true
-            case .won where offers.giftOfferIsActive:
-                showsExclusiveOffer = true
-            default:
-                break
-            }
-        }
+        // Intentionally empty — see compliance note above.
     }
 
     private var topBar: some View {
@@ -336,6 +315,19 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Headline font size scaled per device class. iPhone 8 (375pt
+    /// wide) used to render `35pt` serif on 3 lines, blowing past the
+    /// safe area; iPad rendered it tiny. This bridges both.
+    private static var headlineFontSize: CGFloat {
+        switch Layout.DeviceClass.from(width: ScreenMetrics.width) {
+        case .compact:        return 28
+        case .regular:        return 32
+        case .large:          return 35
+        case .tabletCompact:  return 42
+        case .tablet:         return 48
+        }
+    }
+
     private var welcomeBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -349,13 +341,13 @@ struct HomeView: View {
             }
 
             Text(viewModel.homeHeadline)
-                .font(.system(size: 35, weight: .bold, design: .serif))
+                .font(.system(size: HomeView.headlineFontSize, weight: .bold, design: .serif))
                 .tracking(-0.8)
                 .foregroundStyle(CooksyTheme.primaryText)
                 .lineSpacing(-2)
                 .lineLimit(3)
                 .truncationMode(.tail)
-                .minimumScaleFactor(0.78)
+                .minimumScaleFactor(0.72)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -502,8 +494,9 @@ struct HomeView: View {
     }
 
     /// Slightly narrower than the page content area so the next card peeks ~40pt.
+    /// Uses ScreenMetrics (multi-window safe) instead of UIScreen.main.
     private var trendingReelCardWidth: CGFloat {
-        max(UIScreen.main.bounds.width - 80, 260)
+        Layout.trendingCardWidth(for: ScreenMetrics.width)
     }
 
     /// 3:4 aspect + a little breathing room for the drop shadow.
@@ -635,11 +628,20 @@ private struct HomeAvatarBadge: View {
 private struct HomeRecentImportCardView: View {
     let card: HomeViewModel.RecentImportCard
 
+    private var cardWidth: CGFloat {
+        Layout.carouselCardWidth(for: ScreenMetrics.width, base: 208)
+    }
+
+    /// Keep the original 208 × 118 ≈ 16:9 aspect ratio as the card scales.
+    private var artworkHeight: CGFloat {
+        cardWidth * 118.0 / 208.0
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
                 HomeArtworkSurface(artwork: card.artwork, emojiSize: 42)
-                    .frame(width: 208, height: 118)
+                    .frame(width: cardWidth, height: artworkHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 HStack(alignment: .top) {
@@ -684,7 +686,7 @@ private struct HomeRecentImportCardView: View {
                 HomeMetaLabel(systemName: "flame.fill", text: card.caloriesLabel)
             }
         }
-        .frame(width: 208, alignment: .leading)
+        .frame(width: cardWidth, alignment: .leading)
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)

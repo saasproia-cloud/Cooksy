@@ -8,7 +8,7 @@ struct LifestyleGoalView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Ton objectif\nsur le long terme ?",
+            title: "Ton objectif sur le long terme ?",
             subtitle: "On t'aide à orienter chaque recette dans cette direction.",
             canAdvance: coordinator.canAdvance(from: .lifestyleGoal),
             progress: progress(for: .lifestyleGoal),

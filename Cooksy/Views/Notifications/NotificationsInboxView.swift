@@ -94,9 +94,9 @@ struct NotificationsInboxView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 36)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 16)
         }
-        .padding(.top, 60)
+        .padding(.top, min(60, ScreenMetrics.height * 0.07))
     }
 
     // MARK: - Handlers

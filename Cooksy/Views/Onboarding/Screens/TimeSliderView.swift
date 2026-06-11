@@ -12,7 +12,7 @@ struct TimeSliderView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Combien de temps\npour cuisiner ?",
+            title: "Combien de temps pour cuisiner ?",
             subtitle: "Une soirée classique en semaine. On t'enverra des recettes à ton rythme.",
             canAdvance: true,
             progress: progress(for: .timeSlider),

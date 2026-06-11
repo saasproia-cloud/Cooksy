@@ -67,14 +67,16 @@ struct ProfileView: View {
                     ProfileFooterVersion()
                         .padding(.top, 12)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                 .padding(.top, 16)
-                .padding(.bottom, 120)
+                .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
+                .frame(maxWidth: Layout.maxReadingWidth)
+                .frame(maxWidth: .infinity)
             }
 
             if let toastMessage {
                 ComingSoonToast(message: toastMessage)
-                    .padding(.bottom, 110)
+                    .padding(.bottom, max(90, Layout.bottomScrollPadding(for: ScreenMetrics.width) - 30))
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

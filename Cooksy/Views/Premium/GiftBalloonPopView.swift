@@ -113,14 +113,18 @@ struct GiftBalloonPopView: View {
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .tracking(2.0)
                 .foregroundStyle(CooksyTheme.ctaOrangeDark)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             Text(headerTitle)
                 .font(.system(size: 30, weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(-2)
-                .minimumScaleFactor(0.82)
+                .lineLimit(3)
+                .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
 
             Text(headerSubtitle)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -128,6 +132,10 @@ struct GiftBalloonPopView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 18)
                 .lineSpacing(1)
+                .lineLimit(4)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
         }
     }
 

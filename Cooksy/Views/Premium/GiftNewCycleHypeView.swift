@@ -211,9 +211,10 @@ struct GiftNewCycleHypeView: View {
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 12)
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 60)
-        .padding(.bottom, 30)
+        .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 2)
+        .padding(.top, Layout.customNavTopInset() + 12)
+        .padding(.bottom, max(30, Layout.bottomSafeInset() + 16))
+        .frame(maxWidth: Layout.maxContentWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

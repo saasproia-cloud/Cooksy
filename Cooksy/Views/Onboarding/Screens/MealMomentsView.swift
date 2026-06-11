@@ -13,7 +13,7 @@ struct MealMomentsView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Quels moments\ncuisines-tu le plus ?",
+            title: "Quels moments cuisines-tu le plus ?",
             subtitle: "Plusieurs choix. On priorisera ces moments dans tes suggestions.",
             canAdvance: coordinator.canAdvance(from: .mealMoments),
             progress: progress(for: .mealMoments),

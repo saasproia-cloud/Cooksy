@@ -12,7 +12,7 @@ struct DemoBeforeAfterView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Voilà ce qui se passe\nquand tu colles un lien.",
+            title: "Voilà ce qui se passe quand tu colles un lien.",
             subtitle: "Regarde Cooksy transformer une vidéo en recette claire, propre, cuisinable.",
             ctaTitle: "Montre-moi ce que Cooksy peut faire",
             canAdvance: true,

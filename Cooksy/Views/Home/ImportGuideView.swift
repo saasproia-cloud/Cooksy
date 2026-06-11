@@ -40,74 +40,84 @@ struct ImportGuideView: View {
     ]
 
     var body: some View {
-        ZStack {
-            CooksyTheme.ambientGradient
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let hPadding = Layout.horizontalPadding(for: width)
+            let topPad = max(Layout.topPadding(for: width), 12)
+            ZStack {
+                CooksyTheme.ambientGradient
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Top bar — close (X) + skip
-                HStack {
-                    Button(action: close) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(CooksyTheme.primaryText)
-                            .frame(width: 32, height: 32)
-                            .background(Circle().fill(CooksyTheme.elevatedSurface))
+                VStack(spacing: 0) {
+                    // Top bar — close (X) + skip
+                    HStack {
+                        Button(action: close) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(CooksyTheme.primaryText)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(CooksyTheme.elevatedSurface))
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Button(action: close) {
+                            Text("Passer")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundStyle(CooksyTheme.secondaryText)
+                                .padding(.horizontal, 16)
+                                .frame(minHeight: 36)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, hPadding)
+                    .padding(.top, topPad)
 
-                    Spacer()
-
-                    Button(action: close) {
-                        Text("Passer")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(CooksyTheme.secondaryText)
-                            .padding(.horizontal, 16)
-                            .frame(height: 36)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-
-                // Pager
-                TabView(selection: $index) {
-                    ForEach(Array(slides.enumerated()), id: \.offset) { pair in
-                        ImportGuideSlideView(slide: pair.element)
+                    // Pager
+                    TabView(selection: $index) {
+                        ForEach(Array(slides.enumerated()), id: \.offset) { pair in
+                            ImportGuideSlideView(
+                                slide: pair.element,
+                                availableSize: proxy.size
+                            )
                             .tag(pair.offset)
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, hPadding + 4)
+                        }
                     }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(maxHeight: .infinity)
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .frame(maxHeight: .infinity)
 
-                // Dots — capsule grows on selection
-                HStack(spacing: 8) {
-                    ForEach(slides.indices, id: \.self) { i in
-                        Capsule()
-                            .fill(i == index ? CooksyTheme.ctaOrangeDark : CooksyTheme.stroke)
-                            .frame(width: i == index ? 22 : 7, height: 7)
-                            .animation(.spring(response: 0.35, dampingFraction: 0.78), value: index)
+                    // Dots — capsule grows on selection
+                    HStack(spacing: 8) {
+                        ForEach(slides.indices, id: \.self) { i in
+                            Capsule()
+                                .fill(i == index ? CooksyTheme.ctaOrangeDark : CooksyTheme.stroke)
+                                .frame(width: i == index ? 22 : 7, height: 7)
+                                .animation(.spring(response: 0.35, dampingFraction: 0.78), value: index)
+                        }
                     }
-                }
-                .padding(.bottom, 16)
+                    .padding(.bottom, 16)
 
-                // CTA
-                Button(action: advance) {
-                    Text(isLastSlide ? "C'est parti" : "Suivant")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(CooksyTheme.accentGradient)
-                        )
-                        .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 10)
+                    // CTA
+                    Button(action: advance) {
+                        Text(isLastSlide ? "C'est parti" : "Suivant")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(CooksyTheme.accentGradient)
+                            )
+                            .shadow(color: CooksyTheme.primaryAccent.opacity(0.4), radius: 18, y: 10)
+                    }
+                    .buttonStyle(CooksyTheme.pressScale())
+                    .padding(.horizontal, hPadding + 8)
+                    .padding(.bottom, max(20, proxy.safeAreaInsets.bottom + 12))
+                    .frame(maxWidth: Layout.maxContentWidth)
                 }
-                .buttonStyle(CooksyTheme.pressScale())
-                .padding(.horizontal, 28)
-                .padding(.bottom, 28)
+                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -151,31 +161,37 @@ private struct ImportGuideSlide {
 
 private struct ImportGuideSlideView: View {
     let slide: ImportGuideSlide
+    let availableSize: CGSize
 
     var body: some View {
+        let illustrationH = Layout.illustrationHeight(for: availableSize)
+        let isTablet = Layout.DeviceClass.from(width: availableSize.width).isTablet
+        let titleSize: CGFloat = isTablet ? 30 : 24
+        let bodySize: CGFloat = isTablet ? 17 : 14
         VStack(spacing: 24) {
             Spacer(minLength: 8)
 
             illustration
-                .frame(maxHeight: 320)
+                .frame(maxHeight: illustrationH)
                 .frame(maxWidth: .infinity)
 
             Spacer(minLength: 4)
 
             VStack(spacing: 12) {
                 Text(slide.title)
-                    .font(.system(size: 24, weight: .bold, design: .serif))
+                    .font(.system(size: titleSize, weight: .bold, design: .serif))
                     .foregroundStyle(CooksyTheme.primaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(0.8)
 
                 Text(slide.body)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(size: bodySize, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: Layout.maxContentWidth)
 
             Spacer(minLength: 12)
         }
@@ -256,7 +272,7 @@ private struct VideoFeedIllustration: View {
             .offset(x: 80, y: 50)
         }
         .onAppear { pulse = true }
-        .frame(height: 320)
+        .frame(maxWidth: .infinity)
     }
 
     private func actionIcon(systemName: String, subtitle: String, highlighted: Bool = false) -> some View {
@@ -332,7 +348,7 @@ private struct ShareTapIllustration: View {
                 .offset(x: 50, y: 32)
         }
         .onAppear { pulse = true }
-        .frame(height: 320)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -344,7 +360,7 @@ private struct ShareSheetMoreIllustration: View {
     var body: some View {
         ShareSheetMockup(highlight: .more, pulse: pulse)
             .onAppear { pulse = true }
-            .frame(height: 320)
+            .frame(maxWidth: .infinity)
     }
 }
 
@@ -356,7 +372,7 @@ private struct ShareSheetCooksyIllustration: View {
     var body: some View {
         ShareSheetMockup(highlight: .cooksy, pulse: pulse)
             .onAppear { pulse = true }
-            .frame(height: 320)
+            .frame(maxWidth: .infinity)
     }
 }
 

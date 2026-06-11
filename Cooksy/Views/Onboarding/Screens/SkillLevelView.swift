@@ -8,7 +8,7 @@ struct SkillLevelView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tu es à quel niveau\nen cuisine ?",
+            title: "Tu es à quel niveau en cuisine ?",
             subtitle: "Sois honnête — on adapte la difficulté des recettes qu'on te propose.",
             canAdvance: coordinator.canAdvance(from: .skillLevel),
             progress: progress(for: .skillLevel),

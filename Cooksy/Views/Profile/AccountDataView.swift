@@ -26,9 +26,11 @@ struct AccountDataView: View {
                     sectionTitle("Zone sensible")
                     deleteAccountCard
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                 .padding(.top, 12)
-                .padding(.bottom, 80)
+                .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
+                .frame(maxWidth: Layout.maxReadingWidth)
+                .frame(maxWidth: .infinity)
             }
         }
         .navigationTitle("Gérer mes données")

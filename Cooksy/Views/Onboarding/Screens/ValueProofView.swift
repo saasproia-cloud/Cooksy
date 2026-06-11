@@ -10,7 +10,7 @@ struct ValueProofView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Pourquoi 24\u{00A0}000 gourmets\nont adopté Cooksy.",
+            title: "Pourquoi 24\u{00A0}000 gourmets ont adopté Cooksy.",
             subtitle: "La cuisine te revient simple — comme elle aurait toujours dû l'être.",
             ctaTitle: "Personnaliser mon expérience",
             canAdvance: true,

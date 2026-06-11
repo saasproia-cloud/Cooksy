@@ -97,7 +97,7 @@ struct CreateRecipeBookSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
-        .presentationDetents([.height(500)])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(34)
         .task {

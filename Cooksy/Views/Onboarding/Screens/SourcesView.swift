@@ -13,7 +13,7 @@ struct SourcesView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "D'où viennent tes\nrecettes préférées ?",
+            title: "D'où viennent tes recettes préférées ?",
             subtitle: "Plusieurs choix possibles. On priorisera ces sources dans ton feed.",
             canAdvance: coordinator.canAdvance(from: .sources),
             progress: progress(for: .sources),

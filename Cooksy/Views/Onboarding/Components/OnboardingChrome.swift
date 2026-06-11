@@ -43,37 +43,56 @@ struct OnboardingChrome<Content: View>: View {
     }
 
     var body: some View {
-        ZStack {
-            CooksyTheme.ambientGradient
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let cls = Layout.DeviceClass.from(width: width)
+            let hPadOuter = Layout.horizontalPadding(for: width)
+            let hPadContent = hPadOuter + (cls.isPhone ? 4 : 8)
+            // Compact (SE/8, mini) gets tighter vertical rhythm so the
+            // CTA never gets pushed off-screen. Bigger devices get more
+            // breathing room.
+            let topGap: CGFloat   = cls == .compact ? 6 : 12
+            let headerBottom: CGFloat = cls == .compact ? 14 : 24
+            let contentBottom: CGFloat = cls == .compact ? 12 : 24
+            let topBarBottom: CGFloat = cls == .compact ? 10 : 18
+            ZStack {
+                CooksyTheme.ambientGradient
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 18)
+                VStack(spacing: 0) {
+                    topBar(width: width)
+                        .padding(.horizontal, hPadOuter)
+                        .padding(.top, topGap)
+                        .padding(.bottom, topBarBottom)
 
-                header
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    header(width: width)
+                        .padding(.horizontal, hPadContent)
+                        .padding(.bottom, headerBottom)
 
-                ScrollView(showsIndicators: false) {
-                    content()
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                    ScrollView(showsIndicators: false) {
+                        content()
+                            .padding(.horizontal, hPadContent)
+                            .padding(.bottom, contentBottom)
+                            .frame(maxWidth: Layout.maxContentWidth)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    bottomBar(width: width)
+                        .padding(.horizontal, hPadContent)
+                        .padding(.bottom, max(20, proxy.safeAreaInsets.bottom + 12))
+                        .frame(maxWidth: Layout.maxContentWidth)
+                        .frame(maxWidth: .infinity)
                 }
-
-                Spacer(minLength: 0)
-
-                bottomBar
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
             }
         }
     }
 
-    private var topBar: some View {
-        HStack(spacing: 12) {
+    private func topBar(width: CGFloat) -> some View {
+        let cls = Layout.DeviceClass.from(width: width)
+        let chipSize: CGFloat = cls == .compact ? 32 : 36
+        return HStack(spacing: 12) {
             Button(action: {
                 OnboardingHaptics.selection()
                 onBack()
@@ -81,7 +100,7 @@ struct OnboardingChrome<Content: View>: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(CooksyTheme.primaryText)
-                    .frame(width: 36, height: 36)
+                    .frame(width: chipSize, height: chipSize)
                     .background(
                         Circle().fill(CooksyTheme.elevatedSurface)
                     )
@@ -110,34 +129,68 @@ struct OnboardingChrome<Content: View>: View {
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(CooksyTheme.secondaryText)
                         .padding(.horizontal, 12)
-                        .frame(height: 36)
+                        .frame(height: chipSize)
                 }
                 .buttonStyle(.plain)
             } else {
-                Color.clear.frame(width: 44, height: 36)
+                Color.clear.frame(width: 44, height: chipSize)
             }
         }
     }
 
-    private var header: some View {
+    /// Title size scaled per device class. Compact devices (SE/8/mini)
+    /// can't fit 30pt serif comfortably on two lines — we drop to 24pt
+    /// and let `minimumScaleFactor` handle very long strings.
+    private func titleFontSize(for width: CGFloat) -> CGFloat {
+        switch Layout.DeviceClass.from(width: width) {
+        case .compact:        return 24
+        case .regular:        return 28
+        case .large:          return 30
+        case .tabletCompact:  return 34
+        case .tablet:         return 38
+        }
+    }
+
+    private func subtitleFontSize(for width: CGFloat) -> CGFloat {
+        switch Layout.DeviceClass.from(width: width) {
+        case .compact:        return 14
+        case .regular:        return 15
+        case .large:          return 16
+        case .tabletCompact:  return 17
+        case .tablet:         return 18
+        }
+    }
+
+    private func header(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 30, weight: .bold, design: .serif))
+                .font(.system(size: titleFontSize(for: width), weight: .bold, design: .serif))
                 .foregroundStyle(CooksyTheme.primaryText)
+                .multilineTextAlignment(.leading)
+                .lineLimit(5)
+                .minimumScaleFactor(0.65)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: subtitleFontSize(for: width), weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(5)
+                    .minimumScaleFactor(0.78)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var bottomBar: some View {
-        Button(action: {
+    private func bottomBar(width: CGFloat) -> some View {
+        let cls = Layout.DeviceClass.from(width: width)
+        let ctaHeight: CGFloat = cls == .compact ? 48 : (cls.isTablet ? 56 : 52)
+        let ctaFont: CGFloat = cls == .compact ? 15 : 16
+        return Button(action: {
             guard canAdvance else {
                 OnboardingHaptics.warning()
                 return
@@ -146,10 +199,13 @@ struct OnboardingChrome<Content: View>: View {
             onAdvance()
         }) {
             Text(ctaTitle)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: ctaFont, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity)
-                .frame(height: 52)
+                .frame(height: ctaHeight)
                 .background(
                     Capsule(style: .continuous)
                         .fill(CooksyTheme.accentGradient)

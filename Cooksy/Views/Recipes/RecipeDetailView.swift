@@ -142,7 +142,26 @@ struct RecipeDetailView: View {
     // MARK: - Hero Section
 
     private func heroSection(recipe: Recipe) -> some View {
-        ZStack(alignment: .top) {
+        // Responsive hero height: caps to ~40% of the screen on phones
+        // (was 380pt = 57% on iPhone 8 — way too much), scales up on
+        // iPad without going edge-to-edge.
+        let heroHeight = Layout.heroHeight(for: CGSize(
+            width: ScreenMetrics.width,
+            height: ScreenMetrics.height
+        ))
+        // Top bar (back/share/menu) sits over the status bar — pin it
+        // to the actual safe area instead of a hardcoded 60pt that
+        // wastes space on iPhone 8 (20pt status bar) and pushes too
+        // low on Pro Max.
+        let topInset: CGFloat = {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+               let window = scene.windows.first {
+                return max(window.safeAreaInsets.top, 8) + 8
+            }
+            return 44
+        }()
+        return ZStack(alignment: .top) {
             // Background image or gradient
             Group {
                 if let heroImage = viewModel.heroImage {
@@ -154,7 +173,7 @@ struct RecipeDetailView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 380)
+            .frame(height: heroHeight)
             .clipped()
 
             // Gradient overlay for legibility
@@ -167,7 +186,7 @@ struct RecipeDetailView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 120)
+                .frame(height: heroHeight * 0.32)
 
                 Spacer(minLength: 0)
 
@@ -180,9 +199,9 @@ struct RecipeDetailView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 200)
+                .frame(height: heroHeight * 0.52)
             }
-            .frame(height: 380)
+            .frame(height: heroHeight)
 
             // Navigation buttons
             HStack {
@@ -206,8 +225,8 @@ struct RecipeDetailView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 60)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
+            .padding(.top, topInset)
 
             // Title overlaying bottom of hero
             VStack(alignment: .leading, spacing: 10) {
@@ -243,11 +262,11 @@ struct RecipeDetailView: View {
                     .minimumScaleFactor(0.8)
                     .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 52)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 4)
+            .padding(.bottom, max(36, heroHeight * 0.14))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .frame(height: 380)
+        .frame(height: heroHeight)
         .clipShape(
             UnevenRoundedRectangle(
                 topLeadingRadius: 0,

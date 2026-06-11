@@ -35,6 +35,22 @@ struct PremiumPaywallView: View {
 
     private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
     private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
+    /// `true` once RC has handed us the storefront. The CTA is gated on
+    /// this so a tap while loading shows the spinner instead of
+    /// triggering a "Les abonnements ne sont pas disponibles" error
+    /// (Guideline 2.1(b) failure).
+    private var offeringsReady: Bool { purchaseService.currentOffering != nil }
+    /// Title for the primary CTA — falls back to "Chargement…" while
+    /// the storefront is being fetched so the user sees a clear loading
+    /// state instead of a button that errors on tap.
+    private var ctaButtonTitle: String {
+        guard offeringsReady else { return "Chargement…" }
+        return PaywallCopy.ctaTitle(
+            plan: selectedPlan,
+            trialEligible: trialEligible,
+            giftDiscountPercent: effectiveGiftDiscount
+        )
+    }
     /// Active −X % gift discount, when applicable. Threaded into the
     /// plans sheet and the disclaimer so the displayed price always
     /// matches what Apple will actually charge.
@@ -128,7 +144,21 @@ struct PremiumPaywallView: View {
         }
         .onAppear {
             offers.paywallWasReached()
-            Task { await PurchaseService.shared.fetchOfferings() }
+            // Aggressively pre-fetch offerings the moment the paywall
+            // appears, with multiple retries — Apple Review's reviewers
+            // tap the CTA within 1-2 s of seeing the screen, and any
+            // "Les abonnements ne sont pas disponibles" alert at that
+            // moment fails Guideline 2.1(b). The CTA itself is also
+            // gated on `currentOffering != nil` so it never fires until
+            // this completes.
+            Task {
+                for attempt in 0..<6 {
+                    await PurchaseService.shared.fetchOfferings()
+                    if PurchaseService.shared.currentOffering != nil { break }
+                    let delay = UInt64(500_000_000) * UInt64(attempt + 1)
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
         }
         .sheet(isPresented: $showsPlansSheet) {
             PaywallPlansSheet(
@@ -143,7 +173,7 @@ struct PremiumPaywallView: View {
                 },
                 onClose: { showsPlansSheet = false }
             )
-            .presentationDetents([.height(440)])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
             .presentationCornerRadius(28)
         }
@@ -187,14 +217,11 @@ struct PremiumPaywallView: View {
             )
 
             PaywallPrimaryCTAButton(
-                title: PaywallCopy.ctaTitle(
-                    plan: selectedPlan,
-                    trialEligible: trialEligible,
-                    giftDiscountPercent: effectiveGiftDiscount
-                ),
-                isLoading: isPurchasing,
+                title: ctaButtonTitle,
+                isLoading: isPurchasing || !offeringsReady,
                 action: handlePurchase
             )
+            .disabled(!offeringsReady)
 
             PaywallDisclaimerText(
                 plan: selectedPlan,
@@ -317,6 +344,10 @@ struct PremiumPaywallView: View {
 
     private func handlePurchase() {
         guard !isPurchasing else { return }
+        // CRITICAL (Apple Guideline 2.1(b)): never run the purchase
+        // path without offerings loaded. The CTA is already disabled
+        // via `offeringsReady` so this is a defensive backstop.
+        guard offeringsReady else { return }
         OnboardingHaptics.medium()
 
         isPurchasing = true
@@ -325,18 +356,6 @@ struct PremiumPaywallView: View {
         let giftPercent = offers.giftDiscountPercent
 
         Task {
-            // Resilient offering fetch — App Review (Guideline 2.1(b))
-            // expects the purchase flow to function even when the
-            // storefront is slow to respond. Try up to 3 times with
-            // increasing back-off before surfacing an error.
-            if PurchaseService.shared.currentOffering == nil {
-                for attempt in 0..<3 {
-                    await PurchaseService.shared.fetchOfferings()
-                    if PurchaseService.shared.currentOffering != nil { break }
-                    let delay = UInt64(400_000_000) * UInt64(attempt + 1)
-                    try? await Task.sleep(nanoseconds: delay)
-                }
-            }
 
             do {
                 let outcome: PurchaseService.PurchaseOutcome

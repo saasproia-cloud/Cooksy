@@ -28,9 +28,9 @@ struct TrendingRecipePreviewView: View {
                         ingredientsCard
                         stepsCard
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                     .padding(.top, 24)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
                 }
             }
         }
@@ -114,7 +114,7 @@ struct TrendingRecipePreviewView: View {
                         }
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 54)
+                .padding(.top, Layout.customNavTopInset())
 
                 Spacer()
 

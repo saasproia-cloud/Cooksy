@@ -191,6 +191,23 @@ final class NotificationsCenter: NSObject, ObservableObject {
         logger.warning("APNs registration failed: \(error.localizedDescription, privacy: .public)")
     }
 
+    // MARK: - Delivered-notification sweep
+    //
+    // The UN delegate only fires on foreground arrival (`willPresent`) or
+    // explicit tap (`didReceive`). A push that lands while the app is
+    // backgrounded and gets swiped away never reaches either path — so
+    // it never lands in the in-app inbox. Sweep iOS's delivered queue on
+    // every foreground transition so the inbox stays a faithful mirror
+    // of what the user has actually received.
+    func importDeliveredNotifications() async {
+        let delivered = await center.deliveredNotifications()
+        guard !delivered.isEmpty else { return }
+        for notification in delivered {
+            let payload = NotificationInbox.IncomingPayload(from: notification)
+            NotificationInbox.shared.record(payload)
+        }
+    }
+
     // MARK: - Preferences
 
     /// Fetch the latest preferences from the backend. Falls back to

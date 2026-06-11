@@ -13,7 +13,7 @@ struct ShoppingView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Où fais-tu\ntes courses ?",
+            title: "Où fais-tu tes courses ?",
             subtitle: "On adapte les ingrédients à ce que tu trouves vraiment.",
             canAdvance: coordinator.canAdvance(from: .shopping),
             progress: progress(for: .shopping),

@@ -75,10 +75,26 @@ struct RootTabView: View {
             }
 
             if !isProcessingSharedImport {
-                RootQuickImportButton {
-                    showsQuickImportSheet = true
+                GeometryReader { proxy in
+                    let width = proxy.size.width
+                    let cls = Layout.DeviceClass.from(width: width)
+                    // iPhone 8 has no bottom safe area — without an extra
+                    // bump the floating button visually sits on top of the
+                    // tab bar. Notched devices already get clearance from
+                    // their 34pt safe area inset.
+                    let extraBump: CGFloat = proxy.safeAreaInsets.bottom < 1 ? 8 : 0
+                    let basePad: CGFloat = cls.isTablet ? 28 : 18
+                    HStack {
+                        Spacer()
+                        RootQuickImportButton(width: width) {
+                            showsQuickImportSheet = true
+                        }
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, basePad + extraBump)
                 }
-                .padding(.bottom, 18)
+                .allowsHitTesting(true)
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -482,11 +498,15 @@ private struct SavedImportedRecipeRoute: Identifiable {
 }
 
 private struct RootQuickImportButton: View {
+    let width: CGFloat
     let action: () -> Void
 
     @State private var isPressed = false
 
     var body: some View {
+        let size = Layout.floatingButtonSize(for: width)
+        let halo = size + 14
+        let iconSize = size * 0.34
         Button(action: {
             OnboardingHaptics.medium()
             action()
@@ -495,13 +515,13 @@ private struct RootQuickImportButton: View {
                 // Soft ambient halo
                 Circle()
                     .fill(CooksyTheme.ctaOrange.opacity(0.18))
-                    .frame(width: 78, height: 78)
+                    .frame(width: halo, height: halo)
                     .blur(radius: 6)
 
                 // Main pill
                 Circle()
                     .fill(CooksyTheme.accentGradient)
-                    .frame(width: 64, height: 64)
+                    .frame(width: size, height: size)
                     .overlay(
                         Circle()
                             .stroke(
@@ -520,7 +540,7 @@ private struct RootQuickImportButton: View {
                     .shadow(color: Color.black.opacity(0.10), radius: 4, y: 1)
 
                 Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: iconSize, weight: .semibold))
                     .foregroundStyle(.white)
             }
             .scaleEffect(isPressed ? 0.92 : 1.0)
@@ -596,7 +616,9 @@ private struct RootSharedImportOverlay: View {
                 Spacer()
                 Spacer()
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 16)
+            .frame(maxWidth: Layout.maxContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {

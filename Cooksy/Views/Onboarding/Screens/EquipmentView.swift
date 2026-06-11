@@ -13,7 +13,7 @@ struct EquipmentView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Quels équipements\nas-tu en cuisine ?",
+            title: "Quels équipements as-tu en cuisine ?",
             subtitle: "Plusieurs choix. On évitera les recettes qui demandent du matériel que tu n'as pas.",
             canAdvance: coordinator.canAdvance(from: .equipment),
             progress: progress(for: .equipment),

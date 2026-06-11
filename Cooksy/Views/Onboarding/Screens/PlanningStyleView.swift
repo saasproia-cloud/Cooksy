@@ -8,7 +8,7 @@ struct PlanningStyleView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Comment tu organises\ntes repas ?",
+            title: "Comment tu organises tes repas ?",
             subtitle: "Pour ajuster les suggestions à ton vrai rythme de vie.",
             canAdvance: coordinator.canAdvance(from: .planningStyle),
             progress: progress(for: .planningStyle),

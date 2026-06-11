@@ -20,6 +20,10 @@ struct PaywallView: View {
     private var trialDays: Int { purchaseService.annualTrialDays ?? 7 }
     private var trialEligible: Bool { purchaseService.isAnnualTrialEligible }
     private var trialShown: Bool { trialEligible && selectedPlan == .yearly }
+    /// `true` once RC's storefront has been fetched. Gates the CTA so
+    /// Apple's reviewer can never tap an "Abonne-toi" button that
+    /// errors with "Les abonnements ne sont pas disponibles".
+    private var offeringsReady: Bool { purchaseService.currentOffering != nil }
 
     var body: some View {
         GeometryReader { geo in
@@ -71,7 +75,7 @@ struct PaywallView: View {
                 },
                 onClose: { showsPlansSheet = false }
             )
-            .presentationDetents([.height(440)])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
             .presentationCornerRadius(28)
         }
@@ -80,6 +84,21 @@ struct PaywallView: View {
         }
         .sheet(isPresented: $showsPrivacySheet) {
             NavigationStack { PrivacyPolicyView() }
+        }
+        .onAppear {
+            // Apple Review (Guideline 2.1(b)): the storefront MUST be
+            // ready by the time the reviewer taps the CTA. Hammer the
+            // fetch on appear with retries so a slow first response
+            // doesn't produce a user-facing error.
+            Task {
+                for attempt in 0..<6 {
+                    if PurchaseService.shared.currentOffering != nil { break }
+                    await PurchaseService.shared.fetchOfferings()
+                    if PurchaseService.shared.currentOffering != nil { break }
+                    let delay = UInt64(500_000_000) * UInt64(attempt + 1)
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
         }
     }
 
@@ -90,10 +109,13 @@ struct PaywallView: View {
             PaywallReassuranceLine(plan: selectedPlan, trialEligible: trialEligible)
 
             PaywallPrimaryCTAButton(
-                title: PaywallCopy.ctaTitle(plan: selectedPlan, trialEligible: trialEligible),
-                isLoading: isActivating,
+                title: offeringsReady
+                    ? PaywallCopy.ctaTitle(plan: selectedPlan, trialEligible: trialEligible)
+                    : "Chargement…",
+                isLoading: isActivating || !offeringsReady,
                 action: activate
             )
+            .disabled(!offeringsReady)
 
             PaywallDisclaimerText(
                 plan: selectedPlan,
@@ -154,6 +176,9 @@ struct PaywallView: View {
 
     private func activate() {
         guard !isActivating else { return }
+        // CRITICAL: never proceed without offerings — the CTA is
+        // disabled while loading but this is a defensive backstop.
+        guard offeringsReady else { return }
         isActivating = true
         OnboardingHaptics.success()
         Task {

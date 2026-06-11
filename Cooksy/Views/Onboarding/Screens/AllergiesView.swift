@@ -14,7 +14,7 @@ struct AllergiesView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Des allergies\nà éviter ?",
+            title: "Des allergies à éviter ?",
             subtitle: "Sécurité d'abord — on retire automatiquement les recettes qui contiennent ces ingrédients.",
             canAdvance: coordinator.canAdvance(from: .allergies),
             progress: progress(for: .allergies),

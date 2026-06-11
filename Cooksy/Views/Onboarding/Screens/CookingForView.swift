@@ -8,7 +8,7 @@ struct CookingForView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tu cuisines\nsurtout pour qui ?",
+            title: "Tu cuisines surtout pour qui ?",
             subtitle: "On adapte le ton, la portion et l'inspiration des recettes.",
             canAdvance: coordinator.canAdvance(from: .cookingFor),
             progress: progress(for: .cookingFor),

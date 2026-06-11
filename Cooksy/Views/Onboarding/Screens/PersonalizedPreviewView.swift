@@ -12,7 +12,7 @@ struct PersonalizedPreviewView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Ton profil Cooksy\nest prêt ✨",
+            title: "Ton profil Cooksy est prêt ✨",
             subtitle: "Voici ce qu'on a retenu. Tu pourras le modifier à tout moment depuis ton profil.",
             ctaTitle: "Créer mon compte",
             canAdvance: true,

@@ -76,8 +76,8 @@ struct ImportedRecipeReviewView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 120)
+                    .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
+                    .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
                     .offset(y: -32)
                 }
                 .frame(maxWidth: .infinity)
@@ -165,7 +165,12 @@ struct ImportedRecipeReviewView: View {
     // MARK: - Hero Section
 
     private var heroSection: some View {
-        ZStack(alignment: .top) {
+        let heroHeight = Layout.heroHeight(for: CGSize(
+            width: ScreenMetrics.width,
+            height: ScreenMetrics.height
+        ))
+        let topInset = Layout.customNavTopInset()
+        return ZStack(alignment: .top) {
             Group {
                 if let heroImage = viewModel.heroImage {
                     Image(uiImage: heroImage)
@@ -176,7 +181,7 @@ struct ImportedRecipeReviewView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 380)
+            .frame(height: heroHeight)
             .clipped()
 
             VStack(spacing: 0) {
@@ -188,7 +193,7 @@ struct ImportedRecipeReviewView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 120)
+                .frame(height: heroHeight * 0.32)
 
                 Spacer(minLength: 0)
 
@@ -201,9 +206,9 @@ struct ImportedRecipeReviewView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 200)
+                .frame(height: heroHeight * 0.52)
             }
-            .frame(height: 380)
+            .frame(height: heroHeight)
 
             HStack {
                 heroActionButton(systemImage: "chevron.left") {
@@ -233,8 +238,8 @@ struct ImportedRecipeReviewView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 60)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
+            .padding(.top, topInset)
 
             VStack(alignment: .leading, spacing: 10) {
                 Spacer()
@@ -268,11 +273,11 @@ struct ImportedRecipeReviewView: View {
                     .minimumScaleFactor(0.8)
                     .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 52)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 4)
+            .padding(.bottom, max(36, heroHeight * 0.14))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .frame(height: 380)
+        .frame(height: heroHeight)
     }
 
     @ViewBuilder

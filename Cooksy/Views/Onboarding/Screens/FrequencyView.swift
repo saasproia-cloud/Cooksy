@@ -9,7 +9,7 @@ struct FrequencyView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tu cuisines combien\nde fois par semaine ?",
+            title: "Tu cuisines combien de fois par semaine ?",
             subtitle: "On cale la quantité de recettes qu'on te propose dessus.",
             canAdvance: coordinator.canAdvance(from: .frequency),
             progress: progress(for: .frequency),

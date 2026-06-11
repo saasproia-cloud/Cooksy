@@ -9,7 +9,7 @@ struct ChallengesView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Qu'est-ce qui te freine\nle plus en cuisine ?",
+            title: "Qu'est-ce qui te freine le plus en cuisine ?",
             subtitle: "Plusieurs choix. Ça nous aide à choisir les recettes qui lèvent tes vrais blocages.",
             canAdvance: coordinator.canAdvance(from: .challenges),
             progress: progress(for: .challenges),

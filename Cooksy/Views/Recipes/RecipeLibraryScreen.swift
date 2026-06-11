@@ -71,9 +71,11 @@ struct RecipeLibraryScreen: View {
                         emptyStateCard
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                 .padding(.top, 12)
-                .padding(.bottom, 150)
+                .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
+                .frame(maxWidth: Layout.maxReadingWidth)
+                .frame(maxWidth: .infinity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)

@@ -16,7 +16,7 @@ struct CuisinesGridView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Quelles cuisines\nveux-tu explorer ?",
+            title: "Quelles cuisines veux-tu explorer ?",
             subtitle: "Plusieurs choix bienvenus. Tap pour retourner la tuile.",
             canAdvance: coordinator.canAdvance(from: .cuisines),
             progress: progress(for: .cuisines),

@@ -13,7 +13,7 @@ struct CookingStyleView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Quel style de cuisine\nte ressemble ?",
+            title: "Quel style de cuisine te ressemble ?",
             subtitle: "Plusieurs choix. On mixera ces ambiances dans tes suggestions.",
             canAdvance: coordinator.canAdvance(from: .cookingStyle),
             progress: progress(for: .cookingStyle),

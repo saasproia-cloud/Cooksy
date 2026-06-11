@@ -46,9 +46,11 @@ struct CulinaryPreferencesView: View {
                         row(.challenges, title: "Freins en cuisine", value: challengesValue, isLast: true)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                 .padding(.top, 8)
-                .padding(.bottom, 60)
+                .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
+                .frame(maxWidth: Layout.maxReadingWidth)
+                .frame(maxWidth: .infinity)
             }
         }
         .navigationTitle("Préférences culinaires")

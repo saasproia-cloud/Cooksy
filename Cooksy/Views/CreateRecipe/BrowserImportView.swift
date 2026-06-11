@@ -200,7 +200,7 @@ struct BrowserImportView: View {
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(CooksyTheme.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 44)
+                    .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 20)
             }
 
             HStack(spacing: 14) {
@@ -234,8 +234,10 @@ struct BrowserImportView: View {
                 RoundedRectangle(cornerRadius: 38, style: .continuous)
                     .stroke(CooksyTheme.stroke.opacity(0.95), lineWidth: 2)
             )
-            .padding(.horizontal, 38)
+            .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width) + 14)
             .padding(.top, 34)
+            .frame(maxWidth: Layout.maxReadingWidth)
+            .frame(maxWidth: .infinity)
 
             Spacer()
         }

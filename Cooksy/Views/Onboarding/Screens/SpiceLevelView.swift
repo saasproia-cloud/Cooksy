@@ -8,7 +8,7 @@ struct SpiceLevelView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tu aimes ça\népicé ?",
+            title: "Tu aimes ça épicé ?",
             subtitle: "Pour qu'on dose le piment des recettes au bon niveau pour toi.",
             canAdvance: coordinator.canAdvance(from: .spiceLevel),
             progress: progress(for: .spiceLevel),

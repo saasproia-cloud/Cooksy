@@ -8,7 +8,7 @@ struct PrimaryGoalView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Qu'est-ce qui t'amène\nsur Cooksy ?",
+            title: "Qu'est-ce qui t'amène sur Cooksy ?",
             subtitle: "Une seule réponse. Tu pourras changer d'avis plus tard.",
             canAdvance: coordinator.canAdvance(from: .primaryGoal),
             progress: progress(for: .primaryGoal),

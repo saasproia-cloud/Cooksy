@@ -14,7 +14,7 @@ struct ServingSizeView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tu cuisines pour\ncombien de personnes ?",
+            title: "Tu cuisines pour combien de personnes ?",
             subtitle: "On adapte automatiquement les quantités. Tu pourras toujours ajuster une recette au cas par cas.",
             canAdvance: coordinator.canAdvance(from: .servings),
             progress: progress(for: .servings),

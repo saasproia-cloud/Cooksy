@@ -8,7 +8,7 @@ struct BudgetView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Quel budget\npour cuisiner ?",
+            title: "Quel budget pour cuisiner ?",
             subtitle: "On adapte les recettes à ce qui rentre dans tes courses.",
             canAdvance: coordinator.canAdvance(from: .budget),
             progress: progress(for: .budget),

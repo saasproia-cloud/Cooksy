@@ -23,9 +23,11 @@ struct MealPlanView: View {
                     mealSections
                     weekStatsCard
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Layout.horizontalPadding(for: ScreenMetrics.width))
                 .padding(.top, 18)
-                .padding(.bottom, 150)
+                .padding(.bottom, Layout.bottomScrollPadding(for: ScreenMetrics.width))
+                .frame(maxWidth: Layout.maxReadingWidth)
+                .frame(maxWidth: .infinity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)

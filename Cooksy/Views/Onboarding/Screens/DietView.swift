@@ -15,7 +15,7 @@ struct DietView: View {
 
     var body: some View {
         OnboardingChrome(
-            title: "Tu suis un régime\nparticulier ?",
+            title: "Tu suis un régime particulier ?",
             subtitle: "On filtre les recettes qu'on te propose. Touche « Aucun » si ça ne te concerne pas.",
             canAdvance: coordinator.canAdvance(from: .diet),
             progress: progress(for: .diet),
